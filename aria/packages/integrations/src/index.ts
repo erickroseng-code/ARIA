@@ -29,3 +29,8 @@ export {
   initializeClickUpClient,
   getClickUpClient,
 } from './clickup/ClickUpClient';
+
+export { ClickUpTaskService, type TaskCreateRequest, type Task } from './clickup/ClickUpTaskService';
+export { ClickUpManager } from './clickup/ClickUpManager';
+export { RateLimiter } from './clickup/RateLimiter';
+export { TaskQueue } from './clickup/TaskQueue';

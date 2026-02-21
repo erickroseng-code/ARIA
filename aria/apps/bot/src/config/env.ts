@@ -7,6 +7,11 @@ const envSchema = z.object({
   API_URL: z.string().default('http://localhost:3001'),
   ANTHROPIC_API_KEY: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required for audio transcription'),
+
+  // ClickUp Configuration
+  CLICKUP_API_KEY: z.string().optional(),
+  CLICKUP_DEFAULT_LIST_ID: z.string().optional(),
+  REDIS_URL: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
