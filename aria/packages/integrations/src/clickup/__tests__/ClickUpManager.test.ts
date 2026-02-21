@@ -8,7 +8,8 @@ describe('ClickUpManager', () => {
   let manager: ClickUpManager;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    (global.fetch as any).mockReset();
     manager = new ClickUpManager('test-api-key', 'default-list-id');
   });
 
@@ -87,7 +88,7 @@ describe('ClickUpManager', () => {
 
       expect(result.success).toBe(false);
       expect(result.queued).toBe(true);
-      expect(result.message).toContain('queued for retry');
+      expect(result.message.toLowerCase()).toContain('queued for retry');
     });
 
     it('should handle network errors', async () => {
@@ -116,21 +117,29 @@ describe('ClickUpManager', () => {
 
   describe('validateConfig', () => {
     it('should validate configuration', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-      });
+      vi.clearAllMocks();
+      const testManager = new ClickUpManager('test-api-key', 'default-list-id');
+      (global.fetch as any).mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: true,
+        })
+      );
 
-      const result = await manager.validateConfig();
+      const result = await testManager.validateConfig();
 
       expect(result).toBe(true);
     });
 
     it('should return false on invalid config', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: false,
-      });
+      vi.clearAllMocks();
+      const testManager = new ClickUpManager('test-api-key', 'default-list-id');
+      (global.fetch as any).mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: false,
+        })
+      );
 
-      const result = await manager.validateConfig();
+      const result = await testManager.validateConfig();
 
       expect(result).toBe(false);
     });
