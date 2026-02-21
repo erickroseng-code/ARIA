@@ -1,0 +1,63 @@
+# MAVERICK — Data Schema v1.0
+**Status:** Initial Draft
+**Author:** @data-engineer (Dara)
+**Project:** MAVERICK — AI Content Creation Squad
+
+---
+
+## 📊 Profile Snapshot (Scout)
+# Estrutura para os dados extraídos das redes sociais
+ProfileSnapshot:
+  username: string
+  fullName: string
+  bio: string
+  profilePicUrl: url
+  stats:
+    followers: number
+    following: number
+    posts: number
+  recentPosts:
+    - id: string
+      url: url
+      caption: text
+      type: enum [image, video, carousel, reel]
+      metrics:
+        likes: number
+        comments: number
+      postedAt: datetime
+  voiceTone:
+    - style: string
+      vocabulary: list[string]
+      emoji_frequency: string
+
+---
+
+## 📚 Knowledge Base (Scholar)
+# Estrutura para os dados do RAG
+KnowledgeSource:
+  id: string
+  sourceType: enum [book, video, transcript]
+  url: url
+  content: text (markdown)
+  chunks:
+    - id: string
+      vector: array[float]
+      text: text
+  metadata:
+    author: string
+    title: string
+    topics: list[string]
+
+---
+
+## 🎨 Design Reference (Designer)
+# Estrutura para as referências visuais
+DesignReference:
+  id: string
+  name: string
+  source: enum [figma, canva, image]
+  style:
+    colors: list[hex_codes]
+    fonts: list[string]
+    spacing_pattern: string
+  templateUrl: url

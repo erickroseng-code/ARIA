@@ -1,0 +1,62 @@
+id: "maverick-content-loop"
+name: "Maverick Content Creation Loop"
+description: "Fluxo completo do diagnóstico ao design."
+trigger: "user_request"
+
+steps:
+  # Fase 1: Análise & Coleta
+  - step: 1
+    id: "gather-context"
+    agent: "maverick-scout"
+    task: "analyze-social-profile"
+    description: "Analisa o perfil social atual."
+
+  - step: 2
+    id: "load-scholar"
+    agent: "maverick-scholar"
+    task: "search-semantic-knowledge"
+    description: "Prepara a base de conhecimento relevante."
+
+  # Fase 2: Estratégia
+  - step: 3
+    id: "diagnose-gap"
+    agent: "maverick-strategist"
+    task: "diagnose-profile-vs-knowledge"
+    description: "Compara o perfil com o conhecimento e gera o diagnóstico."
+
+  - step: 4
+    id: "suggest-plan"
+    agent: "maverick-strategist"
+    task: "generate-content-suggestions"
+    description: "Gera sugestões de posts e roteiros."
+
+  # Fase 3: Produção Criativa
+  - step: 5
+    id: "write-scripts"
+    agent: "maverick-copywriter"
+    task: "write-creative-script"
+    description: "Escreve os roteiros e legendas baseados no plano."
+
+  - step: 6
+    id: "create-visuals"
+    agent: "maverick-designer"
+    task: "generate-visual-design"
+    description: "Cria as artes no Figma/Canva usando os textos e referências."
+
+  # Fase 4: Entrega
+  - step: 7
+    id: "prepare-delivery"
+    agent: "maverick-designer"
+    task: "prepare-download-package"
+    description: "Disponibiliza os links de download no ambiente do usuário."
+
+artifacts:
+  - id: "diagnosis-report"
+    type: "document"
+    output: "./data/snapshots/diagnosis.md"
+  - id: "scripts-draft"
+    type: "document"
+    output: "./data/snapshots/scripts.md"
+  - id: "final-deliverables"
+    type: "folder"
+    output: "./data/deliverables/"

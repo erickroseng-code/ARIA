@@ -1,0 +1,32 @@
+# Catálogo de Conhecimento Maverick
+sources:
+  - id: "books-index"
+    type: "library"
+    path: "./books/"
+    description: "PDFs e ePubs com a base teórica de marketing/conteúdo."
+    items: []
+
+  - id: "videos-index"
+    type: "media"
+    path: "./videos/"
+    description: "Links de vídeos de referência e aulas."
+    items: []
+
+  - id: "transcripts-index"
+    type: "text"
+    path: "./transcripts/"
+    description: "Transcrição de vídeos e áudios para RAG."
+    items: []
+
+  - id: "content-models"
+    type: "templates"
+    path: "./models/"
+    description: "Modelos de roteiro (Storytelling, Reels, YouTube)."
+    items: []
+
+# Configuração de RAG (Maverick Scholar)
+rag_settings:
+  chunk_size: 1000
+  overlap: 100
+  language: "pt-BR"
+  embedding_model: "text-embedding-3-small"
