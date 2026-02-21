@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #050508;
+  --accent: #6366F1;
+  --text: #F0F0F5;
+  --surface: rgba(255,255,255,0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  @apply bg-[#050508] text-[#F0F0F5] font-sans;
+  scrollbar-color: #6366F1 #050508;
+  scrollbar-width: thin;
+}
+
+body {
+  @apply bg-[#050508] text-[#F0F0F5];
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-[20px] border border-white/10 rounded-2xl;
+}
+
+.text-gradient {
+  @apply bg-gradient-to-r from-indigo-400 to-indigo-600 bg-clip-text text-transparent;
+}

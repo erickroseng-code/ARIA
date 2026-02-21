@@ -1,0 +1,23 @@
+{
+  "name": "@aria/integrations",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/integrations/src/index.js",
+  "types": "dist/integrations/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/integrations/src/index.js",
+      "require": "./dist/integrations/src/index.js",
+      "types": "./dist/integrations/src/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.9.0"
+  }
+}
