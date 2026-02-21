@@ -28,10 +28,5 @@ export const ERROR_MESSAGE = `Desculpe, ocorreu um erro ao processar sua mensage
  * Escape MarkdownV2 special characters
  */
 export function escapeMarkdownV2(text: string): string {
-  const specialChars = ['.', '!', '-', '(', ')', '[', ']', '{', '}', '+', '=', '|', '#', '>', '~', '\\', '*', '_', '`'];
-  let escaped = text;
-  specialChars.forEach((char) => {
-    escaped = escaped.replace(new RegExp(`\\${char}`, 'g'), `\\${char}`);
-  });
-  return escaped;
+  return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
 }

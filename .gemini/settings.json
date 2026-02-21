@@ -74,5 +74,8 @@
         ]
       }
     ]
+  },
+  "experimental": {
+    "plan": true
   }
 }

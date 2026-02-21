@@ -1,62 +1,77 @@
 id: "maverick-content-loop"
-name: "Maverick Content Creation Loop"
-description: "Fluxo completo do diagnóstico ao design."
-trigger: "user_request"
+name: "Maverick Content Loop"
+description: "Fluxo completo de inteligência de conteúdo: Do diagnóstico do perfil à criação de roteiros aprovados."
+trigger: "manual" # Iniciado pelo usuário com um @username
 
 steps:
-  # Fase 1: Análise & Coleta
-  - step: 1
-    id: "gather-context"
+  # ---------------------------------------------------------
+  # FASE 1: Inteligência & Diagnóstico (Scout + Scholar)
+  # ---------------------------------------------------------
+  - id: "step-1-scout-analysis"
     agent: "maverick-scout"
-    task: "analyze-social-profile"
-    description: "Analisa o perfil social atual."
+    task: "analyze-profile-structure"
+    input: 
+      username: "{{trigger.username}}"
+    description: "Navegação inicial: Bio, Destaques e Promessa Visual."
 
-  - step: 2
-    id: "load-scholar"
-    agent: "maverick-scholar"
-    task: "search-semantic-knowledge"
-    description: "Prepara a base de conhecimento relevante."
+  - id: "step-2-scout-deep-dive"
+    agent: "maverick-scout"
+    task: "semantic-post-analysis"
+    input:
+      username: "{{trigger.username}}"
+    description: "Leitura semântica dos últimos 9-12 posts."
+    dependency: "step-1-scout-analysis"
 
-  # Fase 2: Estratégia
-  - step: 3
-    id: "diagnose-gap"
+  # ---------------------------------------------------------
+  # FASE 2: Estratégia (Strategist)
+  # ---------------------------------------------------------
+  - id: "step-3-gap-identification"
     agent: "maverick-strategist"
-    task: "diagnose-profile-vs-knowledge"
-    description: "Compara o perfil com o conhecimento e gera o diagnóstico."
+    task: "cross-reference-profile-knowledge"
+    input:
+      profile_data: "{{step-1.output}} + {{step-2.output}}"
+    description: "Cruza a realidade do perfil com a base de conhecimento do Scholar."
 
-  - step: 4
-    id: "suggest-plan"
+  - id: "step-4-plan-generation"
     agent: "maverick-strategist"
-    task: "generate-content-suggestions"
-    description: "Gera sugestões de posts e roteiros."
+    task: "compile-strategic-markdown"
+    input:
+      gap_analysis: "{{step-3.output}}"
+    description: "Gera o documento Markdown 'Plano de Ação Maverick'."
 
-  # Fase 3: Produção Criativa
-  - step: 5
-    id: "write-scripts"
+  # ---------------------------------------------------------
+  # FASE 3: Governança (Humano)
+  # ---------------------------------------------------------
+  - id: "step-5-approval-gate"
+    agent: "maverick-copywriter"
+    task: "human-approval-gate"
+    input:
+      strategic_plan: "{{step-4.output}}"
+    description: "Pausa o fluxo e aguarda aprovação humana do plano."
+    type: "human-interaction"
+
+  # ---------------------------------------------------------
+  # FASE 4: Execução Criativa (Copywriter + Designer)
+  # *Só executa se step-5 for 'approved'*
+  # ---------------------------------------------------------
+  - id: "step-6-script-writing"
     agent: "maverick-copywriter"
     task: "write-creative-script"
-    description: "Escreve os roteiros e legendas baseados no plano."
+    input:
+      approved_plan: "{{step-4.output}}"
+    description: "Escreve os roteiros finais definidos no plano."
+    condition: "{{step-5.approved}} == true"
 
-  - step: 6
-    id: "create-visuals"
+  - id: "step-7-visual-design"
     agent: "maverick-designer"
     task: "generate-visual-design"
-    description: "Cria as artes no Figma/Canva usando os textos e referências."
+    input:
+      scripts: "{{step-6.output}}"
+    description: "Gera as artes/carrosséis para os roteiros criados."
+    condition: "{{step-5.approved}} == true"
 
-  # Fase 4: Entrega
-  - step: 7
-    id: "prepare-delivery"
-    agent: "maverick-designer"
-    task: "prepare-download-package"
-    description: "Disponibiliza os links de download no ambiente do usuário."
-
-artifacts:
-  - id: "diagnosis-report"
-    type: "document"
-    output: "./data/snapshots/diagnosis.md"
-  - id: "scripts-draft"
-    type: "document"
-    output: "./data/snapshots/scripts.md"
-  - id: "final-deliverables"
-    type: "folder"
-    output: "./data/deliverables/"
+output:
+  final_deliverable: 
+    - "{{step-4.output}}" # O Plano Estratégico (Markdown/PDF)
+    - "{{step-6.output}}" # Os Roteiros (Texto)
+    - "{{step-7.output}}" # As Artes (Links/Arquivos)

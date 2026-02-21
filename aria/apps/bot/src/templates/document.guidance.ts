@@ -1,3 +1,5 @@
+import { escapeMarkdownV2 } from './responses';
+
 /**
  * Document upload guidance messages
  * Provides contextual tips based on document count
@@ -12,18 +14,19 @@ export interface DocumentGuidanceContext {
 
 export function getDocumentGuidance(context: DocumentGuidanceContext): string {
   const { documentCount, totalLimit, label } = context;
+  const safeLabel = escapeMarkdownV2(label);
   const remaining = totalLimit - documentCount;
 
   if (documentCount === 1) {
     return `
-🎯 *Ótimo! Primeiro documento enviado*
+🎯 *Ótimo\\! Primeiro documento enviado*
 
-_Label: ${label}_
+_Label: ${safeLabel}_
 
 📌 *Dicas para melhor análise:*
-• Envie documentos de diferentes setores (Comercial, Marketing, RH)
-• Inclua relatórios recentes (últimos 3-6 meses)
-• Documentos com mais contexto = análise mais completa
+• Envie documentos de diferentes setores \(Comercial, Marketing, RH\)
+• Inclua relatórios recentes \(últimos 3\\-6 meses\)
+• Documentos com mais contexto \\= análise mais completa
 
 📈 Pode enviar até ${totalLimit} documentos no total
     `;
@@ -34,11 +37,11 @@ _Label: ${label}_
     return `
 ✅ *Documento ${documentCount} adicionado com sucesso*
 
-_Label: ${label}_
+_Label: ${safeLabel}_
 
-📊 *Progresso: ${documentCount}/${totalLimit} documentos_
+📊 *Progresso: ${documentCount}/${totalLimit} documentos*
 
-${remaining === 1 ? "⏰ *Último documento disponível!*" : `📝 Pode enviar mais ${docsLeft}`}
+${remaining === 1 ? "⏰ *Último documento disponível\\!*" : `📝 Pode enviar mais ${docsLeft}`}
 
 ⏭️ Opções:
 • Enviar mais documentos
@@ -49,12 +52,12 @@ ${remaining === 1 ? "⏰ *Último documento disponível!*" : `📝 Pode enviar m
 
   // documentCount === totalLimit
   return `
-🎉 *PRONTO! ${totalLimit} Documentos Recebidos*
+🎉 *PRONTO\\! ${totalLimit} Documentos Recebidos*
 
-_Label: ${label}_
+_Label: ${safeLabel}_
 
 📊 *Análise está pronta com:*
-${Array.from({ length: documentCount }, (_, i) => `  ${i + 1}. ${i === documentCount - 1 ? `${label} ✓` : `Documento ${i + 1}`}`).join('\n')}
+${Array.from({ length: documentCount }, (_, i) => `  ${i + 1}\\. ${i === documentCount - 1 ? `${safeLabel} ✓` : `Documento ${i + 1}`}`).join('\n')}
 
 🚀 *Próximo passo:*
 • **/pronto** — Gerar Plano de Ataque com todos os documentos
@@ -67,7 +70,7 @@ export function getLimitReachedMessage(): string {
   return `
 ⚠️ *LIMITE DE 5 DOCUMENTOS ATINGIDO*
 
-Você tem 5 documentos na fila para análise.
+Você tem 5 documentos na fila para análise\\.
 
 🎯 *O que fazer agora?*
 
@@ -84,7 +87,11 @@ Você tem 5 documentos na fila para análise.
 
 export function getDocumentsListMessage(documents: Array<{ label: string; fileName: string }>): string {
   const list = documents
-    .map((doc, idx) => `${idx + 1}. *${doc.label}* \`${doc.fileName}\``)
+    .map((doc, idx) => {
+      const safeLabel = escapeMarkdownV2(doc.label);
+      const safeFileName = escapeMarkdownV2(doc.fileName);
+      return `${idx + 1}\\. *${safeLabel}* \`${safeFileName}\``;
+    })
     .join('\n');
 
   return `
@@ -100,7 +107,10 @@ ${list}
 }
 
 export function getReadyToGenerateMessage(documents: Array<{ label: string }>): string {
-  const docList = documents.map((doc, idx) => `${idx + 1}. ${doc.label}`).join('\n');
+  const docList = documents.map((doc, idx) => {
+      const safeLabel = escapeMarkdownV2(doc.label);
+      return `${idx + 1}\\. ${safeLabel}`;
+  }).join('\n');
 
   return `
 ✅ *Documentos Prontos para Análise*
@@ -109,6 +119,6 @@ ${docList}
 
 🚀 *Gerando Plano de Ataque...*
 
-⏳ Isso pode levar alguns segundos. Aguarde...
+⏳ Isso pode levar alguns segundos\\. Aguarde...
   `;
 }
