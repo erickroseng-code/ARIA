@@ -34,3 +34,6 @@ export { ClickUpTaskService, type TaskCreateRequest, type Task } from './clickup
 export { ClickUpManager } from './clickup/ClickUpManager';
 export { RateLimiter } from './clickup/RateLimiter';
 export { TaskQueue } from './clickup/TaskQueue';
+
+export { NotionTaskService, type NotionTaskCreateRequest, type NotionTask } from './notion/NotionTaskService';
+export { NotionManager } from './notion/NotionManager';
