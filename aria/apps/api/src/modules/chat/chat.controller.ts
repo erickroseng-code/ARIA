@@ -1,9 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { ChatMessageBody, ChatStreamBody } from './chat.schema';
+import { ChatService } from '@aria/core';
 
-let chatService: any; // Will be injected
+let chatService: ChatService;
 
-export function setChatService(service: any) {
+export function setChatService(service: ChatService) {
   chatService = service;
 }
 
@@ -14,6 +15,10 @@ export async function handleMessage(
   try {
     const { content, sessionId } = req.body;
     req.log.info({ sessionId }, 'Chat message request');
+
+    if (!chatService) {
+      throw new Error('ChatService not initialized');
+    }
 
     const response = await chatService.completeResponse(content, sessionId);
     return reply.send({ reply: response });
@@ -30,6 +35,10 @@ export async function handleStream(
   try {
     const { content, sessionId } = req.body;
     req.log.info({ sessionId }, 'Chat stream request');
+
+    if (!chatService) {
+      throw new Error('ChatService not initialized');
+    }
 
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
