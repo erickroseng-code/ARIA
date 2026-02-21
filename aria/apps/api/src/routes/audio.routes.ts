@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { AudioService } from '@aria/core';
-import { env } from '../config/env';
 
 const router = Router();
-const audioService = new AudioService(env.OPENAI_API_KEY);
+const audioService = new AudioService();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const MAX_AUDIO_SIZE = 10 * 1024 * 1024; // 10MB

@@ -1,8 +1,7 @@
 import { AudioService } from '@aria/core';
-import { env } from '../config/env';
 import { ERROR_MESSAGE } from '../templates/responses';
 
-const audioService = new AudioService(env.OPENAI_API_KEY);
+const audioService = new AudioService();
 const MAX_AUDIO_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**

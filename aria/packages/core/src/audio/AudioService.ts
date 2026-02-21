@@ -1,4 +1,7 @@
-import OpenAI from 'openai';
+import whisper from 'node-whisper';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 interface TranscriptionOptions {
   format?: 'wav' | 'mp3' | 'ogg' | 'm4a';
@@ -7,27 +10,32 @@ interface TranscriptionOptions {
 }
 
 /**
- * AudioService handles audio transcription using OpenAI's Whisper API
+ * AudioService handles audio transcription using local Whisper model
  * Features:
- * - Buffer-based transcription (base64 encoded)
+ * - Buffer-based transcription (local processing, no API calls)
  * - Retry logic with exponential backoff (2x: 1s, 2s)
  * - Audio validation (size <10MB, duration 1-60s)
  * - Immediate buffer cleanup
- * - Rate limiting coordination (3,500 RPM)
+ * - Free/offline transcription (no API keys needed)
  */
 export class AudioService {
-  private whisperClient: OpenAI;
   private retryDelays = [1000, 2000]; // exponential backoff: 1s, 2s
+  private tempDir: string;
 
-  constructor(apiKey: string) {
-    this.whisperClient = new OpenAI({ apiKey });
+  constructor() {
+    this.tempDir = path.join(os.tmpdir(), 'aria-audio');
+
+    // Ensure temp directory exists
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true });
+    }
   }
 
   /**
    * Transcribe audio from a buffer
    * @param buffer - Raw audio buffer
    * @param options - Transcription options
-   * @returns Promise containing transcribed text and duration
+   * @returns Promise containing transcribed text
    */
   async transcribeFromBuffer(
     buffer: Buffer,
@@ -41,16 +49,36 @@ export class AudioService {
     let lastError: Error | null = null;
     const finalLanguage = language || 'pt';
     const finalFormat = format || 'wav';
+    const tempFile = path.join(this.tempDir, `audio-${Date.now()}.${finalFormat}`);
 
     // Retry logic with exponential backoff
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const transcription = await this.callWhisperAPI(buffer, finalFormat, finalLanguage);
+        // Write buffer to temp file
+        fs.writeFileSync(tempFile, buffer);
 
-        // Cleanup buffer
+        // Transcribe using local Whisper
+        const result = await whisper(tempFile, {
+          language: finalLanguage === 'pt' ? 'pt' : finalLanguage,
+          output_format: 'json',
+        });
+
+        // Cleanup temp file and buffer
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
         buffer = Buffer.alloc(0);
 
-        return transcription;
+        // Extract text from result
+        interface TextResult {
+          text?: string;
+          segments?: Array<{ text: string }>;
+        }
+        const textResult = result as TextResult | string;
+        const text = typeof textResult === 'string'
+          ? textResult
+          : (textResult?.text || textResult?.segments?.map((s) => s.text)?.join('') || '');
+        return text.trim();
       } catch (error) {
         lastError = error as Error;
 
@@ -59,6 +87,15 @@ export class AudioService {
           const delay = this.retryDelays[attempt] || 1000;
           await this.sleep(delay);
         }
+      } finally {
+        // Always cleanup temp file
+        if (fs.existsSync(tempFile)) {
+          try {
+            fs.unlinkSync(tempFile);
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
       }
     }
 
@@ -66,29 +103,6 @@ export class AudioService {
     throw new Error(
       `Transcrição falhou após ${maxRetries + 1} tentativas. ${lastError?.message || 'Erro desconhecido'}`
     );
-  }
-
-  /**
-   * Internal method to call Whisper API
-   */
-  private async callWhisperAPI(
-    buffer: Buffer,
-    format: string,
-    language: string
-  ): Promise<string> {
-    // Convert Buffer to Uint8Array for Blob compatibility
-    const uint8Array = new Uint8Array(buffer);
-    const blob = new Blob([uint8Array], { type: `audio/${format}` });
-    const file = Object.assign(blob, { name: `audio.${format}` });
-
-    const response = await this.whisperClient.audio.transcriptions.create({
-      file: file as Parameters<typeof this.whisperClient.audio.transcriptions.create>[0]['file'],
-      model: 'whisper-1',
-      language,
-      temperature: 0,
-    });
-
-    return response.text;
   }
 
   /**
@@ -127,12 +141,12 @@ export class AudioService {
   }
 
   /**
-   * Get Whisper API rate limit info
+   * Get rate limit info (local Whisper has no limits)
    */
   getRateLimitInfo(): { rpm: number; description: string } {
     return {
-      rpm: 3500,
-      description: 'OpenAI Whisper API rate limit: 3,500 requests per minute',
+      rpm: Infinity,
+      description: 'Local Whisper: Unlimited transcriptions (no API rate limits)',
     };
   }
 }

@@ -5,8 +5,8 @@ describe('AudioService', () => {
   let audioService: AudioService;
 
   beforeEach(() => {
-    // Use a dummy API key for testing - we're not making real API calls
-    audioService = new AudioService('test-api-key');
+    // Create AudioService instance - uses local Whisper model
+    audioService = new AudioService();
   });
 
   describe('validateAudio', () => {
@@ -102,12 +102,12 @@ describe('AudioService', () => {
   });
 
   describe('getRateLimitInfo', () => {
-    it('should return correct rate limit info', () => {
+    it('should return unlimited rate limit info for local Whisper', () => {
       const info = audioService.getRateLimitInfo();
 
-      expect(info.rpm).toBe(3500);
-      expect(info.description).toContain('3,500');
-      expect(info.description).toContain('Whisper');
+      expect(info.rpm).toBe(Infinity);
+      expect(info.description).toContain('Unlimited');
+      expect(info.description.toLowerCase()).toContain('local');
     });
   });
 
