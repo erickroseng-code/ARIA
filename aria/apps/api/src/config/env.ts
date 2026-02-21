@@ -3,6 +3,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   PORT: z.string().default('3001').transform(Number),
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
+  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required for audio transcription'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
