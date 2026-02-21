@@ -1,4 +1,12 @@
 import type { PendingDocument, GeneratedAnalysis } from '@aria/shared';
+import type { TaskIntent } from './TaskIntentParser';
+
+export interface PendingTask {
+  intent: TaskIntent;
+  confidence: number;
+  preview: string;
+  createdAt?: Date;
+}
 
 export interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -28,6 +36,7 @@ export interface SessionContext {
   pendingAnalysis?: PendingAnalysis;
   pendingPropertyConflicts?: PendingPropertyConflicts;
   pendingDocuments?: PendingDocument[];
+  pendingTask?: PendingTask;
 }
 
 export interface ActiveContext {
@@ -135,6 +144,24 @@ export class ContextStore {
   async clearPendingDocuments(sessionId: string): Promise<void> {
     const context = await this.get(sessionId);
     context.pendingDocuments = [];
+  }
+
+  async appendPendingTask(sessionId: string, task: PendingTask): Promise<void> {
+    const context = await this.get(sessionId);
+    context.pendingTask = {
+      ...task,
+      createdAt: task.createdAt || new Date(),
+    };
+  }
+
+  async getPendingTask(sessionId: string): Promise<PendingTask | undefined> {
+    const context = await this.get(sessionId);
+    return context.pendingTask;
+  }
+
+  async clearPendingTask(sessionId: string): Promise<void> {
+    const context = await this.get(sessionId);
+    delete context.pendingTask;
   }
 }
 

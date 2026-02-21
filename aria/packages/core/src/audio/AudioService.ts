@@ -1,10 +1,5 @@
 import OpenAI from 'openai';
 
-interface TranscriptionResult {
-  text: string;
-  duration: number;
-}
-
 interface TranscriptionOptions {
   format?: 'wav' | 'mp3' | 'ogg' | 'm4a';
   language?: string;
@@ -84,15 +79,14 @@ export class AudioService {
     // Convert Buffer to Uint8Array for Blob compatibility
     const uint8Array = new Uint8Array(buffer);
     const blob = new Blob([uint8Array], { type: `audio/${format}` });
-    const file = blob as any; // OpenAI SDK accepts Blob-like objects
-    (file as any).name = `audio.${format}`;
+    const file = Object.assign(blob, { name: `audio.${format}` });
 
     const response = await this.whisperClient.audio.transcriptions.create({
-      file,
+      file: file as Parameters<typeof this.whisperClient.audio.transcriptions.create>[0]['file'],
       model: 'whisper-1',
       language,
       temperature: 0,
-    } as any);
+    });
 
     return response.text;
   }
