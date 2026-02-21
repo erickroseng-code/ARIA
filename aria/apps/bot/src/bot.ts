@@ -5,6 +5,7 @@ import { sessionMiddleware } from './middleware/session.middleware';
 import { startHandler, helpHandler, statusHandler, docsHandler, prontoHandler, cancelarHandler } from './handlers/command.handler';
 import { messageHandler } from './handlers/message.handler';
 import { documentHandler } from './handlers/document.handler';
+import { audioHandler } from './handlers/audio.handler';
 
 export const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 
@@ -25,6 +26,9 @@ bot.on('message:text', messageHandler);
 
 // Documents
 bot.on('message:document', documentHandler);
+
+// Voice messages
+bot.on('message:voice', audioHandler);
 
 // Start bot
 if (env.NODE_ENV !== 'production') {

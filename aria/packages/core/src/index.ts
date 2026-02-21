@@ -10,6 +10,9 @@ export { ClientService } from './clients/ClientService';
 // Intent parser exports
 export { IntentParser, getIntentParser } from './chat/IntentParser';
 
+// Audio service exports
+export { AudioService } from './audio/AudioService';
+
 // Document service exports
 export { DocumentService } from './documents/DocumentService';
 export { PdfParser } from './documents/PdfParser';

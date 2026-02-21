@@ -44,11 +44,13 @@ export class AudioService {
     this.validateAudio(buffer);
 
     let lastError: Error | null = null;
+    const finalLanguage = language || 'pt';
+    const finalFormat = format || 'wav';
 
     // Retry logic with exponential backoff
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const transcription = await this.callWhisperAPI(buffer, format, language);
+        const transcription = await this.callWhisperAPI(buffer, finalFormat, finalLanguage);
 
         // Cleanup buffer
         buffer = Buffer.alloc(0);
@@ -59,7 +61,7 @@ export class AudioService {
 
         // Don't retry on final attempt
         if (attempt < maxRetries) {
-          const delay = this.retryDelays[attempt];
+          const delay = this.retryDelays[attempt] || 1000;
           await this.sleep(delay);
         }
       }
@@ -79,12 +81,18 @@ export class AudioService {
     format: string,
     language: string
   ): Promise<string> {
+    // Convert Buffer to Uint8Array for Blob compatibility
+    const uint8Array = new Uint8Array(buffer);
+    const blob = new Blob([uint8Array], { type: `audio/${format}` });
+    const file = blob as any; // OpenAI SDK accepts Blob-like objects
+    (file as any).name = `audio.${format}`;
+
     const response = await this.whisperClient.audio.transcriptions.create({
-      file: new File([buffer], `audio.${format}`, { type: `audio/${format}` }),
+      file,
       model: 'whisper-1',
       language,
       temperature: 0,
-    });
+    } as any);
 
     return response.text;
   }
