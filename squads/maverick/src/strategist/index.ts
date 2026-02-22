@@ -1,13 +1,16 @@
 import { ScoutAgent, ProfileAnalysis } from '../scout/index';
 import { ScholarEngine } from '../scholar/engine';
+import { LLMService } from '../core/llm';
 
 export class StrategistAgent {
     private scout: ScoutAgent;
     private scholar: ScholarEngine;
+    private llm: LLMService;
 
     constructor() {
         this.scout = new ScoutAgent();
         this.scholar = new ScholarEngine();
+        this.llm = new LLMService();
     }
 
     async createStrategicPlan(username: string): Promise<string> {
@@ -26,75 +29,45 @@ export class StrategistAgent {
         console.log("--- Passo 2: Scholar (Busca de Referências) ---");
         await this.scholar.loadKnowledgeBase();
         
-        // Query baseada na promessa detectada na bio
-        const query = profileData.bio.detected_promise || "estratégia de conteúdo";
-        const knowledge = this.scholar.search(query);
-        const bestConcept = knowledge[0]?.content || "Conceito genérico de autoridade e constância.";
-
-        // 3. Geração do Plano (O Diagnóstico)
-        console.log("--- Passo 3: Compilando Plano de Ação ---");
-        return this.generateMarkdown(profileData, bestConcept);
-    }
-
-    private generateMarkdown(profile: ProfileAnalysis, coreConcept: string): string {
-        const date = new Date().toLocaleDateString('pt-BR');
-        const postsList = profile.recent_posts.map(p => `- [${p.type}] ${p.caption}`).join('\n');
+        // Query baseada na promessa detectada na bio + palavras chave gerais
+        const query = (profileData.bio.detected_promise || "") + " estratégia conteúdo autoridade vendas";
         
-        // Lógica simples de "Nota de Coerência"
-        const coherenceScore = profile.highlights.has_highlights ? 7 : 4;
-        const gapAnalysis = coherenceScore < 6 
-            ? "O perfil promete muito na Bio mas entrega pouco contexto visual (sem destaques claros)."
-            : "O perfil tem boa estrutura, mas precisa alinhar os posts à promessa da bio.";
+        // Aumentando o contexto para 10 fragmentos para dar mais material ao LLM
+        const knowledge = this.scholar.search(query, 10);
+        const knowledgeText = knowledge.map(k => `[Fonte: ${k.source}] ${k.content}`).join("\n\n");
 
-        return `
-# 🦅 Plano de Ação Maverick: @${profile.username}
-**Data:** ${date}
-**Status:** 🟡 Aguardando Aprovação
+        // 3. Geração do Plano (O Diagnóstico com IA)
+        console.log("--- Passo 3: Raciocínio Estratégico (LLM) ---");
+        
+        const prompt = `
+        VOCÊ É O MAVERICK STRATEGIST. Um consultor que segue estritamente a metodologia do expert abaixo.
+        
+        CONHECIMENTO DO EXPERT (Sua Bíblia):
+        ${knowledgeText || "Nenhum conhecimento específico encontrado. Use princípios de marketing de autoridade."}
 
----
+        ANÁLISE O PERFIL (O Cliente):
+        - Username: @${profileData.username}
+        - Bio: "${profileData.bio.text}"
+        - Destaques: ${profileData.highlights.titles.join(", ")}
+        - Posts Recentes: ${JSON.stringify(profileData.recent_posts.map(p => p.caption))}
 
-## 1. O Diagnóstico (A Realidade Atual)
+        TAREFA:
+        Gere um "Plano de Ação Maverick" em Markdown.
+        
+        REGRAS CRÍTICAS:
+        1. CRITIQUE o perfil usando os conceitos do Expert. (Ex: "O Expert diz X em [Fonte], mas você faz Y").
+        2. NÃO use "dicas genéricas de marketing". Use o vocabulário e os princípios do texto acima.
+        3. CITE a fonte do conceito usado (ex: "Segundo o Manifesto...").
+        
+        ESTRUTURA DO OUTPUT:
+        # 🦅 Plano de Ação Maverick: @${username}
+        ## 1. O Diagnóstico (Gap entre Bio e Realidade)
+        ## 2. A Estratégia (Baseada no Expert)
+           - Conceito Chave Aplicado: [Nome do Conceito]
+           - Citação: "[Trecho do texto base]"
+        ## 3. Próximos Passos (3 Ideias de Roteiros Práticos)
+        `;
 
-### 📸 A Promessa (Bio & Destaques)
-- **Bio:** "${profile.bio.text}"
-- **Promessa Identificada:** ${profile.bio.detected_promise}
-- **Destaques:** ${profile.highlights.has_highlights ? "✅ Possui destaques" : "❌ Sem destaques (Falha Grave)"}
-- **Resumo Visual:** ${profile.highlights.key_summary || "Nenhum resumo disponível."}
-
-### 📢 A Entrega (Análise dos Posts)
-*Últimos conteúdos analisados:*
-${postsList}
-
-- **Coerência:** ${coherenceScore}/10
-- **O Gap:** ${gapAnalysis}
-
----
-
-## 2. A Estratégia (O Caminho do Expert)
-
-Baseado no conceito da Base de Conhecimento:
-> *"${coreConcept}"*
-
-### 🎯 O Novo Posicionamento
-- **Ação Imediata:** Ajustar a linha editorial para refletir a promessa de "${profile.bio.detected_promise}".
-- **Destaques Obrigatórios:** Criar um destaque "Comece Aqui" explicando sua metodologia.
-
-### 🗓️ Pilares de Conteúdo Sugeridos
-1. **Prova Social:** Mostrar resultados (que validam a Bio).
-2. **Bastidores:** Mostrar o processo (que gera conexão, conforme o manifesto).
-3. **Técnico:** Ensinar o "como fazer" (para gerar autoridade).
-
----
-
-## 3. Próximos Passos (Para Aprovação)
-
-O **Maverick Copywriter** está pronto para escrever:
-
-1. **Roteiro 1 (Reels):** "Como eu atingi [Promessa da Bio] em 30 dias."
-2. **Roteiro 2 (Carrossel):** "O erro que todo iniciante comete em [Nicho]."
-3. **Roteiro 3 (Stories):** Sequência de abertura de caixa de perguntas.
-
-> **Comando:** Digite "Aprovado" para gerar os roteiros acima.
-`;
+        return await this.llm.chat(prompt);
     }
 }
