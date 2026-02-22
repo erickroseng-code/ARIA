@@ -14,11 +14,22 @@
     "build": "tsc",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "create:notion-report": "tsx src/integrations/NotionDocumentCreator.ts"
   },
   "dependencies": {
+    "bull": "^4.16.5",
+    "bullmq": "^5.70.0",
+    "ioredis": "^5.9.3",
     "mammoth": "^1.11.0",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.0",
     "openai": "^4.52.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.40.0",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0"
   }
 }

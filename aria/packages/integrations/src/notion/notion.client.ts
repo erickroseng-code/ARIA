@@ -25,6 +25,19 @@ export class NotionClient {
     this.databaseId = databaseId;
   }
 
+  // Expose SDK client methods for direct access
+  get pages() {
+    return this.client.pages;
+  }
+
+  get databases() {
+    return this.client.databases;
+  }
+
+  get blocks() {
+    return this.client.blocks;
+  }
+
   async listClients(): Promise<ClientRef[]> {
     // Check cache first
     const cached = this.cache.get('all_clients');
