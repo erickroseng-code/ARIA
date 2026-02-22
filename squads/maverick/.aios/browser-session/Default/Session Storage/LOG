@@ -1,2 +1,3 @@
-2026/02/21-13:05:27.833 fac Creating DB C:\Users\erick\Projects\aios-core\squads\maverick\.aios\browser-session\Default\Session Storage since it was missing.
-2026/02/21-13:05:27.863 fac Reusing MANIFEST C:\Users\erick\Projects\aios-core\squads\maverick\.aios\browser-session\Default\Session Storage/MANIFEST-000001
+2026/02/21-18:57:32.244 33dc Reusing MANIFEST C:\Users\erick\Projects\aios-core\squads\maverick\.aios\browser-session\Default\Session Storage/MANIFEST-000001
+2026/02/21-18:57:32.246 33dc Recovering log #3
+2026/02/21-18:57:32.258 33dc Reusing old log C:\Users\erick\Projects\aios-core\squads\maverick\.aios\browser-session\Default\Session Storage/000003.log 
