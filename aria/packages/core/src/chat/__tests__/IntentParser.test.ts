@@ -180,4 +180,76 @@ describe('IntentParser', () => {
       expect(result.entities.label).toBeDefined();
     });
   });
+
+  describe('CALENDAR detection (Story 4.1)', () => {
+    it('should detect "agenda reunião com Empresa X na quinta às 14h" with create action', async () => {
+      const result = await parser.parse('agenda reunião com Empresa X na quinta às 14h');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('create');
+      expect(result.entities.eventTitle).toBeDefined();
+      expect(result.entities.eventDate).toBeDefined();
+      expect(result.entities.eventTime).toBeDefined();
+    });
+
+    it('should detect "o que tenho hoje?" with query action', async () => {
+      const result = await parser.parse('o que tenho hoje?');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('query');
+      expect(result.entities.eventDate).toBeDefined();
+    });
+
+    it('should detect "quais reuniões tenho essa semana?" with query action', async () => {
+      const result = await parser.parse('quais reuniões tenho essa semana?');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('query');
+    });
+
+    it('should detect "cancela reunião com Empresa X" with cancel action', async () => {
+      const result = await parser.parse('cancela reunião com Empresa X');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('cancel');
+      expect(result.entities.eventTitle).toBeDefined();
+    });
+
+    it('should detect "schedule meeting tomorrow at 3pm" with create action', async () => {
+      const result = await parser.parse('schedule meeting tomorrow at 3pm');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('create');
+      expect(result.entities.eventDate).toBeDefined();
+      expect(result.entities.eventTime).toBeDefined();
+    });
+
+    it('should extract time correctly from "às 14:00"', async () => {
+      const result = await parser.parse('agenda reunião na quinta às 14:00');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.entities.eventTime).toContain('14');
+    });
+
+    it('should require confirmation for create action', async () => {
+      const result = await parser.parse('agenda reunião amanhã');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('create');
+      expect(result.requiresConfirmation).toBe(true);
+    });
+
+    it('should not require confirmation for query action', async () => {
+      const result = await parser.parse('o que tenho hoje?');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('query');
+      expect(result.requiresConfirmation).toBe(false);
+    });
+
+    it('should not require confirmation for cancel action', async () => {
+      const result = await parser.parse('cancela reunião');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('cancel');
+      expect(result.requiresConfirmation).toBe(false);
+    });
+
+    it('should detect "agendar" as create action', async () => {
+      const result = await parser.parse('agendar meeting com cliente');
+      expect(result.intent).toBe('CALENDAR');
+      expect(result.action).toBe('create');
+    });
+  });
 });

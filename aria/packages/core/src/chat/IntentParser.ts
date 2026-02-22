@@ -9,9 +9,10 @@ export interface ParsedCommand {
     | 'PLAN_OF_ATTACK_CREATE'
     | 'PROPERTY_UPDATE_ALL'
     | 'DOCUMENT_LABEL'
+    | 'CALENDAR'
     | 'OTHER';
   confidence: number;
-  action?: 'generate' | 'confirm'; // For PLAN_OF_ATTACK_CREATE: 'generate' (Story 2.3) or 'confirm' (Story 2.4)
+  action?: 'generate' | 'confirm' | 'create' | 'query' | 'cancel'; // For PLAN_OF_ATTACK_CREATE: 'generate' or 'confirm'; For CALENDAR: 'create', 'query', 'cancel'
   entities: {
     clientName?: string;
     taskTitle?: string;
@@ -19,6 +20,10 @@ export interface ParsedCommand {
     documentLabel?: string; // For DOCUMENT_LABEL: new label for document
     label?: string; // Alias for documentLabel (for simpler access)
     documentIndex?: number; // For DOCUMENT_LABEL: which document (0-based, -1 for last)
+    eventTitle?: string; // For CALENDAR: event title
+    eventDate?: string; // For CALENDAR: date (relative or absolute)
+    eventTime?: string; // For CALENDAR: time (e.g., "14:00", "2:30 PM")
+    eventDuration?: number; // For CALENDAR: duration in minutes (default 60)
   };
   requiresConfirmation: boolean;
 }
@@ -38,15 +43,19 @@ User message: "${message}"
 
 Respond with a JSON object with the following structure:
 {
-  "intent": "CLIENT_LOOKUP" | "CHAT" | "TASK_CREATE" | "STATUS_CHECK" | "PLAN_OF_ATTACK_CREATE" | "PROPERTY_UPDATE_ALL" | "DOCUMENT_LABEL" | "OTHER",
+  "intent": "CLIENT_LOOKUP" | "CHAT" | "TASK_CREATE" | "STATUS_CHECK" | "PLAN_OF_ATTACK_CREATE" | "PROPERTY_UPDATE_ALL" | "DOCUMENT_LABEL" | "CALENDAR" | "OTHER",
   "confidence": 0.0 to 1.0,
-  "action": "generate" | "confirm" | null (for PLAN_OF_ATTACK_CREATE only),
+  "action": "generate" | "confirm" | "create" | "query" | "cancel" | null (generate/confirm for PLAN_OF_ATTACK_CREATE, create/query/cancel for CALENDAR),
   "entities": {
     "clientName": "string or null",
     "taskTitle": "string or null",
     "status": "string or null",
     "documentLabel": "string or null (for DOCUMENT_LABEL)",
-    "documentIndex": "number or null (for DOCUMENT_LABEL, 0-based or -1 for last)"
+    "documentIndex": "number or null (for DOCUMENT_LABEL, 0-based or -1 for last)",
+    "eventTitle": "string or null (for CALENDAR)",
+    "eventDate": "string or null (for CALENDAR, relative or absolute)",
+    "eventTime": "string or null (for CALENDAR, e.g. '14:00')",
+    "eventDuration": "number or null (for CALENDAR, minutes)"
   },
   "requiresConfirmation": boolean
 }
@@ -73,6 +82,11 @@ Examples:
 - "renomear para Relatório Financeiro" → intent: "DOCUMENT_LABEL", documentLabel: "Relatório Financeiro", documentIndex: -1
 - "doc 1 é Comercial" → intent: "DOCUMENT_LABEL", documentLabel: "Comercial", documentIndex: 0
 - "mudar nome do segundo para Marketing" → intent: "DOCUMENT_LABEL", documentLabel: "Marketing", documentIndex: 1
+- "agenda reunião com Empresa X na quinta às 14h" → intent: "CALENDAR", action: "create", eventTitle: "Reunião com Empresa X", eventDate: "quinta", eventTime: "14:00"
+- "o que tenho hoje?" → intent: "CALENDAR", action: "query", eventDate: "hoje"
+- "quais reuniões tenho essa semana?" → intent: "CALENDAR", action: "query", eventDate: "semana que vem"
+- "cancela reunião com Empresa X" → intent: "CALENDAR", action: "cancel", eventTitle: "Empresa X"
+- "schedule meeting tomorrow at 3pm" → intent: "CALENDAR", action: "create", eventTitle: "meeting", eventDate: "tomorrow", eventTime: "15:00"
 - "Oi, tudo bem?" → intent: "CHAT"
 
 Respond ONLY with the JSON object, no additional text.`;
@@ -106,11 +120,15 @@ Respond ONLY with the JSON object, no additional text.`;
             status: parsed.entities?.status || undefined,
             documentLabel: parsed.entities?.documentLabel || undefined,
             documentIndex: parsed.entities?.documentIndex !== undefined ? parsed.entities.documentIndex : undefined,
+            eventTitle: parsed.entities?.eventTitle || undefined,
+            eventDate: parsed.entities?.eventDate || undefined,
+            eventTime: parsed.entities?.eventTime || undefined,
+            eventDuration: parsed.entities?.eventDuration || undefined,
           },
           requiresConfirmation: parsed.requiresConfirmation || false,
         };
         if (parsed.action) {
-          result.action = parsed.action as 'generate' | 'confirm';
+          result.action = parsed.action as 'generate' | 'confirm' | 'create' | 'query' | 'cancel';
         }
         return result;
       } catch {
@@ -220,6 +238,82 @@ Respond ONLY with the JSON object, no additional text.`;
         action: 'generate',
         entities: {},
         requiresConfirmation: false,
+      };
+    }
+
+    // CALENDAR patterns (agenda, schedule, reunião, cancelar, o que tenho, etc)
+    if (
+      lowerMsg.includes('agenda') ||
+      lowerMsg.includes('schedule') ||
+      lowerMsg.includes('reunião') ||
+      lowerMsg.includes('meeting') ||
+      lowerMsg.includes('o que tenho') ||
+      lowerMsg.includes('que tenho') ||
+      lowerMsg.includes('minha agenda') ||
+      lowerMsg.includes('cancelar reunião') ||
+      lowerMsg.includes('cancel') ||
+      lowerMsg.includes('agendar')
+    ) {
+      let eventTitle = '';
+      let eventDate = '';
+      let eventTime = '';
+      let action: 'create' | 'query' | 'cancel' = 'create';
+
+      // Determine action
+      if (lowerMsg.includes('cancelar') || lowerMsg.includes('cancel')) {
+        action = 'cancel';
+      } else if (
+        lowerMsg.includes('o que tenho') ||
+        lowerMsg.includes('que tenho') ||
+        lowerMsg.includes('quais reuniões')
+      ) {
+        action = 'query';
+      }
+
+      // Extract event title (text after "reunião com" or "meeting")
+      let titleMatch = message.match(/reunião\s+(?:com\s+)?(.+?)(?:\s+(?:na|no|em|no dia|on)|\.|$)/i);
+      if (!titleMatch) {
+        titleMatch = message.match(/meeting\s+(.+?)(?:\s+(?:on|at)|\.|$)/i);
+      }
+      if (!titleMatch && action === 'cancel') {
+        titleMatch = message.match(/(?:cancelar|cancel)\s+(?:reunião|meeting)?\s+(?:com\s+)?(.+?)(?:\.|$)/i);
+      }
+      if (titleMatch && titleMatch[1]) {
+        eventTitle = titleMatch[1].trim();
+      }
+
+      // Extract date (relative: "hoje", "amanhã", "quinta", "próxima segunda", etc)
+      let dateMatch = message.match(
+        /(?:na|no|em|no dia|on|today|tomorrow|amanhã|hoje)\s+(.+?)(?:\s+(?:às|at)|\.|$)/i
+      );
+      if (!dateMatch) {
+        dateMatch = message.match(/(?:hoje|amanhã|essa\s+semana|semana\s+que\s+vem|próxima|segunda|terça|quarta|quinta|sexta|tomorrow|next)/i);
+        if (dateMatch) {
+          eventDate = dateMatch[0];
+        }
+      }
+      if (dateMatch && dateMatch[1]) {
+        eventDate = dateMatch[1].trim();
+      }
+
+      // Extract time (e.g., "14h", "14:00", "2:30 PM", "3 PM")
+      let timeMatch = message.match(/(?:às|at)\s+(\d{1,2}):?(\d{2})?\s*(?:h|pm|am)?/i);
+      if (timeMatch) {
+        const hour = timeMatch[1];
+        const minute = timeMatch[2] || '00';
+        eventTime = `${hour}:${minute}`;
+      }
+
+      return {
+        intent: 'CALENDAR',
+        confidence: 0.85,
+        action,
+        entities: {
+          eventTitle: eventTitle || undefined,
+          eventDate: eventDate || undefined,
+          eventTime: eventTime || undefined,
+        },
+        requiresConfirmation: action === 'create',
       };
     }
 
