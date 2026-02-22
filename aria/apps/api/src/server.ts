@@ -1,5 +1,4 @@
 import Fastify from 'fastify';
-import Anthropic from '@anthropic-ai/sdk';
 import { env } from './config/env';
 import { logger } from './shared/logger';
 import { AppError } from './shared/errors/AppError';
@@ -8,6 +7,7 @@ import { registerCorsPlugin } from './plugins/cors.plugin';
 import { registerRateLimitPlugin } from './plugins/rate-limit.plugin';
 import { registerChatRoutes } from './modules/chat/chat.routes';
 import { ChatService, contextStore } from '@aria/core';
+import { createOpenRouterClient } from '@aria/core/ai/OpenRouterAdapter';
 import { setChatService } from './modules/chat/chat.controller';
 
 const startServer = async () => {
@@ -18,11 +18,9 @@ const startServer = async () => {
   await registerCorsPlugin(fastify);
   await registerRateLimitPlugin(fastify);
 
-  // Initialize Claude client and ChatService
-  const claude = new Anthropic({
-    apiKey: env.ANTHROPIC_API_KEY,
-  });
-  const chatService = new ChatService(claude, contextStore);
+  // Initialize OpenRouter client (compatible with Anthropic interface) and ChatService
+  const openRouterClient = createOpenRouterClient(env.OPENROUTER_API_KEY);
+  const chatService = new ChatService(openRouterClient, contextStore);
   setChatService(chatService);
 
   // Health endpoint

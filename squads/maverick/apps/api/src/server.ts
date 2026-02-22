@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import OpenAI from 'openai';
+import { generateWithFallback } from './utils/ai';
 
 dotenv.config();
 
@@ -12,17 +12,6 @@ const port = process.env.PORT || 3000;
 // Configuração do CORS
 app.use(cors());
 app.use(bodyParser.json());
-
-// Configuração do Cliente OpenAI (OpenRouter)
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY",
-  defaultHeaders: {
-    "HTTP-Referer": "http://localhost:3000",
-    "X-Title": "Maverick AIOS",
-    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`
-  }
-});
 
 // Rota de Health Check
 app.get('/health', (req, res) => {
@@ -55,10 +44,7 @@ app.post('/api/generate-script', async (req, res) => {
       Responda APENAS com o roteiro formatado.
     `;
 
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free", // Modelo Gratuito (ajustável)
-      messages: [{ role: "user", content: prompt }],
-    });
+    const completion = await generateWithFallback([{ role: "user", content: prompt }]);
 
     const script = completion.choices[0]?.message?.content || "Erro ao gerar roteiro.";
 
@@ -72,6 +58,24 @@ app.post('/api/generate-script', async (req, res) => {
 
 import { ScoutAgent } from './services/scout';
 import { StrategistAgent } from './services/strategist';
+import { ScholarAgent } from './services/scholar';
+
+// Rota: Busca Semântica (Simula @maverick-scholar RAG)
+app.post('/api/search-knowledge', async (req, res) => {
+  try {
+    const { query, limit } = req.body;
+    if (!query) return res.status(400).json({ error: "Missing query parameter." });
+
+    console.log(`[Maverick API] Searching knowledge base for: "${query}"`);
+    const scholar = new ScholarAgent();
+    const results = await scholar.searchKnowledge(query, limit || 3);
+
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error('[Maverick API] Error searching knowledge:', error);
+    res.status(500).json({ success: false, error: "Falha ao buscar no banco de conhecimento." });
+  }
+});
 
 // Rota: Gerar Estratégias (Simula @maverick-strategist)
 app.post('/api/generate-strategy', async (req, res) => {
@@ -113,10 +117,7 @@ app.post('/api/chat', async (req, res) => {
       ...messages.map((m: any) => ({ role: m.role, content: m.text }))
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free",
-      messages: apiMessages,
-    });
+    const completion = await generateWithFallback(apiMessages);
 
     res.json({ success: true, response: completion.choices[0]?.message?.content });
   } catch (error: any) {
@@ -179,11 +180,10 @@ app.post('/api/analyze-profile', async (req, res) => {
       Responda APENAS o JSON.
     `;
 
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }
-    });
+    const completion = await generateWithFallback(
+      [{ role: "user", content: prompt }],
+      { response_format: { type: "json_object" } }
+    );
 
     const content = completion.choices[0]?.message?.content;
     const analysisData = JSON.parse(content || "{}");

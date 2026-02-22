@@ -1,15 +1,5 @@
-import OpenAI from 'openai';
-
-// Assuming we use the same OpenAI client setup as in server.ts
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY",
-  defaultHeaders: {
-    "HTTP-Referer": "http://localhost:3000",
-    "X-Title": "Maverick AIOS",
-    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`
-  }
-});
+import { generateWithFallback } from '../../utils/ai';
+import { ScholarAgent } from '../scholar';
 
 export interface StrategyResult {
   id: number;
@@ -24,15 +14,26 @@ export class StrategistAgent {
   async generateActionPlan(profileData: any): Promise<StrategyResult[]> {
     console.log(`[Maverick Strategist] Generating action plan based on profile data.`);
 
+    // 1. Ask Scholar for Knowledge
+    const scholar = new ScholarAgent();
+    // Use the weak points or bio to form a query, or simply ask for general strategy if empty
+    const query = profileData.pontos_melhoria ? profileData.pontos_melhoria.join(" ") : "estratégia de conteúdo e persuasão";
+    const knowledgeDocs = await scholar.searchKnowledge(query, 3);
+
+    const knowledgeContext = knowledgeDocs.map(d => `[Fonte: ${d.source_file}]\n${d.content}`).join("\n\n");
+
     const prompt = `
       Atue como um Especialista em Estratégia de Conteúdo (@maverick-strategist).
       
-      OBJETIVO: Gerar 3 estratégias de conteúdo para o perfil com base na análise abaixo.
+      OBJETIVO: Gerar 3 estratégias de conteúdo para o perfil com base na análise abaixo e no CONHECIMENTO CIENTÍFICO fornecido.
       
       DADOS DO PERFIL (Output do Scout):
       ${JSON.stringify(profileData, null, 2)}
       
-      Gere 3 estratégias práticas e disruptivas para corrigir gaps e alavancar os pontos fortes.
+      CONHECIMENTO CIENTÍFICO/REFERÊNCIAS (Output do Scholar):
+      ${knowledgeContext || "Nenhum contexto extra retornado."}
+      
+      Gere 3 estratégias práticas e disruptivas para corrigir gaps e alavancar os pontos fortes, aplicando diretamente os conceitos das referências do Scholar acima (cite a fonte se for o caso).
       Formate a resposta ESTritamente como um array JSON com a seguinte estrutura:
       [
         {
@@ -50,11 +51,10 @@ export class StrategistAgent {
     `;
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: "google/gemini-2.0-flash-exp:free",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" } // Using json_object might require wrapping in an object if openrouter/gemini enforces it, but let's stick to array if possible, or wrap it.
-      });
+      const completion = await generateWithFallback(
+        [{ role: "user", content: prompt }],
+        { response_format: { type: "json_object" } }
+      );
 
       const content = completion.choices[0]?.message?.content;
 

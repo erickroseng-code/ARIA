@@ -8,12 +8,12 @@ async function testGenerateScript() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        topic: 'Dicas de Produtividade',
-        angle: 'Científico',
-        tone: 'Inspirador'
+        topic: "Como usar IA no dia a dia",
+        angle: "humor",
+        model: "mistralai/mistral-small-3.1-24b-instruct:free"
       })
     });
-    
+
     const data = await response.json();
     console.log('Generate Script Response Status:', response.status);
     console.log('Generate Script Result:', JSON.stringify(data, null, 2));
@@ -30,7 +30,7 @@ async function testAnalyzeProfile() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        handle: 'instagram' 
+        handle: 'instagram'
       })
     });
 
@@ -38,17 +38,56 @@ async function testAnalyzeProfile() {
     console.log('Analyze Profile Response Status:', response.status);
     // Truncating the analysis to avoid huge logs if it works
     if (data.analysis) {
-        console.log('Analyze Profile Result (Snippet):', {
-            success: data.success,
-            source: data.source,
-            bio: data.analysis.bio
-        });
+      console.log('Analyze Profile Result (Snippet):', {
+        success: data.success,
+        source: data.source,
+        bio: data.analysis.bio
+      });
     } else {
-        console.log('Analyze Profile Result:', JSON.stringify(data, null, 2));
+      console.log('Analyze Profile Result:', JSON.stringify(data, null, 2));
     }
 
   } catch (error) {
     console.error('Error testing analyze-profile:', error);
+  }
+}
+
+async function testSearchKnowledge() {
+  console.log('\nTesting /api/search-knowledge...');
+  try {
+    const response = await fetch(`${BASE_URL}/api/search-knowledge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'neuromarketing e persuasao', limit: 2 })
+    });
+    const data = await response.json();
+    console.log('Search Knowledge Response Status:', response.status);
+    console.log(`Search Knowledge Result retrieved ${data.results?.length} chunks.`);
+    if (data.results?.[0]) console.log('Top match similarity:', data.results[0].similarity);
+  } catch (error) {
+    console.error('Error testing search-knowledge:', error);
+  }
+}
+
+async function testGenerateStrategy() {
+  console.log('\nTesting /api/generate-strategy...');
+  try {
+    const mockProfileData = {
+      bio: { title: "Erick", description: "Estrategista focado em atrair clientes alto valor." },
+      pontos_melhoria: ["Precisa melhorar conversão", "Conteúdo muito genérico"],
+      pontos_fortes: ["Boa oratória"]
+    };
+
+    const response = await fetch(`${BASE_URL}/api/generate-strategy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileData: mockProfileData })
+    });
+    const data = await response.json();
+    console.log('Generate Strategy Response Status:', response.status);
+    console.log('Generate Strategy Result received strategies:', data.strategies?.length);
+  } catch (error) {
+    console.error('Error testing generate-strategy:', error);
   }
 }
 
@@ -71,9 +110,11 @@ async function waitForServer() {
 
 async function runTests() {
   await waitForServer();
-  
-  await testGenerateScript();
-  await testAnalyzeProfile();
+
+  await testSearchKnowledge();
+  await testGenerateStrategy();
+  // await testGenerateScript();
+  // await testAnalyzeProfile();
 }
 
 runTests();
