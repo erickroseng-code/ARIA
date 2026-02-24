@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ContextStore } from './ContextStore';
 import { PlanOfAttackService } from '../clients/PlanOfAttackService';
-import { getNotionClient, ClientProfileService } from '@aria/integrations';
+import { getNotionClient, ClientProfileService, getClickUpQueryService } from '@aria/integrations';
 import { getTaskIntentParser, type TaskIntent, type ParseResult } from './TaskIntentParser';
 import { getClientMatcher } from '../utils/client-matcher';
 import { AmbiguityResolver } from './AmbiguityResolver';
@@ -29,7 +29,92 @@ export class ChatService {
   constructor(
     private claude: Anthropic,
     private contextStore: ContextStore,
-  ) {}
+    private clickupQueryService?: any, // Using any here to avoid circular dep, typed in server.ts
+  ) { }
+
+  /**
+   * Detect if the user message is asking about ClickUp tasks/pipeline.
+   */
+  private isClickUpQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    const keywords = [
+      'tarefa', 'tarefas', 'clickup', 'pipeline', 'acelerada', 'acelerado',
+      'cliente', 'clientes', 'em andamento', 'aguardando', 'pendente',
+      'pipe', 'etapa', 'status', 'lista', 'listar',
+    ];
+    const isQuery = keywords.some((kw) => lower.includes(kw));
+    console.log('[ChatService.isClickUpQuery]', { message, isQuery });
+    return isQuery;
+  }
+
+  /**
+   * Fetch ClickUp context and format it for injection into the system prompt.
+   */
+  private async buildClickUpContext(message: string): Promise<string> {
+    const qs = this.clickupQueryService || getClickUpQueryService();
+    console.log('[ChatService.buildClickUpContext] qs available?', !!qs);
+    if (!qs) {
+      console.warn('[ChatService.buildClickUpContext] ClickUpQueryService is null/undefined!');
+      return '';
+    }
+
+    try {
+      const lower = message.toLowerCase();
+      // More explicit task keywords so "meus clientes" does not false trigger it
+      const isMyTasks = lower.includes('minha tarefa') || lower.includes('minhas tarefas') || lower.includes('meu id') || lower.includes('tarefas relacionadas ao meu id') || lower.includes('pra hoje') || lower.includes('tarefa');
+      const isClientPipeline = lower.includes('cliente') || lower.includes('acelerada') || lower.includes('acelerado') || lower.includes('pipeline') || lower.includes('pipe') || lower.includes('status');
+
+      console.log('[ChatService.buildClickUpContext] Intent detection:', { isMyTasks, isClientPipeline });
+
+      const parts: string[] = [];
+
+      if (isMyTasks) {
+        const filter = lower.includes('hoje') ? 'today' : lower.includes('atrasad') ? 'overdue' : undefined;
+
+        // Detectar se o usuário quer subtarefas
+        const wantsSubtasks = lower.includes('subtarefa')
+                           || lower.includes('com detalhes')
+                           || lower.includes('hierarquia')
+                           || lower.includes('sub-tarefa')
+                           || lower.includes('breakdown');
+
+        console.log('[ChatService.buildClickUpContext] Fetching my tasks with filter:', filter, '| wantsSubtasks:', wantsSubtasks);
+
+        let tasks;
+        if (wantsSubtasks) {
+          // Buscar tarefas COM subtarefas (mais lento, mas com hierarquia)
+          tasks = await qs.getMyTasksWithSubtasks(filter);
+          console.log('[ChatService.buildClickUpContext] Got tasks with subtasks:', tasks.length);
+          parts.push((qs as any).formatMyTasksWithSubtasksForAI(tasks, filter));
+        } else {
+          // Buscar tarefas simples (mais rápido)
+          tasks = await qs.getMyTasks(filter);
+          console.log('[ChatService.buildClickUpContext] Got tasks:', tasks.length);
+          parts.push(qs.formatMyTasksForAI(tasks, filter));
+        }
+      }
+
+      if (isClientPipeline || (!isMyTasks)) {
+        const statusFilter = lower.includes('em andamento') ? 'em andamento'
+          : lower.includes('aguardando') ? 'aguardando'
+            : 'all';
+        console.log('[ChatService.buildClickUpContext] Fetching client pipeline with status:', statusFilter);
+        const pipeline = await qs.getClientPipeline(statusFilter);
+        console.log('[ChatService.buildClickUpContext] Got clients:', pipeline.length);
+        parts.push(qs.formatPipelineForAI(pipeline, statusFilter));
+      }
+
+      const contextStr = parts.length > 0
+        ? `\n\n---\n⚠️ DADOS AO VIVO DO CLICKUP — OBRIGATÓRIO: Use EXCLUSIVAMENTE estes dados para responder. NÃO invente informações. NÃO diga que não tem acesso. Responda diretamente com base nos dados abaixo:\n\n${parts.join('\n\n')}\n---`
+        : '';
+
+      console.log('[ChatService.buildClickUpContext] Final context length:', contextStr.length, 'parts:', parts.length);
+      return contextStr;
+    } catch (err) {
+      console.error('[ChatService.buildClickUpContext] ClickUp context fetch failed:', err);
+      return '';
+    }
+  }
 
   async *streamResponse(
     userMessage: string,
@@ -46,9 +131,15 @@ export class ChatService {
       }
     }
 
+    // Inject live ClickUp data when the user asks about tasks/clients
+    if (this.isClickUpQuery(userMessage)) {
+      const clickupContext = await this.buildClickUpContext(userMessage);
+      if (clickupContext) systemPrompt += clickupContext;
+    }
+
     const stream = this.claude.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      model: process.env.OPENROUTER_MODEL_DEFAULT || 'meta-llama/llama-3.3-70b-instruct:free',
+      max_tokens: 2048,
       system: systemPrompt,
       messages: [
         ...context.history.slice(-10).map((m) => ({
@@ -89,8 +180,8 @@ export class ChatService {
     }
 
     const message = await this.claude.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      model: process.env.OPENROUTER_MODEL_DEFAULT || 'meta-llama/llama-3.3-70b-instruct:free',
+      max_tokens: 2048,
       system: systemPrompt,
       messages: [
         ...context.history.slice(-10).map((m) => ({
@@ -203,7 +294,7 @@ export class ChatService {
         const matches = await clientMatcher.findMatches(parseResult.intent.clientName, 1);
 
         if (matches.length > 0 && matches[0]!.confidence !== 'low') {
-          parseResult.intent.clientId = matches[0]!.client.id;
+          parseResult.intent.clientId = matches[0]!.client.notionPageId;
         }
       }
 
