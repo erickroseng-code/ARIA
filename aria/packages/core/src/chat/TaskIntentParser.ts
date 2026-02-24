@@ -3,8 +3,13 @@ import Anthropic from '@anthropic-ai/sdk';
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskDestination = 'clickup' | 'notion' | 'both';
 export type CompletenessLevel = 'complete' | 'ambiguous' | 'incomplete';
+export type TaskActionType = 'create' | 'update' | 'read';
 
 export interface TaskIntent {
+  // Action type
+  actionType?: TaskActionType; // create | update | read (defaults to create)
+
+  // For CREATE actions
   title?: string; // Required for complete tasks
   dueDate?: Date;
   dueDateRelative?: string; // "amanhã", "sexta", "próxima segunda", "em 2 dias", "14:00"
@@ -12,6 +17,13 @@ export interface TaskIntent {
   clientId?: string; // Notion page ID (if found)
   priority?: PriorityLevel; // low | medium | high | urgent
   destination?: TaskDestination; // clickup | notion | both
+
+  // For UPDATE actions
+  targetTaskName?: string; // Name of task to update
+  targetTaskId?: string; // ClickUp task ID (if found)
+  updateField?: string; // "status" | "priority" | "dueDate"
+  updateValue?: string; // New value ("concluído", "high", "amanhã")
+
   completeness: CompletenessLevel; // complete | ambiguous | incomplete
   ambiguityReason?: string; // Why it's ambiguous
   clarificationNeeded?: string; // Question to ask user
@@ -361,6 +373,46 @@ export class TaskIntentParser {
       preview,
       requiresConfirmation,
     };
+  }
+
+  /**
+   * Detect if text is an UPDATE intent (e.g., "altere status de X para Y")
+   */
+  detectUpdateIntent(text: string): { isUpdate: boolean; taskName?: string; newStatus?: string } {
+    const lower = text.toLowerCase();
+
+    // Keywords that indicate UPDATE action
+    const updateKeywords = ['altere', 'mude', 'atualize', 'change', 'update', 'modifique', 'troque'];
+    const statusKeywords = ['status', 'situação', 'estado'];
+
+    const isUpdate = updateKeywords.some(kw => lower.includes(kw)) &&
+                     (statusKeywords.some(kw => lower.includes(kw)) ||
+                      lower.includes('para ') ||
+                      lower.includes('->'));
+
+    if (!isUpdate) {
+      return { isUpdate: false };
+    }
+
+    // Try to extract task name and new status
+    // Patterns: "altere X para Y", "mude X para status Y", etc
+    const patterns = [
+      /(?:altere|mude|atualize|modifique)\s+(?:o status de\s+)?['\"]?([^'\"]+?)['\"]?\s+(?:para|de)\s+['\"]?([^'\"]+?)['\"]?$/i,
+      /['\"]?([^'\"]+?)['\"]?\s+(?:para|->)\s+['\"]?([^'\"]+?)['\"]?$/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return {
+          isUpdate: true,
+          taskName: match[1]?.trim(),
+          newStatus: match[2]?.trim(),
+        };
+      }
+    }
+
+    return { isUpdate: true }; // No details extracted
   }
 }
 

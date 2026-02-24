@@ -168,6 +168,28 @@ export class ChatService {
     });
   }
 
+  /**
+   * Process user message and route to appropriate handler
+   * Checks if it's a status update request first
+   */
+  async processMessage(userMessage: string, sessionId: string, userId?: string): Promise<{ type: 'update' | 'response'; result: TaskCreationResponse | string }> {
+    // Check if this is a status update request
+    if (this.isStatusUpdateQuery(userMessage)) {
+      console.log('[ChatService.processMessage] Detected STATUS UPDATE query');
+      const updateResponse = await this.handleTaskStatusUpdate({
+        text: userMessage,
+        sessionId: sessionId,
+        userId,
+      });
+
+      return { type: 'update', result: updateResponse };
+    }
+
+    // Otherwise, treat as normal response
+    const response = await this.completeResponse(userMessage, sessionId, userId);
+    return { type: 'response', result: response };
+  }
+
   async completeResponse(userMessage: string, sessionId: string, userId?: string): Promise<string> {
     const context = await this.contextStore.get(sessionId);
     let systemPrompt = 'Você é ARIA, um assistente pessoal profissional. Responda sempre em português.';
@@ -255,6 +277,42 @@ export class ChatService {
   }
 
   /**
+   * Detect if user is trying to update a task status
+   */
+  private isStatusUpdateQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    const updateKeywords = ['altere', 'mude', 'atualize', 'change', 'update', 'modifique', 'troque'];
+    const statusKeywords = ['status', 'situação', 'estado'];
+
+    return updateKeywords.some(kw => lower.includes(kw)) &&
+           (statusKeywords.some(kw => lower.includes(kw)) ||
+            lower.includes('para ') ||
+            lower.includes('->'));
+  }
+
+  /**
+   * Extract task name and new status from message
+   */
+  private extractStatusUpdate(message: string): { taskName?: string; newStatus?: string } {
+    const patterns = [
+      /(?:altere|mude|atualize|modifique)\s+(?:o status de\s+)?['\"]?([^'\"]+?)['\"]?\s+(?:para|de)\s+['\"]?([^'\"]+?)['\"]?$/i,
+      /['\"]?([^'\"]+?)['\"]?\s+(?:para|->)\s+['\"]?([^'\"]+?)['\"]?$/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = message.match(pattern);
+      if (match) {
+        return {
+          taskName: match[1]?.trim(),
+          newStatus: match[2]?.trim(),
+        };
+      }
+    }
+
+    return {};
+  }
+
+  /**
    * Parse user text and start task creation flow
    */
   async parseAndCreateTask(request: TaskCreationRequest): Promise<TaskCreationResponse> {
@@ -336,6 +394,148 @@ export class ChatService {
       return {
         status: 'error',
         error: `Erro ao processar tarefa: ${errorMsg}`,
+      };
+    }
+  }
+
+  /**
+   * Handle task status update request
+   */
+  async handleTaskStatusUpdate(request: TaskCreationRequest): Promise<TaskCreationResponse> {
+    try {
+      // Extract task name and new status
+      const { taskName, newStatus } = this.extractStatusUpdate(request.text);
+
+      if (!taskName || !newStatus) {
+        return {
+          status: 'error',
+          error: 'Não consegui entender qual tarefa mudar e para qual status. Tente: "Altere [tarefa] para [status]"',
+        };
+      }
+
+      // Get all tasks to find by name
+      const qs = this.clickupQueryService || getClickUpQueryService();
+      if (!qs) {
+        return {
+          status: 'error',
+          error: 'Serviço ClickUp não disponível.',
+        };
+      }
+
+      const allTasks = await qs.getMyTasks();
+      const matchingTask = allTasks.find((t: any) =>
+        t.name.toLowerCase().includes(taskName.toLowerCase()) ||
+        taskName.toLowerCase().includes(t.name.toLowerCase())
+      );
+
+      if (!matchingTask) {
+        return {
+          status: 'error',
+          error: `Não encontrei nenhuma tarefa com o nome "${taskName}". Tarefas disponíveis: ${allTasks.slice(0, 3).map((t: any) => `"${t.name}"`).join(', ')}...`,
+        };
+      }
+
+      // Map user-friendly status names to ClickUp status
+      const statusMap: Record<string, string> = {
+        'concluído': 'concluído',
+        'completo': 'concluído',
+        'done': 'concluído',
+        'finalizado': 'concluído',
+        'em andamento': 'em andamento',
+        'andando': 'em andamento',
+        'in progress': 'em andamento',
+        'aguardando': 'aguardando',
+        'waiting': 'aguardando',
+        'pendente': 'aguardando',
+      };
+
+      const normalizedStatus = statusMap[newStatus.toLowerCase()] || newStatus;
+
+      // Store for confirmation
+      await this.contextStore.appendPendingTask(request.sessionId, {
+        intent: {
+          actionType: 'update',
+          targetTaskName: matchingTask.name,
+          targetTaskId: matchingTask.id,
+          updateField: 'status',
+          updateValue: normalizedStatus,
+          completeness: 'complete',
+          rawText: request.text,
+        } as any,
+        confidence: 0.9,
+        preview: `Status de "${matchingTask.name}" será alterado de "${matchingTask.status}" para "${normalizedStatus}"`,
+      });
+
+      return {
+        status: 'pending_clarification',
+        preview: `✅ Encontrei a tarefa "${matchingTask.name}"\n\n📝 Alteração:\n   Status atual: "${matchingTask.status}"\n   Novo status: "${normalizedStatus}"\n\nTem certeza? (sim/não)`,
+        clarificationQuestion: 'Confirma a alteração?',
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      return {
+        status: 'error',
+        error: `Erro ao processar atualização: ${errorMsg}`,
+      };
+    }
+  }
+
+  /**
+   * Confirm and execute task status update
+   */
+  async confirmAndExecuteStatusUpdate(
+    sessionId: string,
+    confirmed: boolean,
+  ): Promise<TaskCreationResponse> {
+    try {
+      const pendingTask = await this.contextStore.getPendingTask(sessionId);
+
+      if (!pendingTask) {
+        return {
+          status: 'error',
+          error: 'Nenhuma alteração pendente de confirmação.',
+        };
+      }
+
+      if (!confirmed) {
+        await this.contextStore.clearPendingTask(sessionId);
+        return {
+          status: 'error',
+          error: 'Alteração cancelada.',
+        };
+      }
+
+      const intent = pendingTask.intent as any;
+
+      if (intent.actionType !== 'update' || !intent.targetTaskId) {
+        return {
+          status: 'error',
+          error: 'Operação inválida.',
+        };
+      }
+
+      // Execute the update
+      const qs = this.clickupQueryService || getClickUpQueryService();
+      if (!qs) {
+        return {
+          status: 'error',
+          error: 'Serviço ClickUp não disponível.',
+        };
+      }
+
+      const result = await qs.updateTaskStatus(intent.targetTaskId, intent.updateValue);
+
+      await this.contextStore.clearPendingTask(sessionId);
+
+      return {
+        status: 'created',
+        preview: `✅ ${result}`,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      return {
+        status: 'error',
+        error: `Erro ao atualizar tarefa: ${errorMsg}`,
       };
     }
   }
