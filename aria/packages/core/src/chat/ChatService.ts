@@ -59,9 +59,12 @@ export class ChatService {
     return lower.includes('agenda') ||
       lower.includes('calendário') || lower.includes('calendario') ||
       lower.includes('calendar') ||
-      lower.includes('reunião') || lower.includes('reuniao') ||
+      lower.includes('reunião') || lower.includes('reuniao') || lower.includes('reuniões') ||
       lower.includes('evento') || lower.includes('eventos') ||
-      lower.includes('compromisso');
+      lower.includes('compromisso') || lower.includes('compromissos') ||
+      lower.includes('chamada') || lower.includes('meeting') || lower.includes('call') ||
+      lower.includes('horário') || lower.includes('horario') ||
+      lower.includes('agendar') || lower.includes('marcar') || lower.includes('bloqueie');
   }
 
   /** Detect if user is asking about Gmail */
@@ -238,7 +241,21 @@ export class ChatService {
       'agende', 'agenda', 'marque', 'marca', 'schedule',
       'cancele', 'cancela', 'cancel', 'desfaça', 'deletar', 'arquivar',
       'arquiva', 'archive', 'restaure', 'restaura', 'restore',
-      'substitua', 'substitui', 'replace', 'atualize', 'atualiza', 'update'];
+      'substitua', 'substitui', 'replace', 'atualize', 'atualiza', 'update',
+      // Verbos adicionais — PT-BR comuns que os usuários usam
+      'incluir', 'inclua', 'incluí', 'incluo', 'incluindo',
+      'inserir', 'insira', 'insiro', 'inserindo',
+      'editar', 'edite', 'editando',
+      'alterar', 'altere', 'alterando',
+      'colocar', 'coloque', 'coloca', 'colocando',
+      'adicionar', 'acrescentar', 'colocar',
+      'registrar', 'registre', 'registro',
+      'anotar', 'anote', 'anota',
+      'salvar', 'salve', 'salva',
+      'fazer', 'faça', 'faz',
+      'colocar', 'coloque',
+      'lançar', 'lance', 'lança',
+      'marcar', 'ajustar', 'organize', 'organizar'];
     const WRITE_TARGETS = ['email', 'e-mail', 'mensagem', 'mail',
       'evento', 'reunião', 'reuniao', 'compromisso', 'meeting', 'lembrete', 'agenda', 'call',
       'arquivo', 'pasta', 'folder', 'file',
@@ -264,7 +281,11 @@ export class ChatService {
 
     const isCalendarKeywords = lower.includes('evento') || lower.includes('reunião') || lower.includes('reuniao') ||
       lower.includes('agendar') || lower.includes('agenda') || lower.includes('marcar') ||
-      lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call');
+      lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call') ||
+      lower.includes('meeting') || lower.includes('reuniões') || lower.includes('horário') ||
+      lower.includes('horario') || lower.includes('calendário') || lower.includes('calendario') ||
+      lower.includes('bloquear') || lower.includes('bloqueie') || lower.includes('slot') ||
+      lower.includes('disponibilidade') || lower.includes('encontro');
 
     const isCalendarCreateAction = isCalendarKeywords && !isDeletionVerb && !isUpdateVerb;
     const isCalendarDeleteAction = isCalendarKeywords && isDeletionVerb;
@@ -545,7 +566,7 @@ Você tem acesso ao Google Workspace do usuário com estas capacidades:
 📊 Sheets: ler dados de planilhas, escrever em células, acrescentar linhas, limpar intervalos, criar abas.
 📄 Docs: ler documentos, adicionar texto no final, substituir texto, criar novo documento.
 📝 ClickUp: pesquisar pastas, tarefas, pipelines, mudar status, acessar clientes.
-📅 Calendar: ler, criar, editar e excluir eventos da agenda. Use o formato ISO 8601 obrigatoriamente para startTime e endTime (ex: 2026-03-01T14:30:00-03:00) ao acionar as intents createEvent e updateEvent.
+📅 Calendar: ler, criar, editar e excluir eventos da agenda.
 
 REGRA CRÍTICA — DADOS DO GOOGLE WORKSPACE:
 - Os dados do Workspace já foram buscados ANTES desta mensagem e aparecem no contexto do sistema.
@@ -554,9 +575,11 @@ REGRA CRÍTICA — DADOS DO GOOGLE WORKSPACE:
 - Se o contexto contém dados reais (eventos, emails, arquivos), use-os diretamente na resposta.
 - Jamais invente dados que não estejam no contexto.
 
-REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, etc):
-- Quando o usuário pedir uma ação de escrita (ex: "agende uma reunião", "exclua o arquivo", "envie um email", "acrescente na planilha"), VOCÊ DEVE OBRIGATORIAMENTE INVOCAR A FERRAMENTA \`execute_workspace_action\`.
-- Nunca responda com texto longo simulando sucesso sem antes invocar a ferramenta correspondente. Seu poder de agir com o Google Workspace real e o Calendário reside unicamente no uso desta ferramenta. Invoque-a de forma silenciosa e aguarde.`;
+REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar, etc):
+- O sistema já processou e EXECUTOU automaticamente a ação antes desta mensagem chegar aqui.
+- Se uma ação foi executada, o resultado já foi enviado diretamente ao usuário. NÃO repita nem simule a ação.
+- Se chegou a esta mensagem, é porque a ação não foi necessária — responda normalmente à pergunta do usuário.
+- NUNCA simule sucesso de uma ação (ex: "Evento criado!") sem que o sistema tenha confirmado a execução real.`;
 
     if (userId) {
       const activeClientId = await this.contextStore.getActiveClient(userId);
@@ -676,25 +699,11 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, etc):
       if (workspaceContext) systemPrompt += workspaceContext;
     }
 
-    const claudeTools: any[] = [{
-      name: "execute_workspace_action",
-      description: "Executa AÇÕES REAIS no Google Workspace do usuário. ATENÇÃO: Nunca afirme que criou ou modificou algo na agenda/email/documento sem ANTES chamar esta ferramenta.",
-      input_schema: {
-        type: "object",
-        properties: {
-          service: { type: "string", description: "O serviço afetado", enum: ["drive", "gmail", "sheets", "docs", "calendar"] },
-          action: { type: "string", description: "A ação a ser executada" },
-          params: { type: "object", description: "Os parâmetros da ação" }
-        },
-        required: ["service", "action", "params"]
-      }
-    }];
-
+    // Ações de escrita já tratadas por tryExecuteWorkspaceWrite acima (sem tool calling - compatível com Groq)
     const message = await this.claude.messages.create({
       model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       max_tokens: 2048,
       system: systemPrompt,
-      tools: claudeTools,
       messages: [
         ...context.history.slice(-10).map((m) => ({
           role: m.role,
@@ -709,16 +718,6 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, etc):
     for (const block of message.content) {
       if (block.type === 'text') {
         response += block.text;
-      } else if (block.type === 'tool_use' && block.name === 'execute_workspace_action') {
-        try {
-          const payload = block.input as any;
-          const { WorkspaceActionService } = await import('@aria/integrations');
-          const actionSvc = new WorkspaceActionService();
-          const result = await actionSvc.execute(payload);
-          response += `\n\n[Ação de Sistema via API Executada]\nResultado: ${result.message}`;
-        } catch (err: any) {
-          response += `\n\n[Falha de Sistema na Ação da API]\nDetalhe: ${err.message}`;
-        }
       }
     }
 

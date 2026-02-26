@@ -1,13 +1,9 @@
-// @ts-nocheck
 /**
  * CalendarHandler: Integra CALENDAR intent com CalendarEventService
  * Trata comandos de agenda (criar, consultar, cancelar eventos)
- *
- * NOTE: CalendarEventService and OAuthTokenManager are not yet packaged in @aria/integrations.
- * All methods fall back gracefully to auth_required response until V2.
  */
 
-import { CalendarService } from '@aria/integrations';
+import { CalendarService, isWorkspaceConfigured } from '@aria/integrations';
 
 import type { ParsedCommand } from '../IntentParser';
 
@@ -57,13 +53,13 @@ export class CalendarHandler {
     service: CalendarService,
     command: ParsedCommand
   ): Promise<CalendarHandlerResponse> {
-    // Check if user has Google Workspace authorization
-    const hasToken = localStorage.getItem('google_auth_token');
-    if (!hasToken) {
+    // Check if user has Google Workspace authorization (server-side, no localStorage)
+    const configured = await isWorkspaceConfigured();
+    if (!configured) {
       return {
         type: 'auth_required',
         message: '🔐 Você precisa autorizar o Google Workspace para usar esta funcionalidade',
-        authUrl: '/api/auth/google/url',
+        authUrl: 'http://localhost:3001/api/auth/google/url',
       };
     }
 
@@ -132,7 +128,7 @@ export class CalendarHandler {
       }
 
       const eventList = events
-        .map((e, i) => `${i + 1}. **${e.title}** — ${this.formatDateTime(e.startTime)}`)
+        .map((e, i) => `${i + 1}. **${e.title}** — ${this.formatDateTime(new Date(e.startTime))}`)
         .join('\n');
 
       return {
