@@ -27,3 +27,11 @@ Thumbs.db
 .aios-core/local/
 .claude/settings.local.json
 .aios/install-log.txt
+
+# Large database files
+squads/maverick/data/knowledge/scholar.db
+squads/maverick/data/knowledge/scholar.db-shm
+squads/maverick/data/knowledge/scholar.db-wal
+squads/maverick/data/knowledge/scholar.db-journal
+**/*.db-shm
+**/*.db-wal
