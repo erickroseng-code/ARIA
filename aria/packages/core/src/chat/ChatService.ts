@@ -232,6 +232,22 @@ export class ChatService {
   private async tryExecuteWorkspaceWrite(userMessage: string, context: any): Promise<{ executed: boolean; message: string }> {
     const lower = userMessage.toLowerCase();
 
+    // --- GUARD: mensagens de LEITURA/CONSULTA nunca devem disparar escrita ---
+    const READ_INDICATORS = [
+      'quais', 'qual', 'liste', 'listar', 'liste', 'mostre', 'mostrar',
+      'me mostra', 'me mostre', 'me diz', 'me diga', 'me informe',
+      'consulte', 'consultar', 'busque', 'buscar', 'pesquise', 'pesquisar',
+      'procure', 'procurar', 'encontre', 'encontrar',
+      'tenho', 'tem ', 'há ', 'existe', 'existem',
+      'o que', 'quando', 'onde', 'quantos', 'quantas',
+      'veja', 'ver ', 'veja', 'como está', 'como estão',
+      'leia', 'leia ', 'ler ', 'ler o', 'ler a',
+      'preciso saber', 'quero ver', 'quero saber',
+      'está agendado', 'estão agendados',
+    ];
+    const isReadQuery = READ_INDICATORS.some(indicator => lower.includes(indicator));
+    if (isReadQuery) return { executed: false, message: '' };
+
     // --- WRITE INTENT DETECTION ---
     const WRITE_VERBS = ['envie', 'envia', 'manda', 'mande', 'send',
       'exclua', 'exclui', 'delete', 'apague', 'apaga', 'remova', 'remove',
@@ -281,11 +297,13 @@ export class ChatService {
 
     const isCalendarKeywords = lower.includes('evento') || lower.includes('reunião') || lower.includes('reuniao') ||
       lower.includes('agendar') || lower.includes('agenda') || lower.includes('marcar') ||
-      lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call') ||
-      lower.includes('meeting') || lower.includes('reuniões') || lower.includes('horário') ||
-      lower.includes('horario') || lower.includes('calendário') || lower.includes('calendario') ||
-      lower.includes('bloquear') || lower.includes('bloqueie') || lower.includes('slot') ||
-      lower.includes('disponibilidade') || lower.includes('encontro');
+      lower.includes('compromisso') || lower.includes('meeting') || lower.includes('reuniões') ||
+      lower.includes('horário') || lower.includes('horario') ||
+      lower.includes('calendário') || lower.includes('calendario') ||
+      lower.includes('disponibilidade') || lower.includes('encontro') ||
+      // 'chamada' e 'call' apenas quando contexto não for de Drive/Docs/Sheets
+      (lower.includes('chamada') && !lower.includes('drive') && !lower.includes('pasta') && !lower.includes('arquivo') && !lower.includes('chamada de')) ||
+      (lower.includes('call') && !lower.includes('drive') && !lower.includes('callback'));
 
     const isCalendarCreateAction = isCalendarKeywords && !isDeletionVerb && !isUpdateVerb;
     const isCalendarDeleteAction = isCalendarKeywords && isDeletionVerb;
