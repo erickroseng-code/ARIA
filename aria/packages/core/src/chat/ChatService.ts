@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ContextStore } from './ContextStore';
 import { PlanOfAttackService } from '../clients/PlanOfAttackService';
-import { getNotionClient, ClientProfileService, getClickUpQueryService } from '@aria/integrations';
+import { getNotionClient, ClientProfileService, getClickUpQueryService, DriveService, GmailService, SheetsService, DocsService, CalendarService, isWorkspaceConfigured } from '@aria/integrations';
 import { getTaskIntentParser, type TaskIntent, type ParseResult } from './TaskIntentParser';
 import { getClientMatcher } from '../utils/client-matcher';
 import { AmbiguityResolver } from './AmbiguityResolver';
@@ -47,9 +47,110 @@ export class ChatService {
     return isQuery;
   }
 
-  /**
-   * Fetch ClickUp context and format it for injection into the system prompt.
-   */
+  /** Detect if user is asking about reports */
+  private isReportQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('relatório') || lower.includes('relatorio') || lower.includes('report');
+  }
+
+  /** Detect if user is asking about calendar/agenda */
+  private isCalendarQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('agenda') ||
+      lower.includes('calendário') || lower.includes('calendario') ||
+      lower.includes('calendar') ||
+      lower.includes('reunião') || lower.includes('reuniao') ||
+      lower.includes('evento') || lower.includes('eventos') ||
+      lower.includes('compromisso');
+  }
+
+  /** Detect if user is asking about Gmail */
+  private isGmailQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('email') || lower.includes('e-mail') || lower.includes('gmail') || lower.includes('inbox') || lower.includes('mensagen') || lower.includes('mensagem') || lower.includes('leia meu email') || lower.includes('meus emails');
+  }
+
+  /** Detect if user is asking about Google Drive */
+  private isDriveQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('drive') || lower.includes('arquivo') || lower.includes('arquivos') || lower.includes('pasta') || lower.includes('documento no drive') || lower.includes('arquivos recentes');
+  }
+
+  /** Detect if user is asking about Google Sheets */
+  private isSheetsQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('planilha') || lower.includes('sheets') || lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('tabela');
+  }
+
+  /** Detect if user is asking about Google Docs */
+  private isDocsQuery(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('documento') || lower.includes('google doc') || lower.includes('docs') || lower.includes('texto do doc') || lower.includes('leia o documento');
+  }
+
+  /** Build Google Workspace context (Drive, Gmail, Sheets, Docs) */
+  private async buildWorkspaceContext(message: string): Promise<string> {
+    if (!(await isWorkspaceConfigured())) {
+      return '\n\n---\n⚠️ GOOGLE WORKSPACE: O GOOGLE_REFRESH_TOKEN não está configurado. Informe ao usuário que ele precisa autorizar o acesso em http://localhost:3001/api/auth/google/url\n---';
+    }
+
+    const parts: string[] = [];
+    const lower = message.toLowerCase();
+
+    try {
+      if (this.isGmailQuery(message)) {
+        const gmailSvc = new GmailService();
+        const onlyUnread = lower.includes('não lido') || lower.includes('nao lido') || lower.includes('unread');
+        const emails = await gmailSvc.listRecentEmails(5, onlyUnread);
+        parts.push(gmailSvc.formatForAI(emails, onlyUnread ? 'não lidos' : 'recentes'));
+      }
+
+      if (this.isDriveQuery(message)) {
+        const driveSvc = new DriveService();
+        // Check if there's a search query within the message
+        const searchMatch = lower.match(/(?:buscar?|procurar?|encontrar?|pesquisar?)\s+(.+?)(?:\s+no drive|$)/i);
+        if (searchMatch) {
+          const files = await driveSvc.searchFiles(searchMatch[1]);
+          parts.push(driveSvc.formatForAI(files, `busca: "${searchMatch[1]}"`));
+        } else {
+          const files = await driveSvc.listRecentFiles(8);
+          parts.push(driveSvc.formatForAI(files, 'recentes'));
+        }
+      }
+
+      if (this.isSheetsQuery(message)) {
+        parts.push('📊 GOOGLE SHEETS: Para ler uma planilha específica, informe o ID do documento. Exemplo: "leia a planilha [ID_DA_PLANILHA]".');
+      }
+
+      if (this.isDocsQuery(message)) {
+        parts.push('📄 GOOGLE DOCS: Para ler um documento específico, informe o ID. Exemplo: "leia o documento [ID_DO_DOC]".');
+      }
+
+      if (this.isCalendarQuery(message)) {
+        const calendarSvc = new CalendarService();
+        const events = await calendarSvc.listEvents();
+        parts.push(calendarSvc.formatForAI(events, 'próximos eventos na agenda'));
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('[ChatService.buildWorkspaceContext] Error:', errorMsg);
+
+      let aiInstruction = '';
+      if (errorMsg.includes('Insufficient Permission') || errorMsg.includes('Forbidden') || errorMsg.includes('403')) {
+        aiInstruction = '\n[INSTRUÇÃO IMPORTANTE PARA A IA]: O token atual do usuário não tem permissão para acessar este serviço (escopo desatualizado). Como você opera usando o OAuth do próprio usuário, NÃO peça para ele compartilhar a agenda com seu email. Diga exatamente o seguinte: "Parece que minhas permissões de acesso ao seu Google Workspace estão desatualizadas. Para que eu possa ler sua agenda e documentos, por favor, clique para reconectar o Google Workspace no painel, ou acesse diretamente: http://localhost:3001/api/auth/google/url para aprovar as permissões finais."';
+      }
+
+      parts.push(`⚠️ Erro ao acessar Google Workspace: ${errorMsg}${aiInstruction}`);
+    }
+
+    const contextResult = parts.length > 0
+      ? `\n\n---\n⚠️ DADOS DO GOOGLE WORKSPACE — Use exclusivamente estes dados para responder:\n\n${parts.join('\n\n')}\n---`
+      : '';
+
+    console.log('[ChatService.buildWorkspaceContext] Context built, length:', contextResult.length, 'parts:', parts.length);
+    return contextResult;
+  }
+
   private async buildClickUpContext(message: string): Promise<string> {
     const qs = this.clickupQueryService || getClickUpQueryService();
     console.log('[ChatService.buildClickUpContext] qs available?', !!qs);
@@ -73,10 +174,10 @@ export class ChatService {
 
         // Detectar se o usuário quer subtarefas
         const wantsSubtasks = lower.includes('subtarefa')
-                           || lower.includes('com detalhes')
-                           || lower.includes('hierarquia')
-                           || lower.includes('sub-tarefa')
-                           || lower.includes('breakdown');
+          || lower.includes('com detalhes')
+          || lower.includes('hierarquia')
+          || lower.includes('sub-tarefa')
+          || lower.includes('breakdown');
 
         console.log('[ChatService.buildClickUpContext] Fetching my tasks with filter:', filter, '| wantsSubtasks:', wantsSubtasks);
 
@@ -111,18 +212,325 @@ export class ChatService {
       console.log('[ChatService.buildClickUpContext] Final context length:', contextStr.length, 'parts:', parts.length);
       return contextStr;
     } catch (err) {
-      console.error('[ChatService.buildClickUpContext] ClickUp context fetch failed:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('[ChatService.buildClickUpContext] ClickUp context fetch failed:', errorMsg);
+      // Return empty string - chat continues without ClickUp context
+      // This prevents server crashes from ClickUp integration errors
       return '';
     }
   }
 
-  async *streamResponse(
+  /**
+   * AGENTIC WRITE ENGINE - Universal Google Workspace executor.
+   * Detects write intent from the user, extracts params via LLM micro-prompt,
+   * and executes the real action via WorkspaceActionService.
+   * Works with ANY LLM model — no Tool Calling protocol required.
+   */
+  private async tryExecuteWorkspaceWrite(userMessage: string, context: any): Promise<{ executed: boolean; message: string }> {
+    const lower = userMessage.toLowerCase();
+
+    // --- WRITE INTENT DETECTION ---
+    const WRITE_VERBS = ['envie', 'envia', 'manda', 'mande', 'send',
+      'exclua', 'exclui', 'delete', 'apague', 'apaga', 'remova', 'remove',
+      'mova', 'move', 'mover', 'renomeie', 'renomeia', 'rename',
+      'copie', 'copia', 'copy', 'crie', 'criar', 'create', 'adicione', 'adiciona', 'add',
+      'escreva', 'escreve', 'write', 'acrescente', 'acrescenta', 'append',
+      'agende', 'agenda', 'marque', 'marca', 'schedule',
+      'cancele', 'cancela', 'cancel', 'desfaça', 'deletar', 'arquivar',
+      'arquiva', 'archive', 'restaure', 'restaura', 'restore',
+      'substitua', 'substitui', 'replace', 'atualize', 'atualiza', 'update'];
+    const WRITE_TARGETS = ['email', 'e-mail', 'mensagem', 'mail',
+      'evento', 'reunião', 'reuniao', 'compromisso', 'meeting', 'lembrete',
+      'arquivo', 'pasta', 'folder', 'file',
+      'planilha', 'spreadsheet', 'sheet', 'aba',
+      'documento', 'doc', 'texto',
+      'tarefa', 'task'];
+
+    const hasVerb = WRITE_VERBS.some(v => lower.includes(v));
+    const hasTarget = WRITE_TARGETS.some(t => lower.includes(t));
+
+    console.log('[AgenticWrite] Initial check:', { userMessage: userMessage.substring(0, 50), hasVerb, hasTarget });
+
+    if (!hasVerb || !hasTarget) return { executed: false, message: '' };
+
+    // --- HEURISTIC CALENDAR DETECTION (faster & more reliable than LLM) ---
+    const now = new Date();
+    const BRT_OFFSET = -3;
+    const brtNow = new Date(now.getTime() + BRT_OFFSET * 60 * 60 * 1000);
+
+    const isCalendarAction = lower.includes('evento') || lower.includes('reunião') || lower.includes('reuniao') ||
+                            lower.includes('agendar') || lower.includes('agenda') || lower.includes('marcar') ||
+                            lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call');
+    console.log('[AgenticWrite] Calendar check:', { isCalendarAction });
+
+    if (isCalendarAction) {
+      // Extract time: "14h", "14:30", "2pm"
+      let timeStr = '10:00';
+      const timeMatch = lower.match(/(\d{1,2}):?(\d{0,2})(?:h|:00)?/);
+      if (timeMatch) {
+        const hours = timeMatch[1];
+        const mins = timeMatch[2] || '00';
+        timeStr = `${hours.padStart(2, '0')}:${mins.padStart(2, '0')}`;
+      }
+
+      // Extract date
+      let targetDate = new Date(brtNow);
+      if (lower.includes('amanhã') || lower.includes('amanha')) {
+        targetDate.setDate(targetDate.getDate() + 1);
+      } else if (lower.includes('hoje')) {
+        // Use today
+      } else if (lower.includes('segunda')) {
+        const days = (1 - targetDate.getDay() + 7) % 7;
+        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
+      } else if (lower.includes('terça') || lower.includes('terca')) {
+        const days = (2 - targetDate.getDay() + 7) % 7;
+        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
+      } else if (lower.includes('quarta')) {
+        const days = (3 - targetDate.getDay() + 7) % 7;
+        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
+      } else if (lower.includes('quinta')) {
+        const days = (4 - targetDate.getDay() + 7) % 7;
+        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
+      } else if (lower.includes('sexta')) {
+        const days = (5 - targetDate.getDay() + 7) % 7;
+        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
+      }
+
+      // Extract title (quoted text or first words after keywords)
+      let title = 'Evento';
+      const quotedMatch = userMessage.match(/"([^"]+)"|'([^']+)'/);
+      if (quotedMatch) {
+        title = quotedMatch[1] || quotedMatch[2];
+      } else {
+        const afterKeyword = userMessage.split(/agendar|reunião|reuniao|evento|compromisso|chamada/i)[1] || '';
+        const titlePart = afterKeyword.split(/para|às|a |em /i)[0]?.trim();
+        if (titlePart && titlePart.length > 2) {
+          title = titlePart.substring(0, 100);
+        }
+      }
+
+      // Set time on target date
+      const [hours, mins] = timeStr.split(':').map(Number);
+      targetDate.setHours(hours, mins || 0, 0, 0);
+
+      // Build end time (1 hour default)
+      const endDate = new Date(targetDate.getTime() + 60 * 60 * 1000);
+
+      const calendarAction = {
+        service: 'calendar',
+        action: 'createEvent',
+        params: {
+          title: title.trim() || 'Evento',
+          startTime: targetDate.toISOString(),
+          endTime: endDate.toISOString(),
+          description: 'Evento criado via ARIA Assistant'
+        }
+      };
+
+      console.log('[AgenticWrite] 🎯 Heuristic calendar detection matched:', { title, time: timeStr });
+      try {
+        const { WorkspaceActionService } = await import('@aria/integrations');
+        const actionSvc = new WorkspaceActionService();
+        const result = await actionSvc.execute(calendarAction);
+        console.log('[AgenticWrite] 📊 Heuristic execution result:', result);
+        if (result.success) {
+          return { executed: true, message: `✅ ${result.message}` };
+        } else {
+          return { executed: true, message: `⚠️ ${result.message}` };
+        }
+      } catch (err: any) {
+        console.error('[AgenticWrite] ❌ Heuristic execution error:', err.message);
+        return { executed: false, message: '' };
+      }
+    }
+
+    // --- EXTRACTION VIA MICRO-PROMPT (fallback for non-calendar actions) ---
+    const isoDate = (d: Date) => d.toISOString().split('T')[0];
+    const amanha = new Date(brtNow); amanha.setDate(amanha.getDate() + 1);
+
+    const recentHistory = context?.history?.slice(-5).map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join('\n') || '';
+
+    const extractionPrompt = `Hoje é ${isoDate(brtNow)} (amanhã: ${isoDate(amanha)}). 
+
+Histórico recente da conversa (use para encontrar IDs e referências se o usuário não informar diretamente):
+${recentHistory}
+
+Mensagem atual do usuário: "${userMessage}"
+
+Identifique a ação de escrita e retorne APENAS JSON válido, sem outros textos:
+
+Para Gmail: {"service":"gmail","action":"sendEmail","params":{"to":"email@dominio.com","subject":"assunto","body":"corpo"}}
+Para Gmail excluir: {"service":"gmail","action":"trashEmail","params":{"messageId":"ID"}}
+Para Gmail marcar lido: {"service":"gmail","action":"markAsRead","params":{"messageId":"ID"}}
+Para Calendar criar: {"service":"calendar","action":"createEvent","params":{"title":"título","startTime":"YYYY-MM-DDTHH:MM:00-03:00","endTime":"YYYY-MM-DDTHH:MM:00-03:00","description":""}}
+Para Calendar excluir: {"service":"calendar","action":"deleteEvent","params":{"eventId":"ID"}}
+Para Calendar atualizar: {"service":"calendar","action":"updateEvent","params":{"eventId":"ID","title":"novo título","startTime":"YYYY-MM-DDTHH:MM:00-03:00","endTime":"YYYY-MM-DDTHH:MM:00-03:00"}}
+Para Drive renomear: {"service":"drive","action":"renameFile","params":{"fileId":"ID","newName":"novo nome"}}
+Para Drive mover lixeira: {"service":"drive","action":"trashFile","params":{"fileId":"ID"}}
+Para Drive criar pasta: {"service":"drive","action":"createFolder","params":{"name":"nome da pasta"}}
+Para Sheets escrever: {"service":"sheets","action":"writeRange","params":{"spreadsheetId":"ID","range":"A1","values":[["dado"]]}}
+Para Sheets adicionar linhas: {"service":"sheets","action":"appendRows","params":{"spreadsheetId":"ID","range":"A1","values":[["linha"]]}}
+Para Docs criar: {"service":"docs","action":"createDocument","params":{"title":"título"}}
+Para Docs adicionar texto: {"service":"docs","action":"appendText","params":{"documentId":"ID","text":"texto"}}
+
+Se a mensagem pede para ENVIAR email mas não tem destinatário/assunto, retorne: {"service":"gmail","action":"sendEmail","params":{"to":"DESCONHECIDO","subject":"DESCONHECIDO","body":"DESCONHECIDO"}}
+Se a mensagem pede criar evento no calendário, calcule startTime e endTime em ISO 8601 com fuso -03:00.
+Retorne apenas o JSON da ação identificada, sem mais texto.`;
+
+    try {
+      const extractionMsg = await this.claude.messages.create({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        max_tokens: 300,
+        system: 'Você é um extrator JSON altamente preciso. Responda SEMPRE com apenas JSON válido, sem explicações.',
+        messages: [{ role: 'user', content: extractionPrompt }],
+      });
+
+      const raw = extractionMsg.content[0]?.type === 'text' ? extractionMsg.content[0].text.trim() : '';
+      console.log('[AgenticWrite] Raw LLM response for user msg:', userMessage.substring(0, 50), '...', 'Response:', raw.substring(0, 200)); // DEBUG
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.log('[AgenticWrite] No JSON found, skipping agentic execution');
+        return { executed: false, message: '' };
+      }
+
+      const action = JSON.parse(jsonMatch[0]);
+      console.log('[AgenticWrite] ✅ Extracted action:', JSON.stringify(action));
+
+      // --- GUARD: if critical params are DESCONHECIDO, ask the user ---
+      const paramsStr = JSON.stringify(action.params || {});
+      if (paramsStr.includes('DESCONHECIDO')) {
+        const missingFields = Object.entries(action.params)
+          .filter(([, v]) => v === 'DESCONHECIDO')
+          .map(([k]) => k);
+        console.log('[AgenticWrite] ⚠️  Missing fields detected:', missingFields);
+        return {
+          executed: true,
+          message: `Para executar essa ação preciso de mais informações. Por favor, informe:\n${missingFields.map(f => `- **${f}**`).join('\n')}`,
+        };
+      }
+
+      // --- SMART CALENDAR DELETE: busca evento por nome/horário sem precisar do ID ---
+      if (action.service === 'calendar' && action.action === 'deleteEvent') {
+        const providedId = action.params?.eventId || '';
+        const looksLikePlaceholder = !providedId || providedId === 'ID' || providedId.includes('DESCONHECIDO') || providedId.length < 5;
+
+        if (looksLikePlaceholder) {
+          // Extract the event title/time from the user message for searching
+          const searchPrompt = `Hoje é ${isoDate(brtNow)}. O usuário quer excluir um evento da agenda. Mensagem: "${userMessage}"
+Extraia o título do evento e a data aproximada. Responda APENAS JSON:
+{"title":"nome do evento","dateHint":"YYYY-MM-DD ou vazio se não sei"}`;
+
+          const searchExtract = await this.claude.messages.create({
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+            max_tokens: 100,
+            messages: [{ role: 'user', content: searchPrompt }],
+          });
+
+          const searchRaw = searchExtract.content[0]?.type === 'text' ? searchExtract.content[0].text : '';
+          const searchJson = searchRaw.match(/\{[\s\S]*\}/);
+          const { title: searchTitle = '', dateHint = '' } = searchJson ? JSON.parse(searchJson[0]) : {};
+
+          // Search calendar for the next 60 days
+          const calSvc = new CalendarService();
+          const searchFrom = dateHint ? new Date(`${dateHint}T00:00:00-03:00`) : new Date();
+          const searchTo = new Date(searchFrom.getTime() + 60 * 24 * 60 * 60 * 1000);
+          const events = await calSvc.listEvents(searchFrom, searchTo, 30);
+
+          // Fuzzy match by title
+          const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          const titleNorm = normalize(searchTitle);
+          const match = events.find(e => {
+            const eventNorm = normalize(e.title);
+            return eventNorm.includes(titleNorm) || titleNorm.includes(eventNorm);
+          });
+
+          if (!match) {
+            return {
+              executed: true,
+              message: `⚠️ Não encontrei nenhum evento chamado **"${searchTitle}"** na sua agenda nos próximos 60 dias. Verifique o nome e tente novamente.`,
+            };
+          }
+
+          // Found it — delete by real ID
+          const { WorkspaceActionService } = await import('@aria/integrations');
+          const actionSvc = new WorkspaceActionService();
+          const result = await actionSvc.execute({ service: 'calendar', action: 'deleteEvent', params: { eventId: match.id } } as any);
+
+          if (result.success) {
+            const startFormatted = new Date(match.startTime).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+            return { executed: true, message: `✅ Evento **"${match.title}"** excluído com sucesso!\n- **Estava em:** ${startFormatted}` };
+          } else {
+            return { executed: true, message: `⚠️ ${result.message}` };
+          }
+        }
+      }
+
+      // --- EXECUTE via WorkspaceActionService (all other actions) ---
+      console.log('[AgenticWrite] 🚀 Executing action via WorkspaceActionService:', action.service, action.action);
+      const { WorkspaceActionService } = await import('@aria/integrations');
+      const actionSvc = new WorkspaceActionService();
+      const result = await actionSvc.execute(action);
+      console.log('[AgenticWrite] 📊 Action result:', result);
+
+      if (result.success) {
+        console.log('[AgenticWrite] ✅ Action succeeded');
+        return { executed: true, message: `✅ ${result.message}` };
+      } else {
+        console.log('[AgenticWrite] ⚠️  Action failed');
+        return { executed: true, message: `⚠️ ${result.message}` };
+      }
+
+    } catch (err: any) {
+      console.error('[AgenticWrite] ❌ ERROR in extraction/execution:', err.message);
+      console.error('[AgenticWrite] Stack:', err.stack?.substring(0, 200));
+      // Don't block the user — let the LLM handle it as fallback
+      return { executed: false, message: '' };
+    }
+  }
+
+  async * streamResponse(
     userMessage: string,
     sessionId: string,
     userId?: string,
   ): AsyncGenerator<string> {
     const context = await this.contextStore.get(sessionId);
-    let systemPrompt = 'Você é ARIA, um assistente pessoal profissional. Responda sempre em português.';
+
+    // --- AGENTIC WRITE: Detecta e executa ações REAIS no Google Workspace ANTES do stream ---
+    const agenticResult = await this.tryExecuteWorkspaceWrite(userMessage, context);
+    if (agenticResult.executed) {
+      yield agenticResult.message;
+      await this.contextStore.append(sessionId, { role: 'user', content: userMessage });
+      await this.contextStore.append(sessionId, { role: 'assistant', content: agenticResult.message });
+      return;
+    }
+    // --- FIM AGENTIC WRITE ---
+
+
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'full', timeStyle: 'long' });
+    const dataAtual = formatter.format(now);
+
+    let systemPrompt = `Você é ARIA, um assistente pessoal profissional. Responda sempre em português.
+[INFORMAÇÃO TEMPORAL]: Hoje é ${dataAtual}. Use esta data/hora real como base matemática para calcular "hoje", "amanhã" e agendamentos futuros.
+
+Você tem acesso ao Google Workspace do usuário com estas capacidades:
+📧 Gmail: ler emails, enviar, responder, mover para lixeira, excluir, marcar como lido/não lido, estrelar, mover entre labels.
+📁 Drive: listar/buscar arquivos, renomear, mover, copiar, mover para lixeira, excluir, criar pastas.
+📊 Sheets: ler dados de planilhas, escrever em células, acrescentar linhas, limpar intervalos, criar abas.
+📄 Docs: ler documentos, adicionar texto no final, substituir texto, criar novo documento.
+📝 ClickUp: pesquisar pastas, tarefas, pipelines, mudar status, acessar clientes.
+📅 Calendar: ler, criar, editar e excluir eventos da agenda. Use o formato ISO 8601 obrigatoriamente para startTime e endTime (ex: 2026-03-01T14:30:00-03:00) ao acionar as intents createEvent e updateEvent.
+
+REGRA CRÍTICA — DADOS DO GOOGLE WORKSPACE:
+- Os dados do Workspace já foram buscados ANTES desta mensagem e aparecem no contexto do sistema.
+- NUNCA diga "vou buscar", "estou verificando" ou "deixe-me pesquisar". Os dados já estão aqui.
+- Se o contexto diz que não há eventos/emails/arquivos, informe isso DIRETAMENTE ao usuário.
+- Se o contexto contém dados reais (eventos, emails, arquivos), use-os diretamente na resposta.
+- Jamais invente dados que não estejam no contexto.
+
+REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, etc):
+- Quando o usuário pedir uma ação de escrita (ex: "agende uma reunião", "exclua o arquivo", "envie um email", "acrescente na planilha"), VOCÊ DEVE OBRIGATORIAMENTE INVOCAR A FERRAMENTA \`execute_workspace_action\`.
+- Nunca responda com texto longo simulando sucesso sem antes invocar a ferramenta correspondente. Seu poder de agir com o Google Workspace real e o Calendário reside unicamente no uso desta ferramenta. Invoque-a de forma silenciosa e aguarde.`;
 
     if (userId) {
       const activeClientId = await this.contextStore.getActiveClient(userId);
@@ -131,18 +539,29 @@ export class ChatService {
       }
     }
 
-    // Inject live ClickUp data when the user asks about tasks/clients
     if (this.isClickUpQuery(userMessage)) {
       const clickupContext = await this.buildClickUpContext(userMessage);
       if (clickupContext) systemPrompt += clickupContext;
     }
 
+    if (this.isReportQuery(userMessage)) {
+      systemPrompt += `\n\n---\n⚠️ DADOS DO SISTEMA DE RELATÓRIOS:\nVocê tem 2 relatórios recentes disponíveis:\n- ID: report_weekly_latest (Período: Última semana, Status: Pronto)\n- ID: report_monthly_latest (Período: Últimos 30 dias, Status: Pronto)\nInforme isso ao usuário se ele perguntar.\n---`;
+    }
+
+    if (this.isCalendarQuery(userMessage) || this.isGmailQuery(userMessage) || this.isDriveQuery(userMessage) || this.isSheetsQuery(userMessage) || this.isDocsQuery(userMessage)) {
+      const workspaceContext = await this.buildWorkspaceContext(userMessage);
+      if (workspaceContext) systemPrompt += workspaceContext;
+    }
+
+    // The Claude tools definition is no longer strictly required for Groq because we use Agentic Write (pre-processor)
+    // However, if we keep them, the GroqAdapter needs to support `tool_calls` mapping. For now, since Agentic Write handles all actions,
+    // we just use Groq for the conversational stream.
     const stream = this.claude.messages.stream({
-      model: process.env.OPENROUTER_MODEL_DEFAULT || 'meta-llama/llama-3.3-70b-instruct:free',
+      model: process.env.GROQ_MODEL || process.env.OPENROUTER_MODEL_DEFAULT || 'llama-3.3-70b-versatile',
       max_tokens: 2048,
       system: systemPrompt,
       messages: [
-        ...context.history.slice(-10).map((m) => ({
+        ...context.history.slice(-10).map((m: any) => ({
           role: m.role,
           content: m.content,
         })),
@@ -151,6 +570,7 @@ export class ChatService {
     });
 
     let fullResponse = '';
+
     for await (const chunk of stream) {
       if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
         fullResponse += chunk.delta.text;
@@ -171,7 +591,7 @@ export class ChatService {
   /**
    * Process user message and route to appropriate handler
    * Checks if it's a status update request first
-   */
+     */
   async processMessage(userMessage: string, sessionId: string, userId?: string): Promise<{ type: 'update' | 'response'; result: TaskCreationResponse | string }> {
     // Check if this is a status update request
     if (this.isStatusUpdateQuery(userMessage)) {
@@ -192,7 +612,21 @@ export class ChatService {
 
   async completeResponse(userMessage: string, sessionId: string, userId?: string): Promise<string> {
     const context = await this.contextStore.get(sessionId);
-    let systemPrompt = 'Você é ARIA, um assistente pessoal profissional. Responda sempre em português.';
+
+    // --- AGENTIC WRITE: Detecta e executa ações REAIS no Google Workspace ANTES de fazer a chamada ao modelo ---
+    const agenticResult = await this.tryExecuteWorkspaceWrite(userMessage, context);
+    if (agenticResult.executed) {
+      // If agentic write was successful, include its message in response and save to history
+      await this.contextStore.append(sessionId, { role: 'user', content: userMessage });
+      await this.contextStore.append(sessionId, { role: 'assistant', content: agenticResult.message });
+      return agenticResult.message;
+    }
+
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'full', timeStyle: 'long' });
+    const dataAtual = formatter.format(now);
+
+    let systemPrompt = `Você é ARIA, um assistente pessoal profissional. Responda sempre em português.\n[INFORMAÇÃO TEMPORAL]: Hoje é ${dataAtual}. Use esta data/hora real como base matemática para calcular dias e agendamentos.`;
 
     if (userId) {
       const activeClientId = await this.contextStore.getActiveClient(userId);
@@ -201,10 +635,40 @@ export class ChatService {
       }
     }
 
+    // Inject contexts
+    if (this.isClickUpQuery(userMessage)) {
+      const clickupContext = await this.buildClickUpContext(userMessage);
+      if (clickupContext) systemPrompt += clickupContext;
+    }
+
+    if (this.isReportQuery(userMessage)) {
+      systemPrompt += `\n\n---\n⚠️ DADOS DO SISTEMA DE RELATÓRIOS:\nVocê tem 2 relatórios recentes disponíveis:\n- ID: report_weekly_latest (Período: Última semana, Status: Pronto)\n- ID: report_monthly_latest (Período: Últimos 30 dias, Status: Pronto)\nInforme isso ao usuário se ele perguntar.\n---`;
+    }
+
+    if (this.isCalendarQuery(userMessage) || this.isGmailQuery(userMessage) || this.isDriveQuery(userMessage) || this.isSheetsQuery(userMessage) || this.isDocsQuery(userMessage)) {
+      const workspaceContext = await this.buildWorkspaceContext(userMessage);
+      if (workspaceContext) systemPrompt += workspaceContext;
+    }
+
+    const claudeTools: any[] = [{
+      name: "execute_workspace_action",
+      description: "Executa AÇÕES REAIS no Google Workspace do usuário. ATENÇÃO: Nunca afirme que criou ou modificou algo na agenda/email/documento sem ANTES chamar esta ferramenta.",
+      input_schema: {
+        type: "object",
+        properties: {
+          service: { type: "string", description: "O serviço afetado", enum: ["drive", "gmail", "sheets", "docs", "calendar"] },
+          action: { type: "string", description: "A ação a ser executada" },
+          params: { type: "object", description: "Os parâmetros da ação" }
+        },
+        required: ["service", "action", "params"]
+      }
+    }];
+
     const message = await this.claude.messages.create({
-      model: process.env.OPENROUTER_MODEL_DEFAULT || 'meta-llama/llama-3.3-70b-instruct:free',
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       max_tokens: 2048,
       system: systemPrompt,
+      tools: claudeTools,
       messages: [
         ...context.history.slice(-10).map((m) => ({
           role: m.role,
@@ -214,10 +678,23 @@ export class ChatService {
       ],
     });
 
-    const response =
-      message.content[0]?.type === 'text' && 'text' in message.content[0]
-        ? message.content[0].text
-        : '';
+    let response = '';
+
+    for (const block of message.content) {
+      if (block.type === 'text') {
+        response += block.text;
+      } else if (block.type === 'tool_use' && block.name === 'execute_workspace_action') {
+        try {
+          const payload = block.input as any;
+          const { WorkspaceActionService } = await import('@aria/integrations');
+          const actionSvc = new WorkspaceActionService();
+          const result = await actionSvc.execute(payload);
+          response += `\n\n[Ação de Sistema via API Executada]\nResultado: ${result.message}`;
+        } catch (err: any) {
+          response += `\n\n[Falha de Sistema na Ação da API]\nDetalhe: ${err.message}`;
+        }
+      }
+    }
 
     await this.contextStore.append(sessionId, {
       role: 'user',
@@ -285,9 +762,9 @@ export class ChatService {
     const statusKeywords = ['status', 'situação', 'estado'];
 
     return updateKeywords.some(kw => lower.includes(kw)) &&
-           (statusKeywords.some(kw => lower.includes(kw)) ||
-            lower.includes('para ') ||
-            lower.includes('->'));
+      (statusKeywords.some(kw => lower.includes(kw)) ||
+        lower.includes('para ') ||
+        lower.includes('->'));
   }
 
   /**
