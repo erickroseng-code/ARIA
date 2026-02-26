@@ -57,6 +57,16 @@ export class CalendarHandler {
     service: CalendarService,
     command: ParsedCommand
   ): Promise<CalendarHandlerResponse> {
+    // Check if user has Google Workspace authorization
+    const hasToken = localStorage.getItem('google_auth_token');
+    if (!hasToken) {
+      return {
+        type: 'auth_required',
+        message: '🔐 Você precisa autorizar o Google Workspace para usar esta funcionalidade',
+        authUrl: '/api/auth/google/url',
+      };
+    }
+
     const { eventTitle, eventDate, eventTime } = command.entities;
 
     if (!eventTitle || !eventDate) {

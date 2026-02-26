@@ -4,7 +4,6 @@
  * Powers tool calling in ChatService.
  */
 
-import type { ClickUpTask } from '@aria/shared';
 import { ClickUpClient } from './ClickUpClient';
 
 export interface ClientRecord {
@@ -81,9 +80,7 @@ export class ClickUpQueryService {
 
             // Find current active etapa
             const currentEtapa = directChildren.find(
-                (t) =>
-                    t.status?.status === 'em andamento' &&
-                    t.name.toLowerCase().startsWith('etapa'),
+                (t) => t.status?.status === 'em andamento' && t.name.toLowerCase().startsWith('etapa')
             );
 
             // Collect pending tasks (all children with 'aguardando' or 'em andamento' status)

@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DeliveryExecutionService } from '../DeliveryExecutionService';
 
 describe('DeliveryExecutionService', () => {
@@ -9,26 +10,26 @@ describe('DeliveryExecutionService', () => {
 
     beforeEach(() => {
         mockScheduledReportService = {
-            getSchedule: jest.fn().mockReturnValue({
+            getSchedule: vi.fn().mockReturnValue({
                 id: 'mock-schedule',
                 userId: 'user1',
                 channels: ['telegram']
             }),
-            recordDelivery: jest.fn().mockResolvedValue(undefined)
+            recordDelivery: vi.fn().mockResolvedValue(undefined)
         };
 
         mockBullQueueService = {
-            registerProcessor: jest.fn(),
-            addJob: jest.fn().mockResolvedValue('job-123'),
-            initialize: jest.fn().mockResolvedValue(undefined)
+            registerProcessor: vi.fn(),
+            addJob: vi.fn().mockResolvedValue('job-123'),
+            initialize: vi.fn().mockResolvedValue(undefined)
         };
 
         mockReportGenerationService = {
-            generateReport: jest.fn().mockResolvedValue({ title: 'Mock Report' })
+            generateReport: vi.fn().mockResolvedValue({ title: 'Mock Report' })
         };
 
         mockReportDataAggregationService = {
-            aggregateReportData: jest.fn().mockResolvedValue({ metrics: {} })
+            aggregateReportData: vi.fn().mockResolvedValue({ metrics: {} })
         };
 
         service = new DeliveryExecutionService({

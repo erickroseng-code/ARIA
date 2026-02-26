@@ -87,6 +87,11 @@ interface IntegrationHubProps {
 const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
     const [statuses, setStatuses] = useState<StatusMap>({});
     const [connecting, setConnecting] = useState<string | null>(null);
+    const [authCache] = useState<Set<string>>(() => {
+        // Load cached authentications from session storage
+        const cached = sessionStorage.getItem('aria_auth_cache');
+        return new Set(cached ? JSON.parse(cached) : []);
+    });
 
     const fetchStatuses = async () => {
         // Marca todos com statusUrl como "carregando"
@@ -117,6 +122,14 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
 
     const openOAuthPopup = (integration: IntegrationDef) => {
         if (!integration.authUrl) return;
+
+        // Check if already authenticated in this session
+        if (authCache.has(integration.id)) {
+            // Already authenticated, just update status
+            setStatuses(prev => ({ ...prev, [integration.id]: true }));
+            return;
+        }
+
         setConnecting(integration.id);
 
         const width = 500;
@@ -136,6 +149,9 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                 if (popup.closed) {
                     clearInterval(check);
                     setConnecting(null);
+                    // Mark as authenticated in this session
+                    authCache.add(integration.id);
+                    sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache)));
                     // Aguarda 500ms para o banco persistir e então atualiza status
                     setTimeout(() => fetchStatuses(), 500);
                 }
@@ -144,6 +160,9 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
             // Popup bloqueado — abre em nova aba
             setConnecting(null);
             window.open(integration.authUrl, '_blank');
+            // Mark as authenticated even if popup was blocked
+            authCache.add(integration.id);
+            sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache)));
         }
     };
 
