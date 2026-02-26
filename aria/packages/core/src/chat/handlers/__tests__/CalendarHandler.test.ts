@@ -1,6 +1,15 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { CalendarHandler } from '../CalendarHandler';
 import type { ParsedCommand } from '../../IntentParser';
+
+// Mock localStorage globally for Node.js environment
+const localStorageMock = {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+global.localStorage = localStorageMock as any;
 
 describe('CalendarHandler', () => {
   let handler: CalendarHandler;
@@ -19,6 +28,7 @@ describe('CalendarHandler', () => {
   beforeEach(() => {
     handler = new CalendarHandler('test-user-id');
     vi.clearAllMocks();
+    (localStorageMock.getItem as any).mockReturnValue(null);
   });
 
   describe('handle', () => {

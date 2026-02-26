@@ -15,6 +15,8 @@ import { registerReportsRoutes } from './routes/reports-fastify.routes';
 import { registerGoogleCalendarRoutes } from './routes/google-calendar-fastify.routes';
 import { registerGoogleAuthRoutes } from './routes/google-auth.routes';
 import { registerClickUpAuthRoutes } from './routes/clickup-auth.routes';
+import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
+import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
 import { workspaceActionRoutes } from './routes/workspace-action.routes';
 import { registerAuthPlugin } from './plugins/auth.middleware';
 import fastifyMultipart from '@fastify/multipart';
@@ -133,6 +135,8 @@ const startServer = async () => {
   await fastify.register(registerGoogleCalendarRoutes, { prefix: '/api/calendar' });
   await fastify.register(registerGoogleAuthRoutes, { prefix: '/api/auth/google' });
   await fastify.register(registerClickUpAuthRoutes, { prefix: '/api/auth/clickup' });
+  await fastify.register(registerNotionAuthRoutes, { prefix: '/api/auth/notion' });
+  await fastify.register(registerTelegramAuthRoutes, { prefix: '/api/auth/telegram' });
   await fastify.register(workspaceActionRoutes);
 
   // Global error handler

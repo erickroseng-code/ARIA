@@ -186,14 +186,14 @@ describe('AudioService', () => {
       // Just under 10MB
       const maxBuffer = Buffer.alloc(9.9 * 1024 * 1024);
 
-      await expect(audioService.transcribeFromBuffer(maxBuffer)).rejects.toThrow;
+      await expect(audioService.transcribeFromBuffer(maxBuffer)).rejects.toThrow('Áudio muito longo');
     });
 
     it('should accept buffer at maximum duration boundary', async () => {
       // Roughly 60 seconds at 172KB/s = 10.32MB - just under
       const maxBuffer = Buffer.alloc(10 * 1024 * 1024);
 
-      await expect(audioService.transcribeFromBuffer(maxBuffer)).rejects.toThrow;
+      await expect(audioService.transcribeFromBuffer(maxBuffer)).rejects.toThrow('Áudio muito longo');
     });
   });
 });

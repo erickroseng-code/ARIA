@@ -28,6 +28,8 @@ interface IntegrationDef {
     authUrl?: string;
     // se true, mostra "Em breve" em vez de "Conectar"
     comingSoon?: boolean;
+    // se true, abre authUrl em nova aba em vez de popup OAuth
+    externalAuth?: boolean;
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
@@ -52,14 +54,16 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: "Notion",
         description: "Documentação e Knowledge Base",
         logo: notionLogo,
-        comingSoon: true,
+        statusUrl: `${API_BASE}/api/auth/notion/status`,
+        authUrl: `https://www.notion.so/my-integrations`,
+        externalAuth: true, // abre em nova aba, não popup OAuth
     },
     {
         id: "telegram",
         name: "Telegram",
         description: "Mensagens e Notificações",
         logo: telegramLogo,
-        comingSoon: true,
+        statusUrl: `${API_BASE}/api/auth/telegram/status`,
     },
     {
         id: "gamma",
@@ -125,8 +129,13 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
 
         // Check if already authenticated in this session
         if (authCache.has(integration.id)) {
-            // Already authenticated, just update status
             setStatuses(prev => ({ ...prev, [integration.id]: true }));
+            return;
+        }
+
+        // External auth (e.g. Notion) — open in new tab with instructions
+        if (integration.externalAuth) {
+            window.open(integration.authUrl, '_blank');
             return;
         }
 
@@ -160,7 +169,6 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
             // Popup bloqueado — abre em nova aba
             setConnecting(null);
             window.open(integration.authUrl, '_blank');
-            // Mark as authenticated even if popup was blocked
             authCache.add(integration.id);
             sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache)));
         }
@@ -224,8 +232,8 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                     </span>
                                 )}
 
-                                {/* Estado: pode conectar */}
-                                {!isLoading && !isConnected && !integration.comingSoon && (
+                                {/* Estado: pode conectar (via OAuth popup) */}
+                                {!isLoading && !isConnected && !integration.comingSoon && integration.authUrl && !integration.externalAuth && (
                                     <button
                                         onClick={() => openOAuthPopup(integration)}
                                         disabled={isConnecting}
@@ -237,6 +245,24 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                         }
                                         {isConnecting ? 'Conectando...' : 'Conectar'}
                                     </button>
+                                )}
+
+                                {/* Estado: auth externa (ex: Notion — abre nova aba) */}
+                                {!isLoading && !isConnected && !integration.comingSoon && integration.externalAuth && (
+                                    <button
+                                        onClick={() => openOAuthPopup(integration)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors flex-shrink-0"
+                                    >
+                                        <ExternalLink className="w-3 h-3" />
+                                        Configurar
+                                    </button>
+                                )}
+
+                                {/* Estado: sem botão de conexão (ex: Telegram — config via .env) */}
+                                {!isLoading && !isConnected && !integration.comingSoon && !integration.authUrl && !integration.externalAuth && (
+                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
+                                        Não configurado
+                                    </span>
                                 )}
                             </div>
                         );

@@ -29,7 +29,7 @@ describe('DeliveryExecutionService', () => {
         };
 
         mockReportDataAggregationService = {
-            aggregateReportData: vi.fn().mockResolvedValue({ metrics: {} })
+            aggregateData: vi.fn().mockResolvedValue({ metrics: {} })
         };
 
         service = new DeliveryExecutionService({
@@ -67,7 +67,7 @@ describe('DeliveryExecutionService', () => {
             attemptsMade: 0
         } as any);
 
-        expect(mockReportDataAggregationService.aggregateReportData).toHaveBeenCalled();
+        expect(mockReportDataAggregationService.aggregateData).toHaveBeenCalled();
         expect(mockReportGenerationService.generateReport).toHaveBeenCalled();
         expect(mockScheduledReportService.recordDelivery).toHaveBeenCalledWith('mock-schedule', expect.objectContaining({
             success: true,
@@ -77,7 +77,7 @@ describe('DeliveryExecutionService', () => {
 
     it('should record failure if aggregation fails', async () => {
         const boundProcessor = mockBullQueueService.registerProcessor.mock.calls[0][1];
-        mockReportDataAggregationService.aggregateReportData.mockResolvedValue(null);
+        mockReportDataAggregationService.aggregateData.mockResolvedValue(null);
 
         await expect(boundProcessor({
             id: 'job-123',
@@ -88,7 +88,7 @@ describe('DeliveryExecutionService', () => {
                 reportDate: '2026-02-23'
             },
             attemptsMade: 0
-        } as any)).rejects.toThrow('No data available');
+        } as any)).rejects.toThrow('No data available for report generation');
 
         expect(mockScheduledReportService.recordDelivery).toHaveBeenCalledWith('mock-schedule', expect.objectContaining({
             success: false

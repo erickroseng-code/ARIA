@@ -246,6 +246,7 @@ Respond ONLY with the JSON object, no additional text.`;
       lowerMsg.includes('agenda') ||
       lowerMsg.includes('schedule') ||
       lowerMsg.includes('reunião') ||
+      lowerMsg.includes('reuniões') ||
       lowerMsg.includes('meeting') ||
       lowerMsg.includes('o que tenho') ||
       lowerMsg.includes('que tenho') ||
@@ -265,7 +266,8 @@ Respond ONLY with the JSON object, no additional text.`;
       } else if (
         lowerMsg.includes('o que tenho') ||
         lowerMsg.includes('que tenho') ||
-        lowerMsg.includes('quais reuniões')
+        lowerMsg.includes('quais reuniões') ||
+        lowerMsg.includes('quais reunião')
       ) {
         action = 'query';
       }
