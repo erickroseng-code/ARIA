@@ -1,63 +1,71 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NotionClient } from '../notion.client';
 
-vi.mock('@notionhq/client', () => ({
-  Client: vi.fn(() => ({
-    databases: {
-      query: vi.fn().mockResolvedValue({
-        results: [
-          {
-            id: 'page-1',
-            properties: {
-              Name: { title: [{ plain_text: 'Empresa A' }] },
-              Segment: { select: { name: 'Tech' } },
-              Responsible: { select: { name: 'João' } },
-            },
+// Mock BEFORE importing NotionClient
+vi.mock('@notionhq/client', () => {
+  const mockDatabases = {
+    query: vi.fn().mockResolvedValue({
+      results: [
+        {
+          id: 'page-1',
+          properties: {
+            Name: { title: [{ plain_text: 'Empresa A' }] },
+            Segment: { select: { name: 'Tech' } },
+            Responsible: { select: { name: 'João' } },
           },
-          {
-            id: 'page-2',
-            properties: {
-              Name: { title: [{ plain_text: 'Empresa B Ltda' }] },
-              Segment: { select: { name: 'Finance' } },
-              Responsible: { select: { name: 'Maria' } },
-            },
+        },
+        {
+          id: 'page-2',
+          properties: {
+            Name: { title: [{ plain_text: 'Empresa B Ltda' }] },
+            Segment: { select: { name: 'Finance' } },
+            Responsible: { select: { name: 'Maria' } },
           },
-          {
-            id: 'page-3',
-            properties: {
-              Title: { title: [{ plain_text: 'Company C' }] },
-              Industry: { select: { name: 'Retail' } },
-              Owner: { people: [{ name: 'Pedro' }] },
-            },
+        },
+        {
+          id: 'page-3',
+          properties: {
+            Title: { title: [{ plain_text: 'Company C' }] },
+            Industry: { select: { name: 'Retail' } },
+            Owner: { people: [{ name: 'Pedro' }] },
           },
-        ],
-      }),
-    },
-    pages: {
-      retrieve: vi.fn().mockImplementation((params: any) => {
-        if (params.page_id === 'page-1') {
-          return Promise.resolve({
-            id: 'page-1',
-            properties: {
-              Name: { title: [{ plain_text: 'Empresa A' }] },
-              Segment: { select: { name: 'Tech' } },
-              Responsible: { select: { name: 'João' } },
-              Status: { select: { name: 'Active' } },
-              Description: { rich_text: [{ plain_text: 'A test company' }] },
-            },
-          });
-        }
-        return Promise.reject(new Error('Page not found'));
-      }),
-      update: vi.fn().mockImplementation((args: any) => {
+        },
+      ],
+    }),
+  };
+
+  const mockPages = {
+    retrieve: vi.fn().mockImplementation((params: any) => {
+      if (params.page_id === 'page-1') {
         return Promise.resolve({
-          id: args.page_id || args.id,
-          properties: args.properties || {},
+          id: 'page-1',
+          properties: {
+            Name: { title: [{ plain_text: 'Empresa A' }] },
+            Segment: { select: { name: 'Tech' } },
+            Responsible: { select: { name: 'João' } },
+            Status: { select: { name: 'Active' } },
+            Description: { rich_text: [{ plain_text: 'A test company' }] },
+          },
         });
-      }),
-    },
-  })),
-}));
+      }
+      return Promise.reject(new Error('Page not found'));
+    }),
+    update: vi.fn().mockImplementation((args: any) => {
+      return Promise.resolve({
+        id: args.page_id || args.id,
+        properties: args.properties || {},
+      });
+    }),
+  };
+
+  return {
+    Client: vi.fn(() => ({
+      databases: mockDatabases,
+      pages: mockPages,
+    })),
+  };
+});
+
+import { NotionClient } from '../notion.client';
 
 describe('NotionClient', () => {
   let client: NotionClient;

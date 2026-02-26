@@ -123,8 +123,8 @@ describe('NotionTaskService', () => {
       await service.linkTaskToClient('page-123', 'client-456');
 
       expect(mockNotionClient.pages.update).toHaveBeenCalledWith(
-        'page-123',
         expect.objectContaining({
+          page_id: 'page-123',
           properties: expect.objectContaining({
             'Client': {
               relation: [{ id: 'client-456' }],
