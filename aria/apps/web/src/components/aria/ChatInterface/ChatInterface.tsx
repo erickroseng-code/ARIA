@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import LiquidGlassBackground from "@/components/ui/LiquidGlassBackground";
+import LiquidGlassBackground from "./LiquidGlassBackground";
 import AriaSidebar from "@/components/layout/AriaSidebar";
 import AriaWelcome from "@/components/chat/AriaWelcome";
 import ChatMessage from "@/components/chat/ChatMessage";
@@ -11,6 +10,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { useChat } from "@/hooks/useChat";
 import { useAriaSpeech } from "@/hooks/useAriaSpeech";
+import { HydrationSafeWrapper } from "./HydrationSafeWrapper";
 
 export function ChatInterface() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -68,94 +68,109 @@ export function ChatInterface() {
 
   // Compute energy dynamically
   const energyLevel = energy;
+  const hasMessages = messages.length > 0 || isStreaming;
 
   return (
-    <div className="h-screen w-full overflow-hidden relative bg-[#0a0b0d]">
-      <LiquidGlassBackground energy={energyLevel} />
+    <HydrationSafeWrapper fallback={<ChatInterfaceLoading />}>
+      <div className="h-screen w-full overflow-hidden relative bg-background">
+        {/* Fluid background only on welcome screen */}
+        {!hasMessages && <LiquidGlassBackground energy={energyLevel} />}
 
-      {/* 🎨 Chat Container com fundo semi-opaco para legibilidade */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60 pointer-events-none" />
+        {/* Dark overlay — only on welcome screen for legibility */}
+        {!hasMessages && <div className="absolute inset-0 bg-background/50 pointer-events-none" />}
 
-      <AriaSidebar
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onSelectIntegration={(cmd) => setPrefill(cmd)}
-      />
+        <AriaSidebar
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onSelectIntegration={(cmd) => setPrefill(cmd)}
+        />
 
-      <div
-        className={cn(
-          "h-full flex flex-col relative z-10 transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
-          sidebarOpen ? "lg:pl-64" : "lg:pl-16"
-        )}
-      >
-        <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <PanelLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "w-2 h-2 rounded-full transition-colors duration-300",
-              speakingMessageId ? "bg-primary animate-pulse" : "bg-primary"
-            )} />
-            <span className="text-xs text-muted-foreground font-medium">
-              {speakingMessageId ? "Falando" : "Online"}
-            </span>
-          </div>
-        </header>
-
-        {messages.length === 0 && !isStreaming ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0">
-            <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-3xl px-10 py-10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] w-full max-w-2xl">
-              <AriaWelcome />
-              <ChatInput onSend={handleSend} disabled={isStreaming || !!speakingMessageId} prefill={prefill} onPrefillConsumed={handlePrefillConsumed} />
+        <div
+          className={cn(
+            "h-full flex flex-col relative z-10 transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+            sidebarOpen ? "lg:pl-64" : "lg:pl-16"
+          )}
+        >
+          <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
+            <div className="flex items-center gap-2">
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex-1 overflow-y-auto scrollbar-hidden px-4">
-              <div className="max-w-2xl mx-auto py-6 space-y-0">
-                {messages.map((msg) => (
-                  <ChatMessage
-                    key={msg.id}
-                    message={{
-                      id: msg.id,
-                      role: msg.role === 'assistant' ? 'aria' : 'user',
-                      content: msg.content,
-                      timestamp: msg.timestamp || new Date(),
-                    }}
-                    revealLength={
-                      msg.id === speakingMessageId ? revealLength : undefined
-                    }
-                  />
-                ))}
-                {isStreaming && streamingContent && (
-                  <ChatMessage
-                    message={{
-                      id: "streaming",
-                      role: "aria",
-                      content: streamingContent,
-                      timestamp: new Date(),
-                    }}
-                  />
-                )}
-                {isStreaming && !streamingContent && <TypingIndicator />}
-                <div ref={messagesEndRef} />
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "w-2 h-2 rounded-full transition-colors duration-300",
+                speakingMessageId ? "bg-primary animate-pulse" : "bg-primary"
+              )} />
+              <span className="text-xs text-muted-foreground font-medium">
+                {speakingMessageId ? "Falando" : "Online"}
+              </span>
+            </div>
+          </header>
+
+          {messages.length === 0 && !isStreaming ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0">
+              <div className="bg-[#121212]/90 backdrop-blur-md border border-white/[0.04] rounded-[28px] px-8 py-10 shadow-2xl w-full max-w-[560px] flex flex-col gap-6">
+                <AriaWelcome />
+                <ChatInput onSend={handleSend} disabled={isStreaming || !!speakingMessageId} prefill={prefill} onPrefillConsumed={handlePrefillConsumed} />
               </div>
             </div>
-            <div className="backdrop-blur-md bg-background/20 border-t border-border/10">
-              <ChatInput
-                onSend={handleSend}
-                disabled={isStreaming || !!speakingMessageId}
-                prefill={prefill}
-                onPrefillConsumed={handlePrefillConsumed}
-              />
-            </div>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto scrollbar-hidden px-4">
+                <div className="max-w-2xl mx-auto py-6 space-y-0">
+                  {messages.map((msg) => (
+                    <ChatMessage
+                      key={msg.id}
+                      message={{
+                        id: msg.id,
+                        role: msg.role === 'assistant' ? 'aria' : 'user',
+                        content: msg.content,
+                        timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                      }}
+                      revealLength={
+                        msg.id === speakingMessageId ? revealLength : undefined
+                      }
+                    />
+                  ))}
+                  {isStreaming && streamingContent && (
+                    <ChatMessage
+                      message={{
+                        id: "streaming",
+                        role: "aria",
+                        content: streamingContent,
+                        timestamp: new Date(Date.now()),
+                      }}
+                    />
+                  )}
+                  {isStreaming && !streamingContent && <TypingIndicator />}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+              <div className="backdrop-blur-md bg-background/20 border-t border-border/10">
+                <ChatInput
+                  onSend={handleSend}
+                  disabled={isStreaming || !!speakingMessageId}
+                  prefill={prefill}
+                  onPrefillConsumed={handlePrefillConsumed}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </HydrationSafeWrapper>
+  );
+}
+
+// Fallback loading state during server-side rendering
+function ChatInterfaceLoading() {
+  return (
+    <div className="h-screen w-full overflow-hidden relative bg-background">
+      <div className="absolute inset-0 bg-background/50 pointer-events-none" />
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 animate-pulse" />
+          <p className="text-muted-foreground text-sm">Carregando...</p>
+        </div>
       </div>
     </div>
   );

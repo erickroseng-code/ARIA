@@ -34,6 +34,24 @@ export { ClickUpTaskService, type TaskCreateRequest, type Task } from './clickup
 export { ClickUpManager } from './clickup/ClickUpManager';
 export { RateLimiter } from './clickup/RateLimiter';
 export { TaskQueue } from './clickup/TaskQueue';
+export {
+  ClickUpQueryService,
+  initializeClickUpQueryService,
+  getClickUpQueryService,
+  type ClientRecord,
+  type PendingTask,
+  type MyTask,
+} from './clickup/ClickUpQueryService';
+
 
 export { NotionTaskService, type NotionTaskCreateRequest, type NotionTask } from './notion/NotionTaskService';
 export { NotionManager } from './notion/NotionManager';
+
+// Google Workspace exports
+export { createWorkspaceClient, isWorkspaceConfigured, setWorkspaceTokenResolver } from './google-workspace/WorkspaceClient';
+export { DriveService, type DriveFile } from './google-workspace/DriveService';
+export { GmailService, type GmailMessage, type SendEmailOptions } from './google-workspace/GmailService';
+export { SheetsService, type SheetData } from './google-workspace/SheetsService';
+export { DocsService, type DocContent } from './google-workspace/DocsService';
+export { WorkspaceActionService, type WorkspaceAction, type ActionResult } from './google-workspace/WorkspaceActionService';
+export { CalendarService, type CalendarEvent } from './google-workspace/CalendarService';

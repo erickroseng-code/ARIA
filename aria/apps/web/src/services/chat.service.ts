@@ -15,17 +15,30 @@ export async function* streamMessage(
 
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
+  let buffer = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value, { stream: true });
-    for (const line of chunk.split('\n')) {
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+
+    // The last element might be an incomplete line. Keep it in the buffer.
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      const data = JSON.parse(line.slice(6));
-      if (data.type === 'chunk') yield data.content as string;
-      if (data.type === 'done') return;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+
+      try {
+        const data = JSON.parse(jsonStr);
+        if (data.type === 'chunk') yield data.content as string;
+        if (data.type === 'done') return;
+      } catch (err) {
+        console.warn('Failed to parse SSE chunk:', jsonStr);
+      }
     }
   }
 }

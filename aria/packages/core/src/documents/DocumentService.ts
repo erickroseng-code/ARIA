@@ -29,10 +29,10 @@ export class DocumentService {
     }
 
     // Validate file type
-    const supportedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const supportedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
     if (!supportedTypes.includes(mimeType)) {
       throw new AppError(
-        'File type not supported. Supported: PDF, DOC, DOCX',
+        'File type not supported. Supported: PDF, DOC, DOCX, TXT',
         'DOC_001',
         { statusCode: 415 }
       );
@@ -41,6 +41,16 @@ export class DocumentService {
     // Dispatch to appropriate parser
     if (mimeType === 'application/pdf') {
       return this.pdfParser.parse(buffer, filename);
+    } else if (mimeType === 'text/plain') {
+      // Basic TXT processing
+      return {
+        id: `doc_${Date.now()}`,
+        originalName: filename,
+        mimeType: 'text/plain',
+        extractedText: buffer.toString('utf-8'),
+        uploadedAt: new Date(),
+        processedAt: new Date(),
+      } as any;
     } else {
       // Handle both .doc and .docx
       return this.docxParser.parse(buffer, filename, mimeType as SupportedMimeType);

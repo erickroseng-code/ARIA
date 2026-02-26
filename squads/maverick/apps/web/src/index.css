@@ -6,57 +6,60 @@
 
 @layer base {
   :root {
-    --background: 222 35% 10%;
-    --foreground: 210 40% 96%;
+    /* Apple Light Mode True Background (#F5F5F7) */
+    --background: 240 5% 96%;
+    --foreground: 240 10% 10%;
+    /* #1D1D1F */
 
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 96%;
+    /* iOS System Cards (White/Translucent) */
+    --card: 0 0% 100%;
+    /* #FFFFFF */
+    --card-foreground: 240 10% 10%;
 
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
 
-    --primary: 263 70% 66%;
+    /* Primary actions */
+    --primary: 211 100% 50%;
+    /* #0A84FF */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 187 94% 43%;
-    --secondary-foreground: 222 47% 6%;
+    --secondary: 240 5% 96%;
+    /* #F2F2F7 */
+    --secondary-foreground: 240 10% 10%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    /* #8E8E93 */
 
-    --accent: 263 70% 66%;
+    --accent: 211 100% 50%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 100% 61%;
+    /* #FF453A */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 20% 16%;
-    --input: 222 20% 16%;
-    --ring: 263 70% 66%;
+    --border: 0 0% 0% / 0.05;
+    --input: 0 0% 0% / 0.05;
+    --ring: 211 100% 50%;
+    /* #0A84FF */
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --sidebar-background: 222 47% 5%;
-    --sidebar-foreground: 210 20% 70%;
-    --sidebar-primary: 263 70% 66%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 30% 12%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 222 20% 12%;
-    --sidebar-ring: 263 70% 66%;
-
-    /* Custom tokens */
-    --neon-purple: 263 70% 66%;
-    --neon-cyan: 187 94% 43%;
-    --warning: 45 93% 58%;
-    --warning-foreground: 222 47% 6%;
-    --success: 142 71% 45%;
+    /* Custom tokens Apple Dashboard (Light Mode adapted) */
+    --neon-purple: 280 84% 45%;
+    --neon-cyan: 190 100% 40%;
+    --warning: 37 100% 45%;
+    --warning-foreground: 0 0% 100%;
+    --success: 135 65% 40%;
     --success-foreground: 0 0% 100%;
 
-    --glass-bg: 222 47% 8% / 0.6;
-    --glass-border: 222 20% 20% / 0.4;
-    --glow-purple: 0 0 20px hsl(263 70% 66% / 0.3);
-    --glow-cyan: 0 0 20px hsl(187 94% 43% / 0.3);
+    /* Premium Glassmorphism Light */
+    --glass-bg: 0 0% 100% / 0.7;
+    /* Translucent White */
+    --glass-border: 0 0% 0% / 0.05;
+    --glow-primary: 0 0 40px hsl(211 100% 50% / 0.1);
+    --glow-warning: 0 0 40px hsl(37 100% 52% / 0.1);
   }
 }
 
@@ -66,11 +69,10 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display;
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 

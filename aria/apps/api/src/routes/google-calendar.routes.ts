@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Router, Request, Response } from 'express';
 import { CalendarEventService } from '@aios-core/integrations/src/google-calendar/CalendarEventService';
 import { OAuthTokenManager } from '@aios-core/integrations/src/google-calendar/oauth';

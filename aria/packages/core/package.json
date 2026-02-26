@@ -8,6 +8,11 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./dist/*": {
+      "import": "./dist/*.js",
+      "default": "./dist/*.js",
+      "types": "./dist/*.d.ts"
     }
   },
   "scripts": {
@@ -30,6 +35,7 @@
     "uuid": "^8.3.2"
   },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "tsx": "^4.7.0"
   }
 }

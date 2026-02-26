@@ -35,3 +35,13 @@ export { TaskService, type TaskCreationContext, type CreateClickUpTaskParams } f
 export { ClientMatcher, getClientMatcher, type ClientMatchResult } from './utils/client-matcher';
 export { parseDateTime, parseDateExpression, parseTimeExpression, combineDateAndTime, type ParsedDate } from './utils/date-parser';
 export { PriorityExtractor, getPriorityExtractor, type PriorityExtractionResult, type PriorityLevel } from './utils/priority-extractor';
+
+// Reports exports
+export * from './reports';
+
+// AI exports
+export * from './ai';
+
+// Notifications and Integrations
+export * from './notifications';
+export * from './integrations';

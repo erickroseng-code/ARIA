@@ -3,13 +3,14 @@
  * Abstraction layer for OpenRouter API with free models
  */
 
-import { fetch } from 'node-fetch';
+import fetch from 'node-fetch';
 
 export interface OpenRouterOptions {
   model: string;
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
+  signal?: AbortSignal;
 }
 
 export interface OpenRouterMessage {
@@ -29,6 +30,19 @@ export const FREE_MODELS = {
   MISTRAL_SMALL: 'mistralai/mistral-small-3.1-24b-instruct:free',
   QWEN_NEXT_80B: 'qwen/qwen3-next-80b-a3b-instruct:free',
 } as const;
+
+export const FALLBACK_MODELS_LIST = [
+  FREE_MODELS.TRINITY_LARGE,
+  FREE_MODELS.STEP_3_5_FLASH,
+  FREE_MODELS.GLM_4_5_AIR,
+  FREE_MODELS.DEEPSEEK_R1,
+  FREE_MODELS.GPT_OSS_120B,
+  FREE_MODELS.TRINITY_MINI,
+  FREE_MODELS.LLAMA_3_3_70B,
+  FREE_MODELS.QWEN_CODER,
+  FREE_MODELS.MISTRAL_SMALL,
+  FREE_MODELS.QWEN_NEXT_80B,
+];
 
 export class OpenRouterService {
   private apiKey: string;
@@ -53,11 +67,13 @@ export class OpenRouterService {
       temperature = 0.7,
       max_tokens = 2000,
       top_p = 0.9,
+      signal,
     } = options;
 
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
+        signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
@@ -80,7 +96,7 @@ export class OpenRouterService {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       return data.choices[0]?.message?.content || '';
     } catch (error) {
       throw new Error(

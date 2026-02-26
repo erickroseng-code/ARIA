@@ -3,22 +3,26 @@ import { ERROR_MESSAGE, escapeMarkdownV2 } from '../templates/responses';
 
 export async function messageHandler(ctx: any) {
   const text = ctx.message?.text;
-  const { sessionId } = ctx.session;
   const userId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
 
-  if (!text || !sessionId) {
+  if (!text) {
+    console.log('⚠️  Mensagem vazia');
     return;
   }
 
-  // Log request (without message content — NFR13)
-  ctx.api.logger?.('debug', { sessionId, userId }, 'Processing message');
+  // Create sessionId if not present
+  const sessionId = ctx.session?.sessionId || (chatId ? `tg_${chatId}` : `user_${userId}`);
+
+  console.log(`📨 Mensagem de ${userId}: "${text.substring(0, 50)}"`);
 
   try {
     const response = await chatService.completeResponse(text, sessionId);
+    console.log(`📤 Resposta: "${response.substring(0, 50)}..."`);
     const escaped = escapeMarkdownV2(response);
     return ctx.reply(escaped, { parse_mode: 'MarkdownV2' });
   } catch (error) {
-    ctx.api.logger?.('error', { sessionId, userId, error: String(error) }, 'Chat error');
+    console.error(`❌ Erro ao processar mensagem:`, error);
     return ctx.reply(ERROR_MESSAGE, { parse_mode: 'MarkdownV2' });
   }
 }

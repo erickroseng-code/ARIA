@@ -100,7 +100,7 @@ export function parseDateExpression(
   // Next/This week patterns
   const weekPattern = /próxima\s+(\w+)/i;
   const weekMatch = lowerExpr.match(weekPattern);
-  if (weekMatch) {
+  if (weekMatch && weekMatch[1]) {
     const dayName = weekMatch[1];
     const nextDate = getNextWeekday(dayName, baseDate);
     if (nextDate) {

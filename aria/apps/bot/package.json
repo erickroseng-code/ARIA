@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/bot.ts",
+    "dev": "tsx watch src/main.ts",
     "build": "tsc",
-    "start": "node dist/bot.js",
+    "start": "node dist/main.js",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@aria/core": "*",
+    "dotenv": "^17.3.1",
     "grammy": "^1.40.0",
     "zod": "^4.3.6"
   },

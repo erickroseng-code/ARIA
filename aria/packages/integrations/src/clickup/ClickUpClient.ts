@@ -11,6 +11,7 @@ import { IntegrationError } from '../errors';
 
 export class ClickUpClient {
   private readonly BASE = 'https://api.clickup.com/api/v2';
+  private readonly REQUEST_TIMEOUT_MS = 15000; // 15 second timeout
 
   constructor(
     private readonly apiKey: string,
@@ -30,11 +31,20 @@ export class ClickUpClient {
     const initialBackoffMs = 500;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let timeoutId: NodeJS.Timeout | null = null;
       try {
-        console.log('[ClickUpClient.request] Making request to:', url.split('?')[0], '| method:', options?.method ?? 'GET', `| attempt ${attempt + 1}/${maxRetries}`);
+        console.log('[ClickUpClient.request] Making request to:', url, '| method:', options?.method ?? 'GET', `| attempt ${attempt + 1}/${maxRetries}`);
+
+        // Use AbortController for timeout protection
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          console.warn(`[ClickUpClient.request] Request timeout after ${this.REQUEST_TIMEOUT_MS}ms`);
+          controller.abort();
+        }, this.REQUEST_TIMEOUT_MS);
 
         const response = await fetch(url, {
           ...options,
+          signal: controller.signal,
           headers: {
             'Authorization': this.apiKey, // NO "Bearer" prefix for ClickUp
             'Content-Type': 'application/json',
@@ -42,20 +52,29 @@ export class ClickUpClient {
           },
         });
 
+        if (timeoutId) clearTimeout(timeoutId);
         console.log('[ClickUpClient.request] Response status:', response.status);
 
         if (!response.ok) {
           let errorMessage = `ClickUp API error ${response.status}`;
+          let errorDetails = '';
           try {
             const body = (await response.json()) as { err?: string };
             if (body.err) {
               errorMessage = body.err;
+              errorDetails = JSON.stringify(body);
             }
           } catch {
             // If JSON parsing fails, use default message
           }
 
-          console.error('[ClickUpClient.request] Error response:', errorMessage);
+          console.error('[ClickUpClient.request] Error response:', {
+            status: response.status,
+            message: errorMessage,
+            details: errorDetails,
+            url: url,
+            method: options?.method ?? 'GET',
+          });
 
           // 4xx errors are client errors - don't retry
           if (response.status >= 400 && response.status < 500) {
@@ -83,6 +102,7 @@ export class ClickUpClient {
 
         return (await response.json()) as T;
       } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
         // Network errors - retry with backoff
         if (!(error instanceof IntegrationError) && attempt < maxRetries - 1) {
           const backoffMs = initialBackoffMs * Math.pow(2, attempt);
@@ -222,21 +242,34 @@ export class ClickUpClient {
 
   /**
    * Get tasks assigned to a specific user in a team
+   * CRITICAL: assignees[] parameter must NOT be URL-encoded by URLSearchParams
    */
   async getTasksByAssignee(
     teamId: string,
     assigneeId: number,
     options?: { includeSubtasks?: boolean }
   ): Promise<ClickUpTask[]> {
+    // Validate inputs - check for undefined/null explicitly (0 might be valid ID)
+    if (!teamId || assigneeId === null || assigneeId === undefined) {
+      console.warn('[ClickUpClient.getTasksByAssignee] Invalid inputs - teamId:', teamId, 'assigneeId:', assigneeId);
+      return [];
+    }
+
     console.log('[ClickUpClient.getTasksByAssignee] Fetching tasks for teamId:', teamId, 'assigneeId:', assigneeId);
-    const params = new URLSearchParams({
-      'assignees[]': String(assigneeId),
-      include_closed: 'false',
-      subtasks: options?.includeSubtasks ? 'true' : 'false',
-    });
-    const data = await this.request<{ tasks: ClickUpTask[] }>(
-      `/team/${teamId}/task?${params}`
-    );
+
+    // IMPORTANT: Build query string manually to avoid URLSearchParams encoding array brackets
+    // URLSearchParams encodes [] as %5B%5D, but ClickUp API requires unencoded brackets
+    const queryParts = [
+      `assignees[]=${assigneeId}`,
+      'include_closed=false',
+      `subtasks=${options?.includeSubtasks ? 'true' : 'false'}`,
+    ];
+    const queryString = queryParts.join('&');
+    const fullPath = `/team/${teamId}/task?${queryString}`;
+
+    console.log('[ClickUpClient.getTasksByAssignee] Full request path:', fullPath);
+
+    const data = await this.request<{ tasks: ClickUpTask[] }>(fullPath);
     console.log('[ClickUpClient.getTasksByAssignee] Got', data.tasks?.length ?? 0, 'tasks');
     return data.tasks ?? [];
   }

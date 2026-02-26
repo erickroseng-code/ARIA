@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
-import { DocumentService, DocumentAnalysisService, AppError } from '@aria/core';
+import { DocumentService, DocumentAnalysisService, AppError, NotionDocumentCreator, NotificationService } from '@aria/core';
 
 const documentService = new DocumentService();
 const claudeClient = new Anthropic();
@@ -87,5 +87,56 @@ export async function analyzeDocuments(req: FastifyRequest, reply: FastifyReply)
       });
     }
     return reply.status(500).send({ error: 'Failed to analyze documents' });
+  }
+}
+
+export async function generateAnalysis(req: FastifyRequest, reply: FastifyReply) {
+  try {
+    const body = req.body as { sessionId?: string; clientName?: string; userId?: string } | null;
+    const sessionId = body?.sessionId || 'default';
+    const clientName = body?.clientName || 'Cliente';
+    const userId = body?.userId || 'default-user';
+
+    const docs = documentService.getSessionDocuments(sessionId);
+
+    if (docs.length === 0) {
+      return reply.status(400).send({
+        error: 'No documents to analyze',
+        code: 'DOC_005',
+      });
+    }
+
+    // Convert ProcessedDocument to PendingDocument expected by analyzeDocumentsWithStructure
+    const pendingDocs = docs.map((d, i) => ({ ...d, label: `Documento ${i + 1}: ${d.originalName}` }));
+
+    // 1. Generate Structured Analysis using Claude
+    const analysis = await analysisService.analyzeDocumentsWithStructure(pendingDocs as any, clientName);
+
+    // 2. Save Analysis to Notion
+    const notionCreator = new NotionDocumentCreator();
+    const notionUrl = await notionCreator.createAnalysisPage(analysis);
+
+    // 3. Notify User
+    const notificationService = new NotificationService();
+    await notificationService.notifyAnalysisReady(clientName, userId, notionUrl);
+
+    return reply.status(200).send({
+      message: 'Analysis generated and saved successfully',
+      notionUrl,
+      analysis,
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      return reply.status(error.statusCode ?? 500).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof Error) {
+      return reply.status(500).send({
+        error: error.message,
+      });
+    }
+    return reply.status(500).send({ error: 'Failed to generate analysis' });
   }
 }

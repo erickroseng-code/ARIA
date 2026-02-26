@@ -17,6 +17,15 @@ export interface ReportContent {
   period: { start: Date; end: Date };
 }
 
+export interface AnalysisContent {
+  clientName: string;
+  sections: Array<{ label: string; sectorType: string; content: string }>;
+  integratedAnalysis: string;
+  practicalChecklist: Array<{ action: string; priority: string; sector?: string }>;
+  generatedAt: Date;
+  sourceDocuments: string[];
+}
+
 export class NotionDocumentCreator {
   private browser: Browser | null = null;
   private page: Page | null = null;
@@ -199,6 +208,76 @@ export class NotionDocumentCreator {
       console.log('   (Você pode interagir enquanto isso)\n');
 
       await this.page?.waitForTimeout(5000);
+    } finally {
+      await this.cleanup();
+    }
+  }
+
+  /**
+   * Main flow: Criar análise de documentos
+   */
+  async createAnalysisPage(content: AnalysisContent): Promise<string> {
+    try {
+      await this.openNotionAndNavigate();
+      // Criar nova página
+      if (!this.page) return '';
+      await this.page.keyboard.press('Control+N');
+      await this.page.waitForTimeout(1000);
+
+      const title = `📑 Análise: ${content.clientName} (${content.generatedAt.toLocaleDateString('pt-BR')})`;
+      await this.page.keyboard.type(title, { delay: 50 });
+      await this.page.keyboard.press('Enter');
+      await this.page.waitForTimeout(500);
+
+      // Metadados
+      await this.page.keyboard.type('## Documentos Originais', { delay: 30 });
+      await this.page.keyboard.press('Enter');
+      for (const doc of content.sourceDocuments) {
+        await this.page.keyboard.type(`- ${doc}`, { delay: 10 });
+        await this.page.keyboard.press('Enter');
+      }
+      await this.page.keyboard.press('Enter');
+
+      // Análise Integrada
+      await this.page.keyboard.type('## 🔗 Análise Integrada', { delay: 30 });
+      await this.page.keyboard.press('Enter');
+      // Replace line breaks to ensure correct typing in notion
+      const integratedParts = content.integratedAnalysis.split('\n');
+      for (const part of integratedParts) {
+        if (part.trim() !== '') {
+          await this.page.keyboard.type(part, { delay: 5 });
+        }
+        await this.page.keyboard.press('Enter');
+      }
+      await this.page.keyboard.press('Enter');
+
+      // Seções
+      for (const section of content.sections) {
+        await this.page.keyboard.type(`### 📊 Resumo — ${section.sectorType} (${section.label})`, { delay: 20 });
+        await this.page.keyboard.press('Enter');
+        const sectionParts = section.content.split('\n');
+        for (const part of sectionParts) {
+          if (part.trim() !== '') {
+            await this.page.keyboard.type(part, { delay: 5 });
+          }
+          await this.page.keyboard.press('Enter');
+        }
+        await this.page.keyboard.press('Enter');
+      }
+
+      // Checklist
+      await this.page.keyboard.type('## ✅ Checklist de Ações Práticas', { delay: 30 });
+      await this.page.keyboard.press('Enter');
+      for (const item of content.practicalChecklist) {
+        await this.page.keyboard.type(`- [ ] [${item.priority.toUpperCase()}] ${item.action} ${item.sector ? `(${item.sector})` : ''}`, { delay: 10 });
+        await this.page.keyboard.press('Enter');
+      }
+
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('✅ Análise criada no Notion!');
+      await this.page?.waitForTimeout(5000);
+
+      return this.page.url();
     } finally {
       await this.cleanup();
     }

@@ -106,16 +106,16 @@ export class BullQueueService {
           removeOnComplete: true,
           removeOnFail: false,
         },
-      });
+      } as any) as any;
 
       // Create queue events listener
       this.queueEvents = new QueueEvents(this.config.queueName, {
-        connection: this.redis,
+        connection: this.redis as any,
       });
 
       // Create worker
       this.worker = new Worker<ReportDeliveryJob>(this.config.queueName, this.processJob.bind(this), {
-        connection: this.redis,
+        connection: this.redis as any,
         concurrency: 5, // Process up to 5 jobs concurrently
       });
 
@@ -412,12 +412,12 @@ export class BullQueueService {
       }
     });
 
-    this.queueEvents.on('failed', ({ jobId, err }) => {
-      console.log(`Job ${jobId} failed:`, err?.message);
+    this.queueEvents.on('failed', ({ jobId, failedReason }) => {
+      console.log(`Job ${jobId} failed:`, failedReason);
       const metadata = this.jobMetadata.get(jobId);
       if (metadata) {
         metadata.status = 'failed';
-        metadata.errorMessage = err?.message;
+        metadata.errorMessage = failedReason;
       }
     });
 

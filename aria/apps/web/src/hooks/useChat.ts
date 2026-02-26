@@ -4,6 +4,18 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { streamMessage } from '@/services/chat.service';
 
+// Helper to generate client-side UUID (only on client)
+const generateClientUUID = () => {
+  if (typeof window === 'undefined') return 'placeholder';
+  return crypto.randomUUID();
+};
+
+// Helper to get current timestamp (only on client)
+const getClientTimestamp = () => {
+  if (typeof window === 'undefined') return 0;
+  return Date.now();
+};
+
 export function useChat() {
   const {
     messages,
@@ -16,26 +28,35 @@ export function useChat() {
   } = useChatStore();
 
   const sessionIdRef = useRef<string>('');
+  const isInitializedRef = useRef(false);
 
+  // Initialize session ID only once on client
   useEffect(() => {
-    if (!sessionIdRef.current) {
-      sessionIdRef.current = `web_${crypto.randomUUID()}`;
+    if (isInitializedRef.current || typeof window === 'undefined') return;
+
+    isInitializedRef.current = true;
+
+    const storedSessionId = sessionStorage.getItem('aria-session-id');
+    if (storedSessionId) {
+      sessionIdRef.current = storedSessionId;
+    } else {
+      sessionIdRef.current = `web_${generateClientUUID()}`;
       sessionStorage.setItem('aria-session-id', sessionIdRef.current);
     }
   }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isStreaming) return;
+      if (!content.trim() || isStreaming || !sessionIdRef.current) return;
 
       const sessionId = sessionIdRef.current;
 
-      // Add user message
+      // Add user message with client-generated values
       addMessage({
-        id: crypto.randomUUID(),
+        id: generateClientUUID(),
         role: 'user',
         content,
-        timestamp: new Date(),
+        timestamp: getClientTimestamp(),
         sessionId,
         contentType: 'text',
       });
@@ -49,7 +70,7 @@ export function useChat() {
         commitStreamedMessage();
       } catch (error) {
         console.error('Stream error:', error);
-        setStreaming(false);
+        commitStreamedMessage(); // Save the partial response instead of discarding it!
       }
     },
     [isStreaming, addMessage, setStreaming, appendStreamChunk, commitStreamedMessage]

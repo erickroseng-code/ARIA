@@ -126,7 +126,7 @@ export class GroqMessagesAPI {
         const allMessages = [
             { role: 'system' as const, content: system },
             ...messages,
-        ];
+        ].filter(m => m.content && m.content.trim().length > 0);
 
         for await (const chunk of this.adapter.streamResponse(allMessages)) {
             yield chunk;
@@ -142,7 +142,7 @@ export class GroqMessagesAPI {
         const allMessages = [
             { role: 'system' as const, content: system },
             ...messages,
-        ];
+        ].filter(m => m.content && m.content.trim().length > 0);
 
         const response = await this.adapter.completeResponse(allMessages);
         return {

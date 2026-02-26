@@ -59,7 +59,7 @@ export class AudioService {
 
         // Transcribe using local Whisper
         const result = await whisper(tempFile, {
-          language: finalLanguage === 'pt' ? 'pt' : finalLanguage,
+          language: finalLanguage === 'pt' ? 'pt' : (finalLanguage as 'en'),
           output_format: 'json',
         });
 

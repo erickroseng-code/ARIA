@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 
 interface AudioRecorderProps {
   onTranscription: (text: string) => void;
@@ -21,7 +21,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const startRecording = async () => {

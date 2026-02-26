@@ -16,6 +16,7 @@ export interface ClickUpTask {
   id: string;
   name: string;
   url: string;
+  parent?: string | null; // parent task ID for subtasks
   status: {
     status: string;
     color: string;
@@ -30,6 +31,8 @@ export interface ClickUpTask {
     id: string;
     name: string;
   };
+  assignees?: Array<{ id: number; username: string; email: string }>;
+  folder?: { id: string; name: string };
 }
 
 export interface ClickUpList {

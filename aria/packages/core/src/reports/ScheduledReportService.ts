@@ -87,7 +87,7 @@ export class ScheduledReportService {
 
   constructor(config: ScheduledReportServiceConfig = {}) {
     this.config = {
-      redisUrl: config.redisUrl || undefined,
+      redisUrl: config.redisUrl || '',
       maxRetries: config.maxRetries || 3,
       retryBackoff: config.retryBackoff || 'exponential',
     };
@@ -298,7 +298,7 @@ export class ScheduledReportService {
    */
   async recordDelivery(
     scheduleId: string,
-    delivery: Omit<DeliveryHistoryEntry, 'id' | 'userId'>
+    delivery: Omit<DeliveryHistoryEntry, 'id' | 'userId' | 'scheduleId'>
   ): Promise<DeliveryHistoryEntry> {
     const schedule = this.schedules.get(scheduleId);
     if (!schedule) {
@@ -307,6 +307,7 @@ export class ScheduledReportService {
 
     const entry: DeliveryHistoryEntry = {
       id: uuidv4(),
+      scheduleId,
       userId: schedule.userId,
       ...delivery,
     };
@@ -401,10 +402,14 @@ export class ScheduledReportService {
   private calculateNextDelivery(cronExpression: string, timezone: string): Date {
     try {
       // Parse next execution time using cron expression
-      const task = cron.schedule(cronExpression, () => {}, { scheduled: false });
-      const interval = task.nextDate().toDate();
-      task.stop();
-      return interval;
+      const options = { scheduled: false } as any;
+      const task = cron.schedule(cronExpression, () => { }, options);
+      if (typeof (task as any).nextDate === 'function') {
+        const interval = (task as any).nextDate().toDate();
+        task.stop();
+        return interval;
+      }
+      throw new Error('nextDate not supported by current cron version');
     } catch (error) {
       // Fallback: next hour
       const next = new Date();

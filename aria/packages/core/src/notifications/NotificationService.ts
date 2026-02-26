@@ -10,8 +10,9 @@ import { GeneratedReport } from '../reports/ReportGenerationService';
 export interface NotificationRecord {
   id: string;
   userId: string;
-  reportId: string;
-  type: 'report_ready' | 'report_error' | 'report_started';
+  reportId?: string;
+  analysisId?: string;
+  type: 'report_ready' | 'report_error' | 'report_started' | 'analysis_ready' | 'analysis_error';
   channels: {
     telegram: boolean;
     webUI: boolean;
@@ -102,6 +103,46 @@ export class NotificationService {
     this.storeNotification(notification);
 
     // Web UI update
+    this.broadcastToWebUI(notification);
+
+    return notification;
+  }
+
+  /**
+   * Notify when Document Analysis is ready
+   */
+  async notifyAnalysisReady(
+    clientName: string,
+    userId: string,
+    notionUrl?: string
+  ): Promise<NotificationRecord> {
+    const notification: NotificationRecord = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      type: 'analysis_ready',
+      channels: {
+        telegram: false,
+        webUI: true,
+        database: true,
+      },
+      sentAt: new Date(),
+      message: `Análise de documentos para ${clientName} concluída com sucesso.`,
+    };
+
+    if (this.telegramService.isConfigured()) {
+      // Using generic message for Telegram since there's no specific method yet
+      try {
+        await this.telegramService.sendNotification({
+          title: '📑 Análise Pronta!',
+          message: `Análise de documentos para ${clientName} concluída com sucesso.${notionUrl ? `\nAcesso: ${notionUrl}` : ''}`
+        });
+        notification.channels.telegram = true;
+      } catch (e) {
+        console.error('Failed to send telegram notification', e);
+      }
+    }
+
+    this.storeNotification(notification);
     this.broadcastToWebUI(notification);
 
     return notification;

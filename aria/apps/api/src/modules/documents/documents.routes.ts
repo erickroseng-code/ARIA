@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { uploadDocument, analyzeDocuments } from './documents.controller';
+import { uploadDocument, analyzeDocuments, generateAnalysis } from './documents.controller';
 
 export async function registerDocumentsRoutes(fastify: FastifyInstance) {
   fastify.post<{
@@ -14,5 +14,12 @@ export async function registerDocumentsRoutes(fastify: FastifyInstance) {
   }>(
     '/documents/analyze',
     analyzeDocuments
+  );
+
+  fastify.post<{
+    Body: unknown;
+  }>(
+    '/documents/generate-analysis',
+    generateAnalysis
   );
 }

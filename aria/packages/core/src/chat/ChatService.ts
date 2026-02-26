@@ -240,7 +240,7 @@ export class ChatService {
       'arquiva', 'archive', 'restaure', 'restaura', 'restore',
       'substitua', 'substitui', 'replace', 'atualize', 'atualiza', 'update'];
     const WRITE_TARGETS = ['email', 'e-mail', 'mensagem', 'mail',
-      'evento', 'reunião', 'reuniao', 'compromisso', 'meeting', 'lembrete',
+      'evento', 'reunião', 'reuniao', 'compromisso', 'meeting', 'lembrete', 'agenda', 'call',
       'arquivo', 'pasta', 'folder', 'file',
       'planilha', 'spreadsheet', 'sheet', 'aba',
       'documento', 'doc', 'texto',
@@ -258,12 +258,86 @@ export class ChatService {
     const BRT_OFFSET = -3;
     const brtNow = new Date(now.getTime() + BRT_OFFSET * 60 * 60 * 1000);
 
-    const isCalendarAction = lower.includes('evento') || lower.includes('reunião') || lower.includes('reuniao') ||
-                            lower.includes('agendar') || lower.includes('agenda') || lower.includes('marcar') ||
-                            lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call');
-    console.log('[AgenticWrite] Calendar check:', { isCalendarAction });
+    // Guard against deletion and update verbs so they fall through to the LLM Micro-Prompt
+    const isDeletionVerb = ['exclua', 'excluir', 'delete', 'deletar', 'apague', 'apagar', 'remova', 'remover', 'cancele', 'cancelar', 'tire', 'tirar'].some(v => lower.includes(v));
+    const isUpdateVerb = ['altere', 'alterar', 'mude', 'mudar', 'atualize', 'atualizar', 'remarque', 'remarcar'].some(v => lower.includes(v));
 
-    if (isCalendarAction) {
+    const isCalendarKeywords = lower.includes('evento') || lower.includes('reunião') || lower.includes('reuniao') ||
+      lower.includes('agendar') || lower.includes('agenda') || lower.includes('marcar') ||
+      lower.includes('compromisso') || lower.includes('chamada') || lower.includes('call');
+
+    const isCalendarCreateAction = isCalendarKeywords && !isDeletionVerb && !isUpdateVerb;
+    const isCalendarDeleteAction = isCalendarKeywords && isDeletionVerb;
+    console.log('[AgenticWrite] Calendar heuristics:', { create: isCalendarCreateAction, delete: isCalendarDeleteAction, update: isUpdateVerb });
+
+    const isoDate = (d: Date) => d.toISOString().split('T')[0];
+    const amanha = new Date(brtNow); amanha.setDate(amanha.getDate() + 1);
+
+    // --- HEURISTIC CALENDAR DELETE (Smart Fuzzy Matching via LLM) ---
+    if (isCalendarDeleteAction) {
+      console.log('[AgenticWrite] 🎯 Heuristic calendar delete matched');
+      try {
+        const searchPrompt = `Hoje é ${isoDate(brtNow)}. O usuário quer excluir um evento da agenda. Mensagem: "${userMessage}"
+Extraia o título do evento e a data aproximada. Responda APENAS JSON:
+{"title":"nome do evento","dateHint":"YYYY-MM-DD ou vazio se não sei"}`;
+
+        const searchExtract = await this.claude.messages.create({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          max_tokens: 100,
+          messages: [{ role: 'user', content: searchPrompt }],
+        });
+
+        const searchRaw = searchExtract.content[0]?.type === 'text' ? searchExtract.content[0].text : '';
+        const searchJson = searchRaw.match(/\{[\s\S]*\}/);
+        const { title: searchTitle = '', dateHint = '' } = searchJson ? JSON.parse(searchJson[0]) : {};
+
+        if (!searchTitle) {
+          return { executed: true, message: `⚠️ Não consegui identificar o nome do evento para excluir. Por favor, seja mais específico.` };
+        }
+
+        const { CalendarService } = await import('@aria/integrations');
+        const calSvc = new CalendarService();
+        const searchFrom = dateHint ? new Date(`${dateHint}T00:00:00-03:00`) : new Date(brtNow.getTime() - 24 * 60 * 60 * 1000);
+        const searchTo = new Date(searchFrom.getTime() + 60 * 24 * 60 * 60 * 1000);
+        const events = await calSvc.listEvents(searchFrom, searchTo, 30);
+
+        // Fuzzy match by title AND optionally by date
+        const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const titleNorm = normalize(searchTitle);
+        const match = events.find(e => {
+          const eventNorm = normalize(e.title);
+          const titleMatches = eventNorm.includes(titleNorm) || titleNorm.includes(eventNorm);
+
+          // Se o LLM cravou uma data exata (YYYY-MM-DD), garantir que o evento cai neste dia (resolvendo Timezones)
+          if (titleMatches && dateHint) {
+            const eventDateObj = new Date(e.startTime);
+            const localIsoDate = new Date(eventDateObj.getTime() + BRT_OFFSET * 60 * 60 * 1000).toISOString().split('T')[0];
+            return localIsoDate === dateHint;
+          }
+          return titleMatches;
+        });
+
+        if (!match) {
+          return { executed: true, message: `⚠️ Não encontrei nenhum evento chamado **"${searchTitle}"**${dateHint ? ` na data (${dateHint})` : ''} na sua agenda. Verifique o nome real.` };
+        }
+
+        const { WorkspaceActionService } = await import('@aria/integrations');
+        const actionSvc = new WorkspaceActionService();
+        const result = await actionSvc.execute({ service: 'calendar', action: 'deleteEvent', params: { eventId: match.id } } as any);
+
+        if (result.success) {
+          const startFormatted = new Date(match.startTime).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+          return { executed: true, message: `✅ Evento **"${match.title}"** excluído com sucesso!\n- **Estava em:** ${startFormatted}` };
+        } else {
+          return { executed: true, message: `⚠️ ${result.message}` };
+        }
+      } catch (err: any) {
+        console.error('[AgenticWrite] ❌ Delete execution error:', err.message);
+        return { executed: true, message: `⚠️ Erro ao procurar o evento para excluir: ${err.message}` };
+      }
+    }
+
+    if (isCalendarCreateAction) {
       // Extract time: "14h", "14:30", "2pm"
       let timeStr = '10:00';
       const timeMatch = lower.match(/(\d{1,2}):?(\d{0,2})(?:h|:00)?/);
@@ -331,7 +405,7 @@ export class ChatService {
       try {
         const { WorkspaceActionService } = await import('@aria/integrations');
         const actionSvc = new WorkspaceActionService();
-        const result = await actionSvc.execute(calendarAction);
+        const result = await actionSvc.execute(calendarAction as any);
         console.log('[AgenticWrite] 📊 Heuristic execution result:', result);
         if (result.success) {
           return { executed: true, message: `✅ ${result.message}` };
@@ -345,9 +419,6 @@ export class ChatService {
     }
 
     // --- EXTRACTION VIA MICRO-PROMPT (fallback for non-calendar actions) ---
-    const isoDate = (d: Date) => d.toISOString().split('T')[0];
-    const amanha = new Date(brtNow); amanha.setDate(amanha.getDate() + 1);
-
     const recentHistory = context?.history?.slice(-5).map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join('\n') || '';
 
     const extractionPrompt = `Hoje é ${isoDate(brtNow)} (amanhã: ${isoDate(amanha)}). 
@@ -363,8 +434,8 @@ Para Gmail: {"service":"gmail","action":"sendEmail","params":{"to":"email@domini
 Para Gmail excluir: {"service":"gmail","action":"trashEmail","params":{"messageId":"ID"}}
 Para Gmail marcar lido: {"service":"gmail","action":"markAsRead","params":{"messageId":"ID"}}
 Para Calendar criar: {"service":"calendar","action":"createEvent","params":{"title":"título","startTime":"YYYY-MM-DDTHH:MM:00-03:00","endTime":"YYYY-MM-DDTHH:MM:00-03:00","description":""}}
-Para Calendar excluir: {"service":"calendar","action":"deleteEvent","params":{"eventId":"ID"}}
-Para Calendar atualizar: {"service":"calendar","action":"updateEvent","params":{"eventId":"ID","title":"novo título","startTime":"YYYY-MM-DDTHH:MM:00-03:00","endTime":"YYYY-MM-DDTHH:MM:00-03:00"}}
+Para Calendar excluir: {"service":"calendar","action":"deleteEvent","params":{"eventId":"ID ou DESCONHECIDO se o usuario não informou um ID. Use o nome do evento com a intenção 'deleteEvent' de qualquer forma"}}
+Para Calendar atualizar: {"service":"calendar","action":"updateEvent","params":{"eventId":"ID ou DESCONHECIDO","title":"novo título","startTime":"YYYY-MM-DDTHH:MM:00-03:00","endTime":"YYYY-MM-DDTHH:MM:00-03:00"}}
 Para Drive renomear: {"service":"drive","action":"renameFile","params":{"fileId":"ID","newName":"novo nome"}}
 Para Drive mover lixeira: {"service":"drive","action":"trashFile","params":{"fileId":"ID"}}
 Para Drive criar pasta: {"service":"drive","action":"createFolder","params":{"name":"nome da pasta"}}
@@ -399,71 +470,26 @@ Retorne apenas o JSON da ação identificada, sem mais texto.`;
       // --- GUARD: if critical params are DESCONHECIDO, ask the user ---
       const paramsStr = JSON.stringify(action.params || {});
       if (paramsStr.includes('DESCONHECIDO')) {
-        const missingFields = Object.entries(action.params)
-          .filter(([, v]) => v === 'DESCONHECIDO')
-          .map(([k]) => k);
-        console.log('[AgenticWrite] ⚠️  Missing fields detected:', missingFields);
-        return {
-          executed: true,
-          message: `Para executar essa ação preciso de mais informações. Por favor, informe:\n${missingFields.map(f => `- **${f}**`).join('\n')}`,
-        };
-      }
+        let isPardonable = false;
+        if (action.service === 'calendar' && (action.action === 'deleteEvent' || action.action === 'updateEvent')) {
+          // It's pardonable to not know the eventId, because the smart matching logic below handles it
+          const missingKeys = Object.entries(action.params).filter(([, v]) => typeof v === 'string' && v.includes('DESCONHECIDO')).map(([k]) => k);
+          if (missingKeys.every(k => k === 'eventId')) isPardonable = true;
+        }
 
-      // --- SMART CALENDAR DELETE: busca evento por nome/horário sem precisar do ID ---
-      if (action.service === 'calendar' && action.action === 'deleteEvent') {
-        const providedId = action.params?.eventId || '';
-        const looksLikePlaceholder = !providedId || providedId === 'ID' || providedId.includes('DESCONHECIDO') || providedId.length < 5;
-
-        if (looksLikePlaceholder) {
-          // Extract the event title/time from the user message for searching
-          const searchPrompt = `Hoje é ${isoDate(brtNow)}. O usuário quer excluir um evento da agenda. Mensagem: "${userMessage}"
-Extraia o título do evento e a data aproximada. Responda APENAS JSON:
-{"title":"nome do evento","dateHint":"YYYY-MM-DD ou vazio se não sei"}`;
-
-          const searchExtract = await this.claude.messages.create({
-            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-            max_tokens: 100,
-            messages: [{ role: 'user', content: searchPrompt }],
-          });
-
-          const searchRaw = searchExtract.content[0]?.type === 'text' ? searchExtract.content[0].text : '';
-          const searchJson = searchRaw.match(/\{[\s\S]*\}/);
-          const { title: searchTitle = '', dateHint = '' } = searchJson ? JSON.parse(searchJson[0]) : {};
-
-          // Search calendar for the next 60 days
-          const calSvc = new CalendarService();
-          const searchFrom = dateHint ? new Date(`${dateHint}T00:00:00-03:00`) : new Date();
-          const searchTo = new Date(searchFrom.getTime() + 60 * 24 * 60 * 60 * 1000);
-          const events = await calSvc.listEvents(searchFrom, searchTo, 30);
-
-          // Fuzzy match by title
-          const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-          const titleNorm = normalize(searchTitle);
-          const match = events.find(e => {
-            const eventNorm = normalize(e.title);
-            return eventNorm.includes(titleNorm) || titleNorm.includes(eventNorm);
-          });
-
-          if (!match) {
-            return {
-              executed: true,
-              message: `⚠️ Não encontrei nenhum evento chamado **"${searchTitle}"** na sua agenda nos próximos 60 dias. Verifique o nome e tente novamente.`,
-            };
-          }
-
-          // Found it — delete by real ID
-          const { WorkspaceActionService } = await import('@aria/integrations');
-          const actionSvc = new WorkspaceActionService();
-          const result = await actionSvc.execute({ service: 'calendar', action: 'deleteEvent', params: { eventId: match.id } } as any);
-
-          if (result.success) {
-            const startFormatted = new Date(match.startTime).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-            return { executed: true, message: `✅ Evento **"${match.title}"** excluído com sucesso!\n- **Estava em:** ${startFormatted}` };
-          } else {
-            return { executed: true, message: `⚠️ ${result.message}` };
-          }
+        if (!isPardonable) {
+          const missingFields = Object.entries(action.params)
+            .filter(([, v]) => typeof v === 'string' && v.includes('DESCONHECIDO'))
+            .map(([k]) => k);
+          console.log('[AgenticWrite] ⚠️  Missing fields detected:', missingFields);
+          return {
+            executed: true,
+            message: `Para executar essa ação preciso de mais informações. Por favor, informe:\n${missingFields.map(f => `- **${f}**`).join('\n')}`,
+          };
         }
       }
+
+      // --- END SMART CALENDAR DELETE (Moved to Heuristic Block) ---
 
       // --- EXECUTE via WorkspaceActionService (all other actions) ---
       console.log('[AgenticWrite] 🚀 Executing action via WorkspaceActionService:', action.service, action.action);

@@ -3,7 +3,9 @@
  * Allows ChatService to use OpenRouter without major refactoring
  */
 
-import { OpenRouterService, FREE_MODELS, type OpenRouterMessage } from './OpenRouterService';
+import { OpenRouterService, FREE_MODELS, FALLBACK_MODELS_LIST, type OpenRouterMessage } from './OpenRouterService';
+
+const MAX_WAIT_TIME_MS = 15000;
 
 export class OpenRouterAdapter {
   private openRouter: OpenRouterService;
@@ -19,18 +21,48 @@ export class OpenRouterAdapter {
    */
   async *streamResponse(messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>) {
     const openRouterMessages: OpenRouterMessage[] = messages
-      .filter(m => m.role !== 'system')
       .map(m => ({
-        role: m.role as 'user' | 'assistant',
+        role: m.role as any, // OpenRouter handles 'system' correctly
         content: m.content,
       }));
 
-    // Get full response first (OpenRouter doesn't support true streaming yet)
-    const fullResponse = await this.openRouter.call(openRouterMessages, {
-      model: this.model,
-      temperature: 0.7,
-      max_tokens: 4096,
-    });
+    let fullResponse = '';
+
+    // Fallback loop taking priority of current model first, then the list
+    const modelsToTry = [this.model, ...FALLBACK_MODELS_LIST.filter(m => m !== this.model)];
+
+    for (const modelAttempt of modelsToTry) {
+      console.log(`[OpenRouterAdapter] Attempting stream inference with model: ${modelAttempt}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MAX_WAIT_TIME_MS);
+
+      try {
+        fullResponse = await this.openRouter.call(openRouterMessages, {
+          model: modelAttempt,
+          temperature: 0.7,
+          max_tokens: 4096,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // If we get a valid response, break out of fallback loop
+        if (fullResponse) {
+          console.log(`[OpenRouterAdapter] Success with model: ${modelAttempt}`);
+          break;
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        const isTimeout = error instanceof Error && error.name === 'AbortError';
+        console.warn(`[OpenRouterAdapter] Model ${modelAttempt} failed. ${isTimeout ? 'TIMEOUT' : error}. Trying next...`);
+        // Continue to the next model in the loop
+      }
+    }
+
+    if (!fullResponse) {
+      console.error('[OpenRouterAdapter] All fallback models failed or timed out.');
+      fullResponse = 'Desculpe, os servidores de IA gratuitos estão todos sobrecarregados no momento. Por favor, tente novamente em alguns instantes.';
+    }
 
     // Yield character by character to simulate streaming
     for (const char of fullResponse) {
@@ -50,17 +82,36 @@ export class OpenRouterAdapter {
    */
   async completeResponse(messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>): Promise<string> {
     const openRouterMessages: OpenRouterMessage[] = messages
-      .filter(m => m.role !== 'system')
       .map(m => ({
-        role: m.role as 'user' | 'assistant',
+        role: m.role as any, // OpenRouter handles 'system' correctly
         content: m.content,
       }));
 
-    return this.openRouter.call(openRouterMessages, {
-      model: this.model,
-      temperature: 0.7,
-      max_tokens: 4096,
-    });
+    const modelsToTry = [this.model, ...FALLBACK_MODELS_LIST.filter(m => m !== this.model)];
+
+    for (const modelAttempt of modelsToTry) {
+      console.log(`[OpenRouterAdapter] Attempting complete inference with model: ${modelAttempt}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MAX_WAIT_TIME_MS);
+
+      try {
+        const response = await this.openRouter.call(openRouterMessages, {
+          model: modelAttempt,
+          temperature: 0.7,
+          max_tokens: 4096,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        const isTimeout = error instanceof Error && error.name === 'AbortError';
+        console.warn(`[OpenRouterAdapter] Model ${modelAttempt} failed in completeResponse. ${isTimeout ? 'TIMEOUT' : error}. Trying next...`);
+      }
+    }
+
+    throw new Error('All OpenRouter fallback models failed or timed out.');
   }
 
   setModel(model: string): void {
@@ -76,7 +127,7 @@ export class OpenRouterAdapter {
  * Create a wrapper that mimics Anthropic SDK messages API
  */
 export class OpenRouterMessagesAPI {
-  constructor(private adapter: OpenRouterAdapter) {}
+  constructor(private adapter: OpenRouterAdapter) { }
 
   async *stream(params: {
     model: string;

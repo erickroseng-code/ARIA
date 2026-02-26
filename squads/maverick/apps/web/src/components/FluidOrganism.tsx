@@ -17,13 +17,13 @@ interface Particle {
   noiseOffsetY: number;
 }
 
+// User Requested Light Colors
 const DEFAULT_COLORS = [
-  "hsla(263, 70%, 66%,",
-  "hsla(187, 94%, 43%,",
-  "hsla(340, 75%, 55%,",
-  "hsla(45, 93%, 58%,",
-  "hsla(142, 71%, 45%,",
-  "hsla(220, 70%, 55%,",
+  "hsla(22, 38%, 74%,", // Gold/Rose (#D4B3A4) approximate HSL
+  "hsla(196, 60%, 82%,", // Soft Blue (#B5DFEF) approximate HSL
+  "hsla(210, 40%, 90%,", // Very light blue
+  "hsla(30, 40%, 85%,",  // Very light gold/champagne
+  "hsla(200, 50%, 80%,", // Slightly deeper soft blue
 ];
 
 interface FluidOrganismProps {

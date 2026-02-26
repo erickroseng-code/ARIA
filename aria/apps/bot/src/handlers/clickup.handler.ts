@@ -13,14 +13,17 @@ let clickUpManager: ClickUpManager | null = null;
  * Initialize ClickUp manager (lazy load)
  */
 function getClickUpManager(): ClickUpManager | null {
-  if (!env.CLICKUP_API_KEY || !env.CLICKUP_DEFAULT_LIST_ID) {
+  const apiKey = (env as any).CLICKUP_API_TOKEN || (env as any).CLICKUP_API_KEY;
+  const listId = (env as any).CLICKUP_DEFAULT_LIST_ID || (env as any).CLICKUP_ID_LIST;
+
+  if (!apiKey || !listId) {
     return null;
   }
 
   if (!clickUpManager) {
     clickUpManager = new ClickUpManager(
-      env.CLICKUP_API_KEY,
-      env.CLICKUP_DEFAULT_LIST_ID,
+      apiKey,
+      listId,
       env.REDIS_URL
     );
   }

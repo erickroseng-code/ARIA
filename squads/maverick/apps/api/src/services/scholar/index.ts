@@ -30,6 +30,9 @@ export interface SearchResult {
     source_file: string;
     content: string;
     similarity: number;
+    // Convenience aliases for server.ts consumption
+    source: string;
+    text: string;
 }
 
 export class ScholarAgent {
@@ -42,7 +45,7 @@ export class ScholarAgent {
         }
     }
 
-    async searchKnowledge(query: string, topK: number = 3): Promise<SearchResult[]> {
+    async searchKnowledge(query: string, topK: number = 3, category?: string): Promise<SearchResult[]> {
         await this.initModel();
 
         console.log(`[Maverick Scholar] Searching knowledge base for: "${query}"`);
@@ -51,10 +54,13 @@ export class ScholarAgent {
         const output = await this.extractor(query, { pooling: 'mean', normalize: true });
         const queryVector = Array.from(output.data) as number[];
 
-        // 2. Fetch all chunks from SQLite
-        // Note: In a production app with 1M rows, use pgvector or chromadb. For local testing, 
-        // retrieving all and calculating cosine similarity in JS is surprisingly fast for standard books.
-        const allChunks = db.prepare('SELECT id, source_file, content, embedding_json FROM knowledge_chunks').all() as any[];
+        // 2. Fetch all chunks from SQLite (optionally filtered by category)
+        const sql = category
+            ? 'SELECT id, source_file, content, embedding_json FROM knowledge_chunks WHERE category = ?'
+            : 'SELECT id, source_file, content, embedding_json FROM knowledge_chunks';
+        const allChunks = (category
+            ? db.prepare(sql).all(category)
+            : db.prepare(sql).all()) as any[];
 
         // 3. Calculate Cosine Similarity for each chunk
         const results: SearchResult[] = [];
@@ -66,7 +72,9 @@ export class ScholarAgent {
                 id: chunk.id,
                 source_file: chunk.source_file,
                 content: chunk.content,
-                similarity
+                similarity,
+                source: chunk.source_file,
+                text: chunk.content
             });
         }
 

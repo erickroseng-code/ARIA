@@ -22,6 +22,7 @@ export async function generateToken() {
     sub: 'aria-user',
     iat: Math.floor(now.getTime() / 1000),
   })
+    .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
     .sign(JWT_SECRET);
 }

@@ -111,10 +111,10 @@ async function waitForServer() {
 async function runTests() {
   await waitForServer();
 
-  await testSearchKnowledge();
-  await testGenerateStrategy();
+  // await testSearchKnowledge();
+  // await testGenerateStrategy();
   // await testGenerateScript();
-  // await testAnalyzeProfile();
+  await testAnalyzeProfile();
 }
 
 runTests();

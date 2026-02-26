@@ -50,22 +50,45 @@ export const MaverickAPI = {
   },
 
   /**
-   * Gera um roteiro disruptivo com IA
+   * Gera roteiros via Copywriter Master Agent (2-Pass Pipeline)
    */
-  async generateScript(topic: string, angle: string): Promise<ScriptResult> {
+  async generateScript(topic: string, angle: string, tone: string, creatorProfile: string, awarenessLevel: number, referencePost: string = ""): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, angle })
+        body: JSON.stringify({ topic, angle, tone, creatorProfile, awarenessLevel, referencePost })
       });
-
       if (!response.ok) throw new Error('Falha ao gerar roteiro');
-
       return await response.json();
     } catch (error) {
       console.error('Erro na API generateScript:', error);
-      return { success: false, script: 'Erro ao gerar roteiro. Verifique o console.' };
+      return { success: false, error: 'Falha de comunicação com o Copywriter.' };
+    }
+  },
+
+  /**
+   * Gera diferentes tipos de conteúdo embasados na análise e no RAG (Carrossel, Legenda, Roteiros)
+   */
+  async generateContent(payload: {
+    type: 'reel_script' | 'carousel_slides' | 'caption' | 'stories_sequence';
+    pillar: string;
+    topic?: string;
+    analysisContext: any;
+    awarenessLevel?: number;
+    referencePost?: string;
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate-content`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error('Falha ao gerar conteúdo');
+      return await response.json();
+    } catch (error) {
+      console.error('Erro na API generateContent:', error);
+      return { success: false, error: 'Falha de comunicação com o Copywriter.' };
     }
   },
 
@@ -107,5 +130,49 @@ export const MaverickAPI = {
       console.error('Erro na API sendChatMessage:', error);
       return { success: false, error: 'Erro de conexão com o agente.' };
     }
+  },
+
+  /**
+   * Lista todas as análises salvas no histórico
+   */
+  async listHistory(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/history`);
+      if (!response.ok) throw new Error('Falha ao buscar histórico');
+      const data = await response.json();
+      return data.snapshots || [];
+    } catch (error) {
+      console.error('Erro na API listHistory:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Busca um snapshot específico pelo ID
+   */
+  async getSnapshot(id: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/history/${id}`);
+      if (!response.ok) throw new Error('Falha ao buscar snapshot');
+      const data = await response.json();
+      return data.snapshot || null;
+    } catch (error) {
+      console.error('Erro na API getSnapshot:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Deleta um snapshot do histórico pelo ID
+   */
+  async deleteSnapshot(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/history/${id}`, { method: 'DELETE' });
+      return response.ok;
+    } catch (error) {
+      console.error('Erro na API deleteSnapshot:', error);
+      return false;
+    }
   }
 };
+

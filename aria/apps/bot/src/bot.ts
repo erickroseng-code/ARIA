@@ -30,10 +30,4 @@ bot.on('message:document', documentHandler);
 // Voice messages
 bot.on('message:voice', audioHandler);
 
-// Start bot
-if (env.NODE_ENV !== 'production') {
-  bot.start();
-  console.log('Bot running in polling mode...');
-}
-
 export default bot;

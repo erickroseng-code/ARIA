@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+.turbo
+.git
+*.md
+*.test.ts
+__tests__
+.env
+.env.local
+.env.example
+bot.pid

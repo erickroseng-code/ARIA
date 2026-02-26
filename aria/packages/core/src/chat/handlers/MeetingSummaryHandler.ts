@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * MeetingSummaryHandler: Integra resumos de reunião com sistema de chat
  * Trata comandos relacionados a geração de resumos

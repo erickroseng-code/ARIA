@@ -133,9 +133,9 @@ export class ClickUpQueryService {
      * Results are cached for 5 minutes.
      */
     async getMyTasks(dueDateFilter?: 'today' | 'overdue' | 'upcoming'): Promise<MyTask[]> {
-        console.log('[ClickUpQueryService.getMyTasks] Fetching tasks. myUserId:', this.myUserId, 'dueDateFilter:', dueDateFilter);
-        if (!this.myUserId) {
-            console.warn('[ClickUpQueryService.getMyTasks] myUserId is not set!');
+        console.log('[ClickUpQueryService.getMyTasks] Fetching tasks. myUserId:', this.myUserId, 'typeof:', typeof this.myUserId, 'dueDateFilter:', dueDateFilter);
+        if (!this.myUserId && this.myUserId !== 0) {
+            console.warn('[ClickUpQueryService.getMyTasks] myUserId is not set or is falsy! Value:', this.myUserId);
             return [];
         }
 
@@ -163,9 +163,14 @@ export class ClickUpQueryService {
             return tasks;
         }
 
+        console.log('[ClickUpQueryService.getMyTasks] About to call getTasksByAssignee with:', {
+            teamId: this.teamId,
+            myUserId: this.myUserId,
+            myUserIdType: typeof this.myUserId,
+        });
         const tasks = await this.client.getTasksByAssignee(
             this.teamId,
-            this.myUserId,
+            this.myUserId!,
         );
 
         const todayStart = new Date();

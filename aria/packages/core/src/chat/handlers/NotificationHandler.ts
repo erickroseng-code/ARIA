@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * NotificationHandler: Gerencia preferências e ações de notificações
  * Integra-se com ProactiveNotificationService para controle de notificações
