@@ -39,7 +39,20 @@ export function markdownToNotionBlocks(markdown: string): NotionBlock[] {
       continue;
     }
 
-    // To-do (checklist)
+    // To-do (checklist) - checked
+    if (line.match(/^- \[x\] /)) {
+      blocks.push({
+        object: 'block',
+        type: 'to_do',
+        to_do: {
+          rich_text: buildRichText(line.slice(6)),
+          checked: true,
+        },
+      });
+      continue;
+    }
+
+    // To-do (checklist) - unchecked
     if (line.match(/^- \[ \] /)) {
       blocks.push({
         object: 'block',
