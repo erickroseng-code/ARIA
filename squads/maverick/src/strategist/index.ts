@@ -110,7 +110,10 @@ REGRAS CRÍTICAS:
 RETORNE APENAS JSON VÁLIDO sem markdown, sem texto fora do JSON:
 ${jsonSchema}`;
 
-        const analysisResult = await this.llm.analyzeJson<MaverickReport['analysis'] & { strategy: MaverickReport['strategy'] }>(
+        const analysisResult = await this.llm.analyzeJson<{
+            analysis: MaverickReport['analysis'];
+            strategy: MaverickReport['strategy'];
+        }>(
             prompt,
             jsonSchema
         );
