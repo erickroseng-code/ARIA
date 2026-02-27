@@ -37,10 +37,10 @@ export class MaverickService {
       const analysis = await this.prisma.maverickAnalysis.create({
         data: {
           username: report.profile.username,
-          profile: report.profile,
-          analysis: report.analysis,
-          strategy: report.strategy,
-          fullReport: report,
+          profile: report.profile as any,
+          analysis: report.analysis as any,
+          strategy: report.strategy as any,
+          fullReport: report as any,
           status,
           error: error || null,
         },

@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
+import { MetricsService } from './metrics.service';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
 const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
@@ -27,6 +28,7 @@ function sendEvent(raw: any, type: string, data: Record<string, unknown>) {
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
   const prisma = new PrismaClient();
   const maverickService = new MaverickService(prisma);
+  const metricsService = new MetricsService(prisma);
 
   // POST /api/maverick/plan — Scout + Strategist com SSE streaming
   fastify.post('/plan', async (
@@ -299,6 +301,40 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true });
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao deletar análise' });
+    }
+  });
+
+  // ========== PHASE 4: Quality Metrics Dashboard ==========
+
+  // GET /api/maverick/metrics/analysis/:analysisId — Métricas de uma análise
+  fastify.get('/metrics/analysis/:analysisId', async (
+    req: FastifyRequest<{ Params: { analysisId: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const { analysisId } = req.params;
+      const metrics = await metricsService.getAnalysisMetrics(analysisId);
+
+      if (!metrics) {
+        return reply.status(404).send({ error: 'Análise não encontrada' });
+      }
+
+      return reply.send(metrics);
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar métricas da análise' });
+    }
+  });
+
+  // GET /api/maverick/metrics/dashboard — Dashboard geral de métricas
+  fastify.get('/metrics/dashboard', async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const metrics = await metricsService.getDashboardMetrics();
+      return reply.send(metrics);
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar métricas do dashboard' });
     }
   });
 }

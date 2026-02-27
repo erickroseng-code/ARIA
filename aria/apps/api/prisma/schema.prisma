@@ -46,12 +46,12 @@ model KnowledgeTrace {
 
   // Trecho da base de conhecimento
   sourceId             String   // ID único do trecho na base (ex: MANIFESTO_0_87ffe253)
-  sourceText           String   @db.Text // Texto do trecho (primeiros 500 chars)
+  sourceText           String   // Texto do trecho (primeiros 500 chars)
   fullSourceUrl        String   // Path para encontrar na base (ex: knowledge.md#chunk-1)
 
   // Como foi usado
-  contextUsed          String   @db.Text // Contexto em que foi citado
-  citationText         String   @db.Text // Como foi citado na análise
+  contextUsed          String   // Contexto em que foi citado
+  citationText         String   // Como foi citado na análise
   positionInAnalysis   String   // "analysis", "strategy", "positive_point", "gap", etc
 
   // Validação (vinculado com Citation Validator)
