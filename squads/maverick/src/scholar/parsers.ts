@@ -1,6 +1,6 @@
-import fs from 'fs';
+import * as fs from 'fs';
 const pdf = require('pdf-parse');
-import mammoth from 'mammoth';
+const mammoth = require('mammoth');
 
 export interface DocumentChunk {
     source: string;
