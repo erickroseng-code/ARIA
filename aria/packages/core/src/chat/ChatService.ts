@@ -345,7 +345,12 @@ Extraia o título do evento e a data aproximada. Responda APENAS JSON:
         const titleNorm = normalize(searchTitle);
         const match = events.find(e => {
           const eventNorm = normalize(e.title);
-          const titleMatches = eventNorm.includes(titleNorm) || titleNorm.includes(eventNorm);
+
+          // Enhanced fuzzy match: check if full strings include each other, or if any significant word matches
+          const words = titleNorm.split(' ').filter(w => w.length > 3 && w !== 'reuniao' && w !== 'evento' && w !== 'call');
+          const hasWordMatch = words.length > 0 && words.some(w => eventNorm.includes(w));
+
+          const titleMatches = eventNorm.includes(titleNorm) || titleNorm.includes(eventNorm) || hasWordMatch;
 
           // Se o LLM cravou uma data exata (YYYY-MM-DD), garantir que o evento cai neste dia (resolvendo Timezones)
           if (titleMatches && dateHint) {
@@ -357,7 +362,7 @@ Extraia o título do evento e a data aproximada. Responda APENAS JSON:
         });
 
         if (!match) {
-          return { executed: true, message: `⚠️ Não encontrei nenhum evento chamado **"${searchTitle}"**${dateHint ? ` na data (${dateHint})` : ''} na sua agenda. Verifique o nome real.` };
+          return { executed: true, message: `⚠️ Não encontrei nenhum evento chamado "${searchTitle}"${dateHint ? ` na data (${dateHint})` : ''} na sua agenda. Verifique o nome real.` };
         }
 
         const { WorkspaceActionService } = await import('@aria/integrations');
@@ -366,7 +371,7 @@ Extraia o título do evento e a data aproximada. Responda APENAS JSON:
 
         if (result.success) {
           const startFormatted = new Date(match.startTime).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-          return { executed: true, message: `✅ Evento **"${match.title}"** excluído com sucesso!\n- **Estava em:** ${startFormatted}` };
+          return { executed: true, message: `✅ Evento "${match.title}" excluído com sucesso!\n- Estava em: ${startFormatted}` };
         } else {
           return { executed: true, message: `⚠️ ${result.message}` };
         }
@@ -377,83 +382,68 @@ Extraia o título do evento e a data aproximada. Responda APENAS JSON:
     }
 
     if (isCalendarCreateAction) {
-      // Extract time: "14h", "14:30", "2pm"
-      let timeStr = '10:00';
-      const timeMatch = lower.match(/(\d{1,2}):?(\d{0,2})(?:h|:00)?/);
-      if (timeMatch) {
-        const hours = timeMatch[1];
-        const mins = timeMatch[2] || '00';
-        timeStr = `${hours.padStart(2, '0')}:${mins.padStart(2, '0')}`;
-      }
-
-      // Extract date
-      let targetDate = new Date(brtNow);
-      if (lower.includes('amanhã') || lower.includes('amanha')) {
-        targetDate.setDate(targetDate.getDate() + 1);
-      } else if (lower.includes('hoje')) {
-        // Use today
-      } else if (lower.includes('segunda')) {
-        const days = (1 - targetDate.getDay() + 7) % 7;
-        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
-      } else if (lower.includes('terça') || lower.includes('terca')) {
-        const days = (2 - targetDate.getDay() + 7) % 7;
-        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
-      } else if (lower.includes('quarta')) {
-        const days = (3 - targetDate.getDay() + 7) % 7;
-        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
-      } else if (lower.includes('quinta')) {
-        const days = (4 - targetDate.getDay() + 7) % 7;
-        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
-      } else if (lower.includes('sexta')) {
-        const days = (5 - targetDate.getDay() + 7) % 7;
-        targetDate.setDate(targetDate.getDate() + (days === 0 ? 7 : days));
-      }
-
-      // Extract title (quoted text or first words after keywords)
-      let title = 'Evento';
-      const quotedMatch = userMessage.match(/"([^"]+)"|'([^']+)'/);
-      if (quotedMatch) {
-        title = quotedMatch[1] || quotedMatch[2];
-      } else {
-        const afterKeyword = userMessage.split(/agendar|reunião|reuniao|evento|compromisso|chamada/i)[1] || '';
-        const titlePart = afterKeyword.split(/para|às|a |em /i)[0]?.trim();
-        if (titlePart && titlePart.length > 2) {
-          title = titlePart.substring(0, 100);
-        }
-      }
-
-      // Set time on target date
-      const [hours, mins] = timeStr.split(':').map(Number);
-      targetDate.setHours(hours, mins || 0, 0, 0);
-
-      // Build end time (1 hour default)
-      const endDate = new Date(targetDate.getTime() + 60 * 60 * 1000);
-
-      const calendarAction = {
-        service: 'calendar',
-        action: 'createEvent',
-        params: {
-          title: title.trim() || 'Evento',
-          startTime: targetDate.toISOString(),
-          endTime: endDate.toISOString(),
-          description: 'Evento criado via ARIA Assistant'
-        }
-      };
-
-      console.log('[AgenticWrite] 🎯 Heuristic calendar detection matched:', { title, time: timeStr });
+      console.log('[AgenticWrite] 🎯 Heuristic calendar create matched');
       try {
-        const { WorkspaceActionService } = await import('@aria/integrations');
-        const actionSvc = new WorkspaceActionService();
-        const result = await actionSvc.execute(calendarAction as any);
-        console.log('[AgenticWrite] 📊 Heuristic execution result:', result);
-        if (result.success) {
-          return { executed: true, message: `✅ ${result.message}` };
-        } else {
-          return { executed: true, message: `⚠️ ${result.message}` };
+        const createPrompt = `Hoje é ${isoDate(brtNow)}. O usuário quer criar um evento na agenda. Mensagem: "${userMessage}"
+Extraia o título limpo do evento (exemplo: "Reunião com Audryn", "Consulta", "Alinhamento" - não inclua palavras de tempo como 'amanhã', 'hoje', 'às 18h' no título).
+Extraia a data no formato YYYY-MM-DD (resolva a data baseando-se que hoje é ${isoDate(brtNow)}).
+Extraia o horário no formato HH:MM (use 10:00 se não for informado).
+Responda APENAS JSON válido, sem crases de markdown:
+{"title":"título limpo","date":"YYYY-MM-DD","time":"HH:MM"}`;
+
+        const createExtract = await this.claude.messages.create({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          max_tokens: 150,
+          messages: [{ role: 'user', content: createPrompt }],
+        });
+
+        const createRaw = createExtract.content[0]?.type === 'text' ? createExtract.content[0].text : '';
+        const createJsonMatch = createRaw.match(/\{[\s\S]*\}/);
+
+        if (!createJsonMatch) {
+          return { executed: true, message: `⚠️ Não entendi os detalhes para criar o evento. Pode repetir o título, dia e hora?` };
+        }
+
+        const parsedCreate = JSON.parse(createJsonMatch[0]);
+        const title = parsedCreate.title || 'Evento';
+        const dateStr = parsedCreate.date || isoDate(brtNow);
+        const timeStr = parsedCreate.time || '10:00';
+
+        // Set time on target date (force Brazilian timezone interpretation)
+        const targetDate = new Date(`${dateStr}T${timeStr}:00-03:00`);
+
+        // Build end time (1 hour default)
+        const endDate = new Date(targetDate.getTime() + 60 * 60 * 1000);
+
+        const calendarAction = {
+          service: 'calendar',
+          action: 'createEvent',
+          params: {
+            title: title.trim() || 'Evento',
+            startTime: targetDate.toISOString(),
+            endTime: endDate.toISOString(),
+            description: 'Evento criado via ARIA Assistant'
+          }
+        };
+
+        console.log('[AgenticWrite] 🎯 Heuristic calendar detection matched:', { title, time: timeStr });
+        try {
+          const { WorkspaceActionService } = await import('@aria/integrations');
+          const actionSvc = new WorkspaceActionService();
+          const result = await actionSvc.execute(calendarAction as any);
+          console.log('[AgenticWrite] 📊 Heuristic execution result:', result);
+          if (result.success) {
+            return { executed: true, message: `✅ ${result.message}` };
+          } else {
+            return { executed: true, message: `⚠️ ${result.message}` };
+          }
+        } catch (err: any) {
+          console.error('[AgenticWrite] ❌ Heuristic execution error:', err.message);
+          return { executed: true, message: `⚠️ Falha ao executar a criação no calendário: ${err.message}` };
         }
       } catch (err: any) {
-        console.error('[AgenticWrite] ❌ Heuristic execution error:', err.message);
-        return { executed: false, message: '' };
+        console.error('[AgenticWrite] ❌ Parse creation error:', err.message);
+        return { executed: true, message: `⚠️ Erro ao entender os dados do agendamento: ${err.message}` };
       }
     }
 
@@ -478,8 +468,8 @@ Para Calendar atualizar: {"service":"calendar","action":"updateEvent","params":{
 Para Drive renomear: {"service":"drive","action":"renameFile","params":{"fileId":"ID","newName":"novo nome"}}
 Para Drive mover lixeira: {"service":"drive","action":"trashFile","params":{"fileId":"ID"}}
 Para Drive criar pasta: {"service":"drive","action":"createFolder","params":{"name":"nome da pasta"}}
-Para Sheets escrever: {"service":"sheets","action":"writeRange","params":{"spreadsheetId":"ID","range":"A1","values":[["dado"]]}}
-Para Sheets adicionar linhas: {"service":"sheets","action":"appendRows","params":{"spreadsheetId":"ID","range":"A1","values":[["linha"]]}}
+Para Sheets escrever: {"service":"sheets","action":"writeRange","params":{"spreadsheetId":"ID ou NOME da planilha","range":"A1","values":[["dado"]]}}
+Para Sheets adicionar linhas: {"service":"sheets","action":"appendRows","params":{"spreadsheetId":"ID ou NOME da planilha","range":"A1","values":[["linha"]]}}
 Para Docs criar: {"service":"docs","action":"createDocument","params":{"title":"título"}}
 Para Docs adicionar texto: {"service":"docs","action":"appendText","params":{"documentId":"ID","text":"texto"}}
 
@@ -529,6 +519,34 @@ Retorne apenas o JSON da ação identificada, sem mais texto.`;
       }
 
       // --- END SMART CALENDAR DELETE (Moved to Heuristic Block) ---
+
+      // --- INTELLIGENT SHEETS/DOCS LOOKUP BY NAME ---
+      if ((action.service === 'sheets' && action.params.spreadsheetId) || (action.service === 'docs' && action.params.documentId)) {
+        const idField = action.service === 'sheets' ? 'spreadsheetId' : 'documentId';
+        const rawId = action.params[idField];
+
+        // Se não parece um ID do Google (tamanho menor que 30), vamos buscar no Drive pelo nome
+        if (rawId && rawId.length < 30 && !rawId.includes('DESCONHECIDO')) {
+          console.log(`[AgenticWrite] 🔍 Identifying ${action.service} by name: "${rawId}"`);
+          try {
+            const { DriveService } = await import('@aria/integrations');
+            const driveSvc = new DriveService();
+            const files = await driveSvc.searchFiles(rawId);
+
+            if (files && files.length > 0) {
+              const fileId = files[0].id; // Pega o primeiro e mais provável (DriveService ordena por relevância/recente)
+              console.log(`[AgenticWrite] ✅ Found match in Drive: ${files[0].name} (${fileId})`);
+              action.params[idField] = fileId;
+            } else {
+              console.log(`[AgenticWrite] ⚠️ No file found in Drive for name: "${rawId}"`);
+              return { executed: true, message: `⚠️ Não consegui encontrar nenhuma planilha/documento chamado "${rawId}" no seu Google Drive.` };
+            }
+          } catch (err: any) {
+            console.error('[AgenticWrite] ❌ Drive search fallback failed:', err.message);
+            // Continua com o ID original (vai falhar lá no WorkspaceActionService, mas mostrará o erro do Drive tbm)
+          }
+        }
+      }
 
       // --- EXECUTE via WorkspaceActionService (all other actions) ---
       console.log('[AgenticWrite] 🚀 Executing action via WorkspaceActionService:', action.service, action.action);

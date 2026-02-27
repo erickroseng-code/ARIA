@@ -21,17 +21,76 @@ model Integration {
 }
 
 model MaverickAnalysis {
-  id              String   @id @default(uuid())
-  username        String   // Instagram username analyzed
-  profile         Json     // ProfileAnalysis data
-  analysis        Json     // Analysis section
-  strategy        Json     // Strategy section
-  fullReport      Json     // Complete MaverickReport
-  status          String   @default("completed") // completed, failed, pending
-  error           String?  // Error message if failed
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id              String           @id @default(uuid())
+  username        String           // Instagram username analyzed
+  profile         Json             // ProfileAnalysis data
+  analysis        Json             // Analysis section
+  strategy        Json             // Strategy section
+  fullReport      Json             // Complete MaverickReport
+  status          String           @default("completed") // completed, failed, pending
+  error           String?          // Error message if failed
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Knowledge Traceability
+  traces          KnowledgeTrace[]
 
   @@index([username])
   @@index([createdAt])
+}
+
+model KnowledgeTrace {
+  id                   String   @id @default(uuid())
+  analysisId           String
+  maverickAnalysis     MaverickAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  // Trecho da base de conhecimento
+  sourceId             String   // ID único do trecho na base (ex: MANIFESTO_0_87ffe253)
+  sourceText           String   @db.Text // Texto do trecho (primeiros 500 chars)
+  fullSourceUrl        String   // Path para encontrar na base (ex: knowledge.md#chunk-1)
+
+  // Como foi usado
+  contextUsed          String   @db.Text // Contexto em que foi citado
+  citationText         String   @db.Text // Como foi citado na análise
+  positionInAnalysis   String   // "analysis", "strategy", "positive_point", "gap", etc
+
+  // Validação (vinculado com Citation Validator)
+  isValid              Boolean  @default(false)
+  validationScore      Int      // 0-100 (confidence score)
+  relevanceScore       Int      // 0-100 (TF-IDF + relevance)
+  confidenceScore      Int      // 0-100 (validation confidence)
+  hallucination        Boolean  @default(false) // Detectado como alucinação?
+
+  // Feedback
+  userFeedback         String?  // "good", "inaccurate", "irrelevant", "helpful"
+  feedbackNote         String?
+
+  createdAt            DateTime @default(now())
+
+  @@index([analysisId])
+  @@index([sourceId])
+  @@index([isValid])
+  @@index([hallucination])
+}
+
+model SourceMetadata {
+  id              String   @id @default(uuid())
+  sourceId        String   @unique // ID único da base (ex: MANIFESTO_0_87ffe253)
+  title           String   // Título/nome do trecho
+  category        String   // Categoria (strategy, content, engagement, etc)
+  importance      Int      // 1-10 (importância no índice)
+
+  // Uso e estatísticas
+  usageCount      Int      @default(0) // Quantas vezes foi usado
+  lastUsedAt      DateTime? // Última vez que foi citado
+  avgRelevance    Int      @default(0) // Média de relevância quando usado
+  totalConfidence Int      @default(0) // Soma de confidence scores
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([sourceId])
+  @@index([category])
+  @@index([importance])
+  @@index([usageCount])
 }

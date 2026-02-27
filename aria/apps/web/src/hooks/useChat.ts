@@ -17,15 +17,16 @@ const getClientTimestamp = () => {
 };
 
 export function useChat() {
+  const store = useChatStore();
   const {
-    messages,
     isStreaming,
     streamingContent,
     addMessage,
     setStreaming,
     appendStreamChunk,
     commitStreamedMessage,
-  } = useChatStore();
+  } = store;
+  const messages = store.messages();
 
   const sessionIdRef = useRef<string>('');
   const isInitializedRef = useRef(false);

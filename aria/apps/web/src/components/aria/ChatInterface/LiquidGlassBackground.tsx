@@ -34,7 +34,7 @@ const LiquidGlassBackground = ({ energy = 0 }: Props) => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     let animationId: number;
@@ -89,9 +89,8 @@ const LiquidGlassBackground = ({ energy = 0 }: Props) => {
       smoothEnergy += (targetEnergy - smoothEnergy) * 0.05;
       time += 0.008 + smoothEnergy * 0.012;
 
-      // Fade
-      ctx.fillStyle = `rgba(8, 10, 18, ${0.12 + smoothEnergy * 0.05})`;
-      ctx.fillRect(0, 0, w, h);
+      // Clear canvas fully to preserve the CSS gradient background behind it
+      ctx.clearRect(0, 0, w, h);
 
       const cx = w * 0.5;
       const cy = h * 0.45;
@@ -216,7 +215,7 @@ const LiquidGlassBackground = ({ energy = 0 }: Props) => {
         const pulseProgress = pulsePhase / (Math.PI * 2); // 0 to 1
         const pulseRadius = pulseProgress * Math.min(w, h) * 0.5;
         const pulseAlpha = (1 - pulseProgress) * (0.06 + smoothEnergy * 0.12);
-        
+
         if (pulseAlpha > 0.005) {
           ctx.beginPath();
           ctx.arc(cx, cy, pulseRadius, 0, Math.PI * 2);
@@ -226,18 +225,12 @@ const LiquidGlassBackground = ({ energy = 0 }: Props) => {
         }
       }
 
-      // Vignette
-      const vignette = ctx.createRadialGradient(cx, cy, w * 0.05, cx, cy, w * 0.55);
-      vignette.addColorStop(0, "transparent");
-      vignette.addColorStop(1, "rgba(8, 10, 18, 0.55)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, w, h);
+
 
       animationId = requestAnimationFrame(draw);
     };
 
-    ctx.fillStyle = "hsl(0, 0%, 5%)";
-    ctx.fillRect(0, 0, w, h);
+    // Start drawing frame-by-frame
     draw();
 
     return () => {
