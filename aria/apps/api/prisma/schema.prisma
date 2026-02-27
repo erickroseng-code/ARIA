@@ -19,3 +19,19 @@ model Integration {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model MaverickAnalysis {
+  id              String   @id @default(uuid())
+  username        String   // Instagram username analyzed
+  profile         Json     // ProfileAnalysis data
+  analysis        Json     // Analysis section
+  strategy        Json     // Strategy section
+  fullReport      Json     // Complete MaverickReport
+  status          String   @default("completed") // completed, failed, pending
+  error           String?  // Error message if failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([username])
+  @@index([createdAt])
+}

@@ -1,8 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { PrismaClient } from '@prisma/client';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
+import { MaverickService } from './maverick.service';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
 const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
@@ -23,6 +25,9 @@ function sendEvent(raw: any, type: string, data: Record<string, unknown>) {
 }
 
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
+  const prisma = new PrismaClient();
+  const maverickService = new MaverickService(prisma);
+
   // POST /api/maverick/plan — Scout + Strategist com SSE streaming
   fastify.post('/plan', async (
     req: FastifyRequest<{ Body: { username: string } }>,
@@ -65,6 +70,16 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
         if (line.trim() === '[PLAN_END]') {
           inPlan = false;
           sendEvent(raw, 'plan', { content: planBuffer.trim() });
+
+          // Salvar análise no banco de dados
+          try {
+            const report = JSON.parse(planBuffer.trim());
+            maverickService.saveAnalysis(report).catch(err => {
+              console.error('[ERROR] Erro ao salvar análise:', err);
+            });
+          } catch (err) {
+            console.error('[ERROR] Erro ao parsear report JSON:', err);
+          }
           continue;
         }
         if (inPlan) {
@@ -179,5 +194,111 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       sendEvent(raw, 'error', { message: err.message });
       raw.end();
     });
+  });
+
+  // GET /api/maverick/history/:username — Histórico de análises
+  fastify.get('/history/:username', async (
+    req: FastifyRequest<{ Params: { username: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const { username } = req.params;
+      const analyses = await maverickService.getAnalysisByUsername(username);
+
+      return reply.send({
+        username,
+        count: analyses.length,
+        analyses: analyses.map(a => ({
+          id: a.id,
+          createdAt: a.createdAt,
+          status: a.status,
+          profile: a.profile,
+          analysis: a.analysis,
+          strategy: a.strategy,
+        })),
+      });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar histórico' });
+    }
+  });
+
+  // GET /api/maverick/history/:username/latest — Última análise
+  fastify.get('/history/:username/latest', async (
+    req: FastifyRequest<{ Params: { username: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const { username } = req.params;
+      const analysis = await maverickService.getLatestAnalysis(username);
+
+      if (!analysis) {
+        return reply.status(404).send({ error: 'Nenhuma análise encontrada' });
+      }
+
+      return reply.send({
+        id: analysis.id,
+        createdAt: analysis.createdAt,
+        profile: analysis.profile,
+        analysis: analysis.analysis,
+        strategy: analysis.strategy,
+      });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar análise' });
+    }
+  });
+
+  // GET /api/maverick/history — Todas as análises com paginação
+  fastify.get('/history', async (
+    req: FastifyRequest<{ Querystring: { limit?: string; offset?: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit || '50'), 100);
+      const offset = parseInt(req.query.offset || '0');
+
+      const result = await maverickService.getAllAnalyses(limit, offset);
+
+      return reply.send({
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        hasMore: result.hasMore,
+        analyses: result.data.map(a => ({
+          id: a.id,
+          username: a.username,
+          createdAt: a.createdAt,
+          status: a.status,
+        })),
+      });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar histórico' });
+    }
+  });
+
+  // GET /api/maverick/stats — Estatísticas do histórico
+  fastify.get('/stats', async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const stats = await maverickService.getStats();
+      return reply.send(stats);
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao recuperar estatísticas' });
+    }
+  });
+
+  // DELETE /api/maverick/history/:id — Deletar uma análise
+  fastify.delete('/history/:id', async (
+    req: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const { id } = req.params;
+      await maverickService.deleteAnalysis(id);
+      return reply.send({ success: true });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao deletar análise' });
+    }
   });
 }
