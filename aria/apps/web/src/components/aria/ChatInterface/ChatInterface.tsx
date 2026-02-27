@@ -32,7 +32,7 @@ export function ChatInterface() {
   // On mount: always start a fresh conversation so the app opens on the welcome screen
   useEffect(() => {
     startNewConversation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable react-hooks/exhaustive-deps
   }, []);
 
   // Connect speech energy pulse for cadence-reactive background

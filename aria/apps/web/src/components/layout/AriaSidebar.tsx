@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from "react";
 import { LayoutGrid, PlusSquare, MessageSquare, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import IntegrationHub from "@/components/layout/IntegrationHub";
@@ -25,7 +24,7 @@ const squads = [
 ];
 
 const AriaSidebar = ({
-    onSelectIntegration,
+    onSelectIntegration: _onSelectIntegration,
     onSelectSquad,
     conversations = [],
     activeConversationId,

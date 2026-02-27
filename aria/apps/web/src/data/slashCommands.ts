@@ -1,21 +1,3 @@
-import {
-    Calendar,
-    CalendarPlus,
-    CalendarX,
-    Mail,
-    MailOpen,
-    Send,
-    CheckSquare,
-    PlusCircle,
-    Users,
-    Search,
-    FilePlus,
-    Zap,
-    BarChart,
-    FileSpreadsheet,
-    Eraser,
-    FileText
-} from "lucide-react";
 import { LucideIcon } from "lucide-react";
 
 export type IntegrationCategory = 'Calendar' | 'Gmail' | 'ClickUp' | 'Notion' | 'ARIA' | 'Google Sheets';

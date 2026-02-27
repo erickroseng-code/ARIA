@@ -2,12 +2,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { audioHandler } from '../audio.handler';
 
 // Mock AudioService
-vi.mock('@aria/core', () => ({
-  AudioService: vi.fn().mockImplementation(() => ({
-    transcribeFromBuffer: vi.fn(),
-  })),
-  contextStore: {},
-}));
+vi.mock('@aria/core', () => {
+  const AudioService = class {
+    transcribeFromBuffer = vi.fn();
+  };
+  return {
+    AudioService,
+    contextStore: {},
+  };
+});
 
 describe('audioHandler', () => {
   let mockCtx: any;
@@ -110,8 +113,13 @@ describe('audioHandler', () => {
 
     await audioHandler(mockCtx);
 
+    // Should first show processing message, then handle error
+    expect(mockCtx.reply).toHaveBeenCalledWith('🎙️ Transcrevendo áudio...');
     expect(mockCtx.editMessageText).toHaveBeenCalledWith(
-      expect.stringContaining('Erro')
+      expect.stringContaining('Desculpe'),
+      expect.objectContaining({
+        parse_mode: 'MarkdownV2',
+      })
     );
   });
 

@@ -67,7 +67,7 @@ export class GmailService {
         );
         const headers: { name: string; value: string }[] = res.data.payload?.headers ?? [];
         const get = (name: string) => headers.find((h) => h.name === name)?.value ?? '';
-        
+
         const rawDate = get('Date');
         let formattedDate = rawDate;
         try {
@@ -215,9 +215,8 @@ export class GmailService {
 
     formatForAI(emails: GmailMessage[], context: string): string {
         if (emails.length === 0) return `⚠️ Nenhum email encontrado no Gmail (${context}).`;
-        const lines = emails.map(
-            (e) => `• ${e.unread ? '📩 [NÃO LIDO] ' : ''}**${e.subject}** — ID: ${e.id}\n  De: ${e.from} | ${e.date}\n  Prévia: ${e.snippet}`
-        );
-        return `📧 GMAIL — ${context}:\n${lines.join('\n\n')}`;
+
+        const structuredData = JSON.stringify(emails, null, 2);
+        return `📧 GMAIL — ${context}:\n\n\`\`\`gmail\n${structuredData}\n\`\`\``;
     }
 }

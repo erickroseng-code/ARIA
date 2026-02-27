@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import * as mammoth from "mammoth";
-import { Send, Mic, MicOff, Plus, Paperclip, Globe, Wand2, Blocks, ChevronLeft, Check, Loader2, FileText, Image as ImageIcon, X } from "lucide-react";
+import { Send, Mic, MicOff, Plus, Paperclip, Globe, Wand2, Blocks, ChevronLeft, Loader2, FileText, Image as ImageIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { slashCommands, SlashCommand } from "@/data/slashCommands";
 import { SlashCommandMenu } from "./SlashCommandMenu";

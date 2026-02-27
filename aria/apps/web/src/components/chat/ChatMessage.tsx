@@ -1,4 +1,7 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from "@/lib/utils";
+import { EmailList, GmailEmail } from "./EmailList";
 
 const ariaLogo = "/aria-logo.png";
 const erickAvatar = "/erick-avatar.png";
@@ -17,10 +20,44 @@ interface ChatMessageProps {
 
 const ChatMessage = ({ message, revealLength }: ChatMessageProps) => {
   const isUser = message.role === "user";
-  const displayContent =
+
+  // Heuristic: Try to detect if the AI is outputting an email list in plain text
+  // mapping it back to a structure the EmailList can understand.
+  const preprocessContent = (content: string) => {
+    // Look for lines like "1. **Subject** - De: ... | Date ... Prévia: ..."
+    const emailItemRegex = /^(\d+)\.\s+(?:(?:\*\*([^*]+)\*\*)|([^-\n]+))\s*[-—]\s*De:\s+([^\n|]+)\s*\|\s*([^\n\n]+)(?:\s*Prévia:\s*([^\n]+))?/gm;
+    const matches = [...content.matchAll(emailItemRegex)];
+
+    if (matches.length >= 2) {
+      const emails: GmailEmail[] = matches.map(m => ({
+        id: `h-${m[1]}`, // heuristic id
+        subject: (m[2] || m[3] || "Sem Assunto").trim(),
+        from: m[4].trim(),
+        date: m[5].trim(),
+        snippet: (m[6] || "").trim(),
+        unread: content.toLowerCase().includes("não lidos") || content.toLowerCase().includes("nao lido")
+      }));
+
+      // Find the range of the list to replace it with a code block
+      const firstMatch = matches[0];
+      const lastMatch = matches[matches.length - 1];
+      const startIndex = firstMatch.index!;
+      const endIndex = lastMatch.index! + lastMatch[0].length;
+
+      const before = content.slice(0, startIndex);
+      const after = content.slice(endIndex);
+
+      return `${before}\n\n\`\`\`gmail\n${JSON.stringify(emails)}\n\`\`\`\n\n${after}`;
+    }
+    return content;
+  };
+
+  const rawDisplayContent =
     revealLength !== undefined && !isUser
       ? message.content.slice(0, revealLength)
       : message.content;
+
+  const displayContent = isUser ? rawDisplayContent : preprocessContent(rawDisplayContent);
 
   const isSpeaking =
     !isUser && revealLength !== undefined && revealLength < message.content.length;
@@ -77,19 +114,46 @@ const ChatMessage = ({ message, revealLength }: ChatMessageProps) => {
         {revealLength === 0 ? (
           <span className="inline-block w-2 h-5 bg-white/60 animate-pulse rounded-sm shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
         ) : (
-          <>
-            <p className="text-[16px] leading-[1.78] text-white/95 whitespace-pre-wrap drop-shadow-sm">
+          <div className="text-[16px] leading-[1.78] text-white/95 drop-shadow-sm prose prose-invert max-w-none prose-p:leading-[1.78] prose-p:my-0 prose-pre:bg-transparent prose-pre:p-0">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ _node, inline, className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || '');
+                  const language = match ? match[1] : '';
+
+                  if (!inline && language === 'gmail') {
+                    try {
+                      const emails = JSON.parse(String(children).replace(/\n$/, '')) as GmailEmail[];
+                      return <EmailList emails={emails} />;
+                    } catch (e) {
+                      return <pre className={className} {...props}>{children}</pre>;
+                    }
+                  }
+
+                  return inline ? (
+                    <code className={className} {...props}>{children}</code>
+                  ) : (
+                    <pre className={cn("bg-white/5 p-4 rounded-xl border border-white/10 my-4 overflow-x-auto", className)} {...props}>
+                      <code className={className}>{children}</code>
+                    </pre>
+                  );
+                },
+                // Preserve the custom paragraph style
+                p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>
+              }}
+            >
               {displayContent}
-              {isSpeaking && (
-                <span className="inline-block w-1.5 h-[18px] bg-white/70 animate-pulse rounded-sm ml-0.5 align-middle shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
-              )}
-            </p>
+            </ReactMarkdown>
+            {isSpeaking && (
+              <span className="inline-block w-1.5 h-[18px] bg-white/70 animate-pulse rounded-sm ml-0.5 align-middle shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+            )}
             {!isSpeaking && (
               <span className="text-[11px] text-white/40 mt-2 block drop-shadow-sm">
                 {message.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </span>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

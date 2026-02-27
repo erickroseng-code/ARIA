@@ -16,7 +16,7 @@ describe('document.guidance', () => {
         fileName: 'setor-comercial.pdf',
       });
 
-      expect(message).toContain('Ótimo! Primeiro documento enviado');
+      expect(message).toContain('Ótimo\\! Primeiro documento enviado');
       expect(message).toContain('Setor Comercial');
       expect(message).toContain('diferentes setores');
       expect(message).toContain('até 5 documentos');
@@ -70,7 +70,7 @@ describe('document.guidance', () => {
         fileName: 'ops.docx',
       });
 
-      expect(message).toContain('PRONTO! 5 Documentos Recebidos');
+      expect(message).toContain('PRONTO\\! 5 Documentos Recebidos');
       expect(message).toContain('Operations Doc');
       expect(message).toContain('Análise está pronta');
       expect(message).toContain('/pronto');
@@ -107,11 +107,11 @@ describe('document.guidance', () => {
       const message = getDocumentsListMessage(docs);
 
       expect(message).toContain('Documentos Acumulados (3/5)');
-      expect(message).toContain('1. *Comercial*');
-      expect(message).toContain('2. *Marketing*');
-      expect(message).toContain('3. *RH*');
-      expect(message).toContain('setor-comercial.pdf');
-      expect(message).toContain('marketing.docx');
+      expect(message).toContain('1\\. *Comercial*');
+      expect(message).toContain('2\\. *Marketing*');
+      expect(message).toContain('3\\. *RH*');
+      expect(message).toContain('setor\\-comercial\\.pdf');
+      expect(message).toContain('marketing\\.docx');
     });
 
     it('should include action options', () => {
@@ -141,7 +141,7 @@ describe('document.guidance', () => {
 
       expect(message).toContain('(5/5)');
       for (let i = 1; i <= 5; i++) {
-        expect(message).toContain(`${i}. *Doc ${i}*`);
+        expect(message).toContain(`${i}\\. *Doc ${i}*`);
       }
     });
   });
@@ -157,9 +157,9 @@ describe('document.guidance', () => {
       const message = getReadyToGenerateMessage(docs);
 
       expect(message).toContain('Documentos Prontos para Análise');
-      expect(message).toContain('1. Comercial');
-      expect(message).toContain('2. Marketing');
-      expect(message).toContain('3. RH');
+      expect(message).toContain('1\\. Comercial');
+      expect(message).toContain('2\\. Marketing');
+      expect(message).toContain('3\\. RH');
       expect(message).toContain('Gerando Plano de Ataque');
     });
 
@@ -174,7 +174,7 @@ describe('document.guidance', () => {
       const docs = [{ label: 'Single Doc' }];
       const message = getReadyToGenerateMessage(docs);
 
-      expect(message).toContain('1. Single Doc');
+      expect(message).toContain('1\\. Single Doc');
       expect(message).toContain('Gerando Plano');
     });
 
@@ -186,7 +186,7 @@ describe('document.guidance', () => {
       const message = getReadyToGenerateMessage(docs);
 
       for (let i = 1; i <= 5; i++) {
-        expect(message).toContain(`${i}. Doc ${i}`);
+        expect(message).toContain(`${i}\\. Doc ${i}`);
       }
     });
   });
@@ -237,7 +237,7 @@ describe('document.guidance', () => {
         fileName: 'test.pdf',
       });
 
-      expect(message).toContain('Test_Label*With*Markdown');
+      expect(message).toContain('Test\\_Label\\*With\\*Markdown');
     });
 
     it('should display label correctly for each message type', () => {
@@ -250,7 +250,7 @@ describe('document.guidance', () => {
         fileName: 'test.pdf',
       });
 
-      expect(msg1).toContain(label);
+      expect(msg1).toContain('Special\\-Document');
     });
   });
 });

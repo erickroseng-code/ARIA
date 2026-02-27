@@ -2,7 +2,7 @@ interface AriaWelcomeProps {
     onSelect?: (command: string) => void;
 }
 
-const AriaWelcome = ({ onSelect }: AriaWelcomeProps) => {
+const AriaWelcome = ({ onSelect: _onSelect }: AriaWelcomeProps) => {
     const getGreeting = () => {
         const hour = new Date().getHours();
         if (hour < 12) return "Bom dia";

@@ -610,6 +610,7 @@ REGRA CRÍTICA — DADOS DO GOOGLE WORKSPACE:
 - Se o contexto diz que não há eventos/emails/arquivos, informe isso DIRETAMENTE ao usuário.
 - Se o contexto contém dados reais (eventos, emails, arquivos), use-os diretamente na resposta.
 - Jamais invente dados que não estejam no contexto.
+- Se o contexto contiver dados do Gmail em um bloco \`\`\`gmail, você DEVE preservar esse bloco integralmente na sua resposta para que a interface possa renderizar os cards de e-mail. Não resuma o JSON para texto puro a menos que o usuário peça especificamente uma lista simplificada.
 
 REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar, etc):
 - O sistema já processou e EXECUTOU automaticamente a ação antes desta mensagem chegar aqui.
