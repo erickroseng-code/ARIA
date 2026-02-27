@@ -58,7 +58,7 @@ export async function handleStream(
       if (raw.flushHeaders) raw.flushHeaders();
       // Force TCP flush if possible for ultra-fast LPU chunks
       if (raw.socket && typeof raw.socket.write === 'function') {
-        const _ = raw.socket.write('');
+        raw.socket.write('');
       }
     }
     raw.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
@@ -68,7 +68,9 @@ export async function handleStream(
       const errorMsg = error instanceof Error ? error.message : String(error);
       const isConfiguredVal = process.env.GOOGLE_REFRESH_TOKEN ? 'yes' : 'no';
       raw.write(`data: ${JSON.stringify({ type: 'error', code: 'AI_001', message: errorMsg, tokenPrefix: isConfiguredVal })}\n\n`);
-    } catch { }
+    } catch (err) {
+      req.log.error(err, 'Error writing error response');
+    }
   } finally {
     raw.end();
   }
