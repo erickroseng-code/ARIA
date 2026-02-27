@@ -18,6 +18,7 @@ import { registerClickUpAuthRoutes } from './routes/clickup-auth.routes';
 import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
 import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
 import { workspaceActionRoutes } from './routes/workspace-action.routes';
+import { registerMaverickRoutes } from './modules/maverick/maverick.routes';
 import { registerAuthPlugin } from './plugins/auth.middleware';
 import fastifyMultipart from '@fastify/multipart';
 import { ChatService, contextStore, createGroqClient } from '@aria/core';
@@ -138,6 +139,7 @@ const startServer = async () => {
   await fastify.register(registerNotionAuthRoutes, { prefix: '/api/auth/notion' });
   await fastify.register(registerTelegramAuthRoutes, { prefix: '/api/auth/telegram' });
   await fastify.register(workspaceActionRoutes);
+  await fastify.register(registerMaverickRoutes, { prefix: '/api/maverick' });
 
   // Global error handler
   fastify.setErrorHandler((error, req, reply) => {

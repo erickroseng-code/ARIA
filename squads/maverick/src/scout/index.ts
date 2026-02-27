@@ -4,6 +4,11 @@ import * as cheerio from 'cheerio';
 // Interfaces baseadas nas Tasks
 export interface ProfileAnalysis {
     username: string;
+    stats: {
+        followers: string;
+        following: string;
+        posts_count: string;
+    };
     bio: {
         text: string;
         links: string[];
@@ -20,6 +25,18 @@ export interface ProfileAnalysis {
         caption: string;
         visual_desc: string; // Descrição simulada
     }[];
+}
+
+function parseInstagramStats(ogDesc: string): { followers: string; following: string; posts_count: string } {
+    // EN: "1,234,567 Followers, 567 Following, 89 Posts"
+    const enMatch = ogDesc.match(/^([\d,.]+[KkMmBb]?)\s+Followers?,\s*([\d,.]+[KkMmBb]?)\s+Following,\s*([\d,.]+[KkMmBb]?)\s+Posts?/i);
+    if (enMatch) return { followers: enMatch[1], following: enMatch[2], posts_count: enMatch[3] };
+
+    // PT: "1.234.567 seguidores, 567 seguindo, 89 publicações"
+    const ptMatch = ogDesc.match(/^([\d,.]+[KkMmBb]?)\s+seguidores?,\s*([\d,.]+[KkMmBb]?)\s+seguindo,\s*([\d,.]+[KkMmBb]?)\s+publica/i);
+    if (ptMatch) return { followers: ptMatch[1], following: ptMatch[2], posts_count: ptMatch[3] };
+
+    return { followers: 'N/D', following: 'N/D', posts_count: 'N/D' };
 }
 
 export class ScoutAgent {
@@ -53,9 +70,10 @@ export class ScoutAgent {
                  throw new Error(`ACESSO NEGADO: O perfil @${username} é privado. O Scout só pode analisar perfis públicos.`);
             }
 
-            // --- 1. Bio Analysis ---
+            // --- 1. Bio Analysis & Stats ---
             // Note: Classes change dynamically on IG. Using Meta Tags is safer for public profiles.
             const bioText = $('meta[property="og:description"]').attr('content') || '';
+            const profileStats = parseInstagramStats(bioText);
             
             // Try to find highlights (class search is brittle, checking for canvas elements usually works for stories)
             const hasHighlights = $('canvas').length > 0 || $('div[role="menuitem"]').length > 0;
@@ -89,14 +107,19 @@ export class ScoutAgent {
 
             return {
                 username,
+                stats: {
+                    followers: profileStats.followers,
+                    following: profileStats.following,
+                    posts_count: profileStats.posts_count !== 'N/D' ? profileStats.posts_count : `${posts.length}+`,
+                },
                 bio: {
                     text: bioText,
-                    links: [], 
+                    links: [],
                     detected_promise: this.inferPromise(bioText)
                 },
                 highlights: {
                     has_highlights: hasHighlights,
-                    titles: hasHighlights ? ["Detectado (Títulos ocultos sem login)"] : [], 
+                    titles: hasHighlights ? ["Detectado (Títulos ocultos sem login)"] : [],
                     key_summary: "Estrutura de destaques detectada visualmente."
                 },
                 recent_posts: posts
