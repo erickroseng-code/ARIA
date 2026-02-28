@@ -2,9 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'aria-api',
-      cwd: './apps/api',
-      script: 'cmd',
-      args: '/c npm run dev',
+      script: 'C:\\Windows\\System32\\cmd.exe',
+      args: '/c C:\\Users\\erick\\Projects\\aios-core\\aria\\start-api.bat',
       watch: false,
       autorestart: true,
       max_restarts: 10,
@@ -13,15 +12,14 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
       },
-      error_file: '../../.pm2/logs/aria-api-error.log',
-      out_file: '../../.pm2/logs/aria-api-out.log',
+      error_file: 'C:\\Users\\erick\\.pm2\\logs\\aria-api-error.log',
+      out_file: 'C:\\Users\\erick\\.pm2\\logs\\aria-api-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
     {
       name: 'aria-web',
-      cwd: './apps/web',
-      script: 'cmd',
-      args: '/c npm run dev',
+      script: 'C:\\Windows\\System32\\cmd.exe',
+      args: '/c C:\\Users\\erick\\Projects\\aios-core\\aria\\start-web.bat',
       watch: false,
       autorestart: true,
       max_restarts: 10,
@@ -30,8 +28,8 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
       },
-      error_file: '../../.pm2/logs/aria-web-error.log',
-      out_file: '../../.pm2/logs/aria-web-out.log',
+      error_file: 'C:\\Users\\erick\\.pm2\\logs\\aria-web-error.log',
+      out_file: 'C:\\Users\\erick\\.pm2\\logs\\aria-web-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
   ],
