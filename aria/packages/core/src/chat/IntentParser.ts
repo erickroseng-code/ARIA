@@ -299,7 +299,7 @@ Respond ONLY with the JSON object, no additional text.`;
       }
 
       // Extract time (e.g., "14h", "14:00", "2:30 PM", "3 PM")
-      let timeMatch = message.match(/(?:às|at)\s+(\d{1,2}):?(\d{2})?\s*(?:h|pm|am)?/i);
+      const timeMatch = message.match(/(?:às|at)\s+(\d{1,2}):?(\d{2})?\s*(?:h|pm|am)?/i);
       if (timeMatch) {
         const hour = timeMatch[1];
         const minute = timeMatch[2] || '00';

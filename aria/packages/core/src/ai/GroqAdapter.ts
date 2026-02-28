@@ -28,7 +28,7 @@ export class GroqAdapter {
 
         console.log(`[GroqAdapter] Attempting stream inference with model: ${this.model}`);
         const controller = new AbortController();
-        let timeoutId = setTimeout(() => controller.abort(), 30000); // 30s TTFT timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s TTFT timeout
 
         try {
             const stream = this.groq.streamCall(groqMessages, {

@@ -1,7 +1,7 @@
 import { bot } from './bot';
 
 // Error handling
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error('❌ Unhandled Rejection:', reason);
 });
 

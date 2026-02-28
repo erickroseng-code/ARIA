@@ -81,13 +81,9 @@ export class ClickUpManager {
    * Process queued tasks (should run periodically)
    */
   async processQueue(): Promise<void> {
-    while (true) {
-      const nextTask = await this.queue.getNextTask();
+    let nextTask = await this.queue.getNextTask();
 
-      if (!nextTask) {
-        break; // No more tasks ready
-      }
-
+    while (nextTask) {
       try {
         const result = await this.taskService.createTask(nextTask.request);
         console.log(`✅ Queued task completed: ${result.title}`);
@@ -107,6 +103,8 @@ export class ClickUpManager {
           );
         }
       }
+
+      nextTask = await this.queue.getNextTask();
     }
   }
 

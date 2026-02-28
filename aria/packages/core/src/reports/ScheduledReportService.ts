@@ -399,7 +399,7 @@ export class ScheduledReportService {
   /**
    * Calculate next delivery time based on cron expression and timezone
    */
-  private calculateNextDelivery(cronExpression: string, timezone: string): Date {
+  private calculateNextDelivery(cronExpression: string, _timezone: string): Date {
     try {
       // Parse next execution time using cron expression
       const options = { scheduled: false } as any;

@@ -216,8 +216,8 @@ export class CalendarHandler {
    */
   private parseDateRange(dateStr: string): { startDate: Date; endDate: Date } {
     const now = new Date();
-    let startDate = new Date(now);
-    let endDate = new Date(now);
+    const startDate = new Date(now);
+    const endDate = new Date(now);
 
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);

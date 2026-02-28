@@ -78,7 +78,7 @@ export class NotionDataCollector {
   /**
    * Task 3.2: Fetch Planos (attack plans) created in date range
    */
-  private async fetchPlansCreatedCount(startDate: Date, endDate: Date): Promise<number> {
+  private async fetchPlansCreatedCount(_startDate: Date, _endDate: Date): Promise<number> {
     if (!this.notionClient) return 0;
 
     try {

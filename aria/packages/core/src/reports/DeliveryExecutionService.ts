@@ -1,5 +1,5 @@
 import { Job } from 'bullmq';
-import { ScheduledReportService, ScheduledReport, DeliveryChannel } from './ScheduledReportService';
+import { ScheduledReportService, DeliveryChannel } from './ScheduledReportService';
 import { BullQueueService, ReportDeliveryJob } from './BullQueueService';
 import { ReportGenerationService } from './ReportGenerationService';
 import { ReportDataAggregationService } from './ReportDataAggregationService';

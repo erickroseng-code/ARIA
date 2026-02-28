@@ -25,7 +25,7 @@ export async function audioHandler(ctx: any) {
 
   try {
     // Show "transcribing..." message
-    const processingMsg = await ctx.reply('🎙️ Transcrevendo áudio...');
+    await ctx.reply('🎙️ Transcrevendo áudio...');
 
     // Validate audio size
     if (voice.file_size && voice.file_size > MAX_AUDIO_SIZE) {

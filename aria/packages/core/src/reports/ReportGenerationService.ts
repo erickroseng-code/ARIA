@@ -299,7 +299,7 @@ export class ReportGenerationService {
     ];
   }
 
-  private generateRecommendationsMock(reportData: ReportData): string[] {
+  private generateRecommendationsMock(_reportData: ReportData): string[] {
     return [
       'Focus on clearing pending tasks to improve completion rate',
       'Schedule regular check-ins with all active clients',

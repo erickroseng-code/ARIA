@@ -48,7 +48,7 @@ export class ClickUpDataCollector {
   /**
    * Task 2.1: Fetch tasks by status (completed, pending, overdue)
    */
-  private async fetchTasksByStatus(status: string[]): Promise<ClickUpTask[]> {
+  private async fetchTasksByStatus(_status: string[]): Promise<ClickUpTask[]> {
     if (!this.clickupClient) return [];
 
     try {
@@ -93,7 +93,7 @@ export class ClickUpDataCollector {
   /**
    * Task 2.4: Aggregate tasks with 3s timeout per request
    */
-  private async fetchTasksWithTimeout(startDate: Date, endDate: Date): Promise<ClickUpTask[]> {
+  private async fetchTasksWithTimeout(_startDate: Date, _endDate: Date): Promise<ClickUpTask[]> {
     return Promise.race([
       this.fetchTasksByStatus(['completed', 'open', 'overdue']),
       new Promise<ClickUpTask[]>((_, reject) =>

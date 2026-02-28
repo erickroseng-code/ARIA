@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ContextStore } from './ContextStore';
 import { PlanOfAttackService } from '../clients/PlanOfAttackService';
-import { getNotionClient, ClientProfileService, getClickUpQueryService, DriveService, GmailService, SheetsService, DocsService, CalendarService, isWorkspaceConfigured } from '@aria/integrations';
-import { getTaskIntentParser, type TaskIntent, type ParseResult } from './TaskIntentParser';
+import { getNotionClient, ClientProfileService, getClickUpQueryService, DriveService, GmailService, CalendarService, isWorkspaceConfigured } from '@aria/integrations';
+import { getTaskIntentParser, type TaskIntent } from './TaskIntentParser';
 import { getClientMatcher } from '../utils/client-matcher';
 import { AmbiguityResolver } from './AmbiguityResolver';
 import { getPriorityExtractor } from '../utils/priority-extractor';
@@ -834,8 +834,8 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
    */
   private extractStatusUpdate(message: string): { taskName?: string; newStatus?: string } {
     const patterns = [
-      /(?:altere|mude|atualize|modifique)\s+(?:o status de\s+)?['\"]?([^'\"]+?)['\"]?\s+(?:para|de)\s+['\"]?([^'\"]+?)['\"]?$/i,
-      /['\"]?([^'\"]+?)['\"]?\s+(?:para|->)\s+['\"]?([^'\"]+?)['\"]?$/i,
+      /(?:altere|mude|atualize|modifique)\s+(?:o status de\s+)?['"]?([^'"]+?)['"]?\s+(?:para|de)\s+['"]?([^'"]+?)['"]?$/i,
+      /['"]?([^'"]+?)['"]?\s+(?:para|->)\s+['"]?([^'"]+?)['"]?$/i,
     ];
 
     for (const pattern of patterns) {

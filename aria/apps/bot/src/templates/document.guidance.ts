@@ -19,14 +19,14 @@ export function getDocumentGuidance(context: DocumentGuidanceContext): string {
 
   if (documentCount === 1) {
     return `
-🎯 *Ótimo\\! Primeiro documento enviado*
+🎯 *Ótimo! Primeiro documento enviado*
 
 _Label: ${safeLabel}_
 
 📌 *Dicas para melhor análise:*
-• Envie documentos de diferentes setores \(Comercial, Marketing, RH\)
-• Inclua relatórios recentes \(últimos 3\\-6 meses\)
-• Documentos com mais contexto \\= análise mais completa
+• Envie documentos de diferentes setores (Comercial, Marketing, RH)
+• Inclua relatórios recentes (últimos 3-6 meses)
+• Documentos com mais contexto = análise mais completa
 
 📈 Pode enviar até ${totalLimit} documentos no total
     `;

@@ -53,7 +53,7 @@ export class GoogleCalendarDataCollector {
   /**
    * Task 4.1: Fetch events in date range
    */
-  private async fetchEventsInRange(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+  private async fetchEventsInRange(_startDate: Date, _endDate: Date): Promise<CalendarEvent[]> {
     if (!this.calendarClient) return [];
 
     try {
