@@ -26,9 +26,32 @@ function sendEvent(raw: any, type: string, data: Record<string, unknown>) {
 }
 
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
-  const prisma = new PrismaClient();
-  const maverickService = new MaverickService(prisma);
-  const metricsService = new MetricsService(prisma);
+  // PrismaClient requires an adapter in Prisma v7 (DATABASE_URL + adapter config).
+  // If not configured, register stub routes returning 503 so the server starts cleanly.
+  let prisma: PrismaClient;
+  let maverickService: MaverickService;
+  let metricsService: MetricsService;
+
+  try {
+    prisma = new PrismaClient();
+    maverickService = new MaverickService(prisma);
+    metricsService = new MetricsService(prisma);
+  } catch (err) {
+    console.warn('[Maverick] ⚠️  Prisma not configured — registering stub routes (503):', err instanceof Error ? err.message.split('\n')[0] : String(err));
+    // Register stub routes so Fastify doesn't crash
+    const stubHandler = (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.status(503).send({ error: 'Maverick não disponível — DATABASE_URL não configurado' });
+    fastify.post('/plan', stubHandler);
+    fastify.post('/scripts', stubHandler);
+    fastify.get('/history', stubHandler);
+    fastify.get('/history/:username', stubHandler);
+    fastify.get('/history/:username/latest', stubHandler);
+    fastify.get('/metrics', stubHandler);
+    fastify.get('/metrics/:username', stubHandler);
+    fastify.get('/traceability/:analysisId', stubHandler);
+    fastify.post('/feedback/:traceId', stubHandler);
+    return; // Do NOT register real routes
+  }
 
   // POST /api/maverick/plan — Scout + Strategist com SSE streaming
   fastify.post('/plan', async (

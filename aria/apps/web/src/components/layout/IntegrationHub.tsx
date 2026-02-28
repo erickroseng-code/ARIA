@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from "react";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Check, ExternalLink, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     Dialog,
@@ -25,11 +25,16 @@ interface IntegrationDef {
     description: string;
     logo: string;
     statusUrl?: string;
+    /** URL to GET the OAuth URL from backend (returns JSON { url }) */
     authUrl?: string;
-    // se true, mostra "Em breve" em vez de "Conectar"
-    comingSoon?: boolean;
-    // se true, abre authUrl em nova aba em vez de popup OAuth
+    /** POST endpoint to save an API key */
+    saveUrl?: string;
+    /** If true, shows API key input form instead of OAuth popup */
+    apiKeyAuth?: boolean;
+    /** If true, opens authUrl in new tab (legacy external auth) */
     externalAuth?: boolean;
+    /** If true, shows "Em breve" */
+    comingSoon?: boolean;
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
@@ -55,8 +60,8 @@ const INTEGRATIONS: IntegrationDef[] = [
         description: "Documentação e Knowledge Base",
         logo: notionLogo,
         statusUrl: `${API_BASE}/api/auth/notion/status`,
-        authUrl: `https://www.notion.so/my-integrations`,
-        externalAuth: true, // abre em nova aba, não popup OAuth
+        saveUrl: `${API_BASE}/api/auth/notion/save`,
+        apiKeyAuth: true,
     },
     {
         id: "telegram",
@@ -91,14 +96,20 @@ interface IntegrationHubProps {
 const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
     const [statuses, setStatuses] = useState<StatusMap>({});
     const [connecting, setConnecting] = useState<string | null>(null);
-    const [authCache] = useState<Set<string>>(() => {
-        // Load cached authentications from session storage
+    const [showApiKeyForm, setShowApiKeyForm] = useState<string | null>(null);
+    const [apiKeyInput, setApiKeyInput] = useState('');
+    const [savingApiKey, setSavingApiKey] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    // Mutable session cache — NOT used for rendering, only for popup dedup
+    const authCache = useRef<Set<string>>((() => {
+        if (typeof window === 'undefined') return new Set<string>();
         const cached = sessionStorage.getItem('aria_auth_cache');
-        return new Set(cached ? JSON.parse(cached) : []);
-    });
+        return new Set<string>(cached ? JSON.parse(cached) : []);
+    })());
 
     const fetchStatuses = async () => {
-        // Marca todos com statusUrl como "carregando"
+        // Mark all with statusUrl as loading
         const loading: StatusMap = {};
         INTEGRATIONS.forEach(i => {
             if (i.statusUrl) loading[i.id] = null;
@@ -112,9 +123,17 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                     try {
                         const res = await fetch(i.statusUrl!);
                         const data = await res.json();
-                        setStatuses(prev => ({ ...prev, [i.id]: !!data.connected }));
+                        const connected = !!data.connected;
+                        setStatuses(prev => ({ ...prev, [i.id]: connected }));
+                        // If backend says NOT connected, clear the session cache for this provider
+                        // so clicking "Conectar" actually opens the popup (prevents stale cache bug)
+                        if (!connected) {
+                            authCache.current.delete(i.id);
+                            sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
+                        }
                     } catch {
                         setStatuses(prev => ({ ...prev, [i.id]: false }));
+                        authCache.current.delete(i.id);
                     }
                 })
         );
@@ -124,20 +143,45 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
         if (open) fetchStatuses();
     }, [open]);
 
-    const openOAuthPopup = (integration: IntegrationDef) => {
-        if (!integration.authUrl) return;
+    const saveApiKey = async (integration: IntegrationDef) => {
+        if (!apiKeyInput.trim() || !integration.saveUrl) return;
+        setSavingApiKey(integration.id);
+        setSaveError(null);
+        try {
+            const res = await fetch(integration.saveUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: apiKeyInput.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+            // Success — close form and refresh statuses
+            setShowApiKeyForm(null);
+            setApiKeyInput('');
+            await fetchStatuses();
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Erro ao salvar chave');
+        } finally {
+            setSavingApiKey(null);
+        }
+    };
 
-        // Check if already authenticated in this session
-        if (authCache.has(integration.id)) {
-            setStatuses(prev => ({ ...prev, [integration.id]: true }));
+    const handleConnect = async (integration: IntegrationDef) => {
+        // API key auth: show inline form
+        if (integration.apiKeyAuth) {
+            setShowApiKeyForm(integration.id);
+            setApiKeyInput('');
+            setSaveError(null);
             return;
         }
 
-        // External auth (e.g. Notion) — open in new tab with instructions
-        if (integration.externalAuth) {
+        // External auth: open in new tab
+        if (integration.externalAuth && integration.authUrl) {
             window.open(integration.authUrl, '_blank');
             return;
         }
+
+        if (!integration.authUrl) return;
 
         setConnecting(integration.id);
 
@@ -146,31 +190,53 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
         const left = window.screen.width / 2 - width / 2;
         const top = window.screen.height / 2 - height / 2;
 
-        // Abre o popup direto na URL do backend — o backend redireciona para o provider
+        // Open popup IMMEDIATELY (synchronous — required by browser popup policy)
         const popup = window.open(
-            integration.authUrl,
+            'about:blank',
             'OAuth',
             `width=${width},height=${height},top=${top},left=${left},status=no,directories=no,location=no,menubar=no,toolbar=no`
         );
 
-        if (popup) {
-            const check = setInterval(() => {
-                if (popup.closed) {
-                    clearInterval(check);
-                    setConnecting(null);
-                    // Mark as authenticated in this session
-                    authCache.add(integration.id);
-                    sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache)));
-                    // Aguarda 500ms para o banco persistir e então atualiza status
-                    setTimeout(() => fetchStatuses(), 500);
-                }
-            }, 800);
-        } else {
-            // Popup bloqueado — abre em nova aba
+        try {
+            // Fetch the OAuth URL from backend as JSON
+            const res = await fetch(integration.authUrl, {
+                headers: { 'Accept': 'application/json' },
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({})) as any;
+                throw new Error(errData?.error || errData?.hint || `Erro ${res.status}: credenciais OAuth não configuradas no servidor`);
+            }
+
+            const data = await res.json() as { url?: string };
+            if (!data.url) throw new Error('Backend não retornou URL de autorização');
+
+            if (popup && !popup.closed) {
+                // Navigate the popup directly to the provider's OAuth page
+                popup.location.href = data.url;
+
+                // Poll for popup close
+                const check = setInterval(() => {
+                    if (!popup || popup.closed) {
+                        clearInterval(check);
+                        setConnecting(null);
+                        authCache.current.add(integration.id);
+                        sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
+                        // Refresh status after short delay to let backend persist
+                        setTimeout(() => fetchStatuses(), 800);
+                    }
+                }, 800);
+            } else {
+                // Popup was blocked — open in new tab directly to provider URL
+                setConnecting(null);
+                window.open(data.url, '_blank');
+                authCache.current.add(integration.id);
+                sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
+            }
+        } catch (err) {
+            if (popup && !popup.closed) popup.close();
             setConnecting(null);
-            window.open(integration.authUrl, '_blank');
-            authCache.add(integration.id);
-            sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache)));
+            console.error(`[OAuth ${integration.id}]`, err);
         }
     };
 
@@ -182,7 +248,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                 </DialogHeader>
 
                 <p className="px-6 text-sm text-muted-foreground leading-relaxed">
-                    Conecte a ARIA aos seus aplicativos. Clique em Conectar para autorizar via OAuth — seus dados ficam no seu dispositivo.
+                    Conecte a ARIA aos seus aplicativos. Suas credenciais ficam salvas no dispositivo.
                 </p>
 
                 <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-hidden">
@@ -191,6 +257,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                         const isConnected = status === true;
                         const isLoading = status === null;
                         const isConnecting = connecting === integration.id;
+                        const isShowingForm = showApiKeyForm === integration.id;
 
                         return (
                             <div
@@ -201,68 +268,117 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                     "hover:border-border/50"
                                 )}
                             >
+                                {/* Logo — always visible */}
                                 <div className="w-10 h-10 rounded-xl bg-[hsl(0_0%_16%)] flex items-center justify-center flex-shrink-0 overflow-hidden p-2">
                                     <img src={integration.logo} alt={integration.name} className="w-6 h-6 object-contain" />
                                 </div>
 
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-foreground">{integration.name}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{integration.description}</p>
-                                </div>
+                                {/* API key input form (replaces name/desc + button when active) */}
+                                {isShowingForm ? (
+                                    <div className="flex-1 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={apiKeyInput}
+                                                onChange={e => setApiKeyInput(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && saveApiKey(integration)}
+                                                placeholder={`Chave API do ${integration.name}...`}
+                                                className="flex-1 text-xs bg-[hsl(0_0%_9%)] border border-border/40 rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-indigo-500/60"
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={() => saveApiKey(integration)}
+                                                disabled={!apiKeyInput.trim() || savingApiKey === integration.id}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/25 transition-colors disabled:opacity-50 disabled:cursor-wait flex-shrink-0"
+                                            >
+                                                {savingApiKey === integration.id
+                                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                    : 'Salvar'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowApiKeyForm(null); setApiKeyInput(''); setSaveError(null); }}
+                                                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                        {saveError && (
+                                            <p className="text-xs text-red-400 px-1">{saveError}</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-foreground">{integration.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{integration.description}</p>
+                                        </div>
 
-                                {/* Estado: carregando */}
-                                {isLoading && (
-                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground flex-shrink-0">
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                    </span>
-                                )}
+                                        {/* Loading */}
+                                        {isLoading && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground flex-shrink-0">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                            </span>
+                                        )}
 
-                                {/* Estado: conectado */}
-                                {!isLoading && isConnected && (
-                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
-                                        <Check className="w-3 h-3" />
-                                        Conectado
-                                    </span>
-                                )}
+                                        {/* Connected */}
+                                        {!isLoading && isConnected && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
+                                                <Check className="w-3 h-3" />
+                                                Conectado
+                                            </span>
+                                        )}
 
-                                {/* Estado: em breve */}
-                                {!isLoading && !isConnected && integration.comingSoon && (
-                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
-                                        Em breve
-                                    </span>
-                                )}
+                                        {/* Coming soon */}
+                                        {!isLoading && !isConnected && integration.comingSoon && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
+                                                Em breve
+                                            </span>
+                                        )}
 
-                                {/* Estado: pode conectar (via OAuth popup) */}
-                                {!isLoading && !isConnected && !integration.comingSoon && integration.authUrl && !integration.externalAuth && (
-                                    <button
-                                        onClick={() => openOAuthPopup(integration)}
-                                        disabled={isConnecting}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/25 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-wait"
-                                    >
-                                        {isConnecting
-                                            ? <Loader2 className="w-3 h-3 animate-spin" />
-                                            : <ExternalLink className="w-3 h-3" />
-                                        }
-                                        {isConnecting ? 'Conectando...' : 'Conectar'}
-                                    </button>
-                                )}
+                                        {/* API key auth (Notion, etc.) */}
+                                        {!isLoading && !isConnected && !integration.comingSoon && integration.apiKeyAuth && (
+                                            <button
+                                                onClick={() => handleConnect(integration)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors flex-shrink-0"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                Configurar
+                                            </button>
+                                        )}
 
-                                {/* Estado: auth externa (ex: Notion — abre nova aba) */}
-                                {!isLoading && !isConnected && !integration.comingSoon && integration.externalAuth && (
-                                    <button
-                                        onClick={() => openOAuthPopup(integration)}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors flex-shrink-0"
-                                    >
-                                        <ExternalLink className="w-3 h-3" />
-                                        Configurar
-                                    </button>
-                                )}
+                                        {/* OAuth popup (Google, ClickUp) */}
+                                        {!isLoading && !isConnected && !integration.comingSoon && !integration.apiKeyAuth && !integration.externalAuth && integration.authUrl && (
+                                            <button
+                                                onClick={() => handleConnect(integration)}
+                                                disabled={isConnecting}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/25 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-wait"
+                                            >
+                                                {isConnecting
+                                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                    : <ExternalLink className="w-3 h-3" />
+                                                }
+                                                {isConnecting ? 'Conectando...' : 'Conectar'}
+                                            </button>
+                                        )}
 
-                                {/* Estado: sem botão de conexão (ex: Telegram — config via .env) */}
-                                {!isLoading && !isConnected && !integration.comingSoon && !integration.authUrl && !integration.externalAuth && (
-                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
-                                        Não configurado
-                                    </span>
+                                        {/* External auth (opens new tab) */}
+                                        {!isLoading && !isConnected && !integration.comingSoon && integration.externalAuth && (
+                                            <button
+                                                onClick={() => handleConnect(integration)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors flex-shrink-0"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                Configurar
+                                            </button>
+                                        )}
+
+                                        {/* No connection method available */}
+                                        {!isLoading && !isConnected && !integration.comingSoon && !integration.authUrl && !integration.apiKeyAuth && !integration.externalAuth && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
+                                                Não configurado
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         );

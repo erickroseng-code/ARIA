@@ -41,20 +41,31 @@ const startServer = async () => {
   await fastify.register(fastifyMultipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
   // Inject Database Token Resolver for Google Workspace using native sqlite
+  // Falls back to GOOGLE_REFRESH_TOKEN from .env so integrations survive DB resets.
   setWorkspaceTokenResolver(async () => {
     try {
       const stmt = db.prepare('SELECT refreshToken, accessToken, isValid FROM integrations WHERE provider = ?');
       const integration = stmt.get('google') as any;
 
-      // If no integration or manually marked invalid, return null to force re-auth
-      if (!integration || integration.isValid === 0) return null;
-      return {
-        accessToken: integration.accessToken,
-        refreshToken: integration.refreshToken,
-      };
+      if (integration?.refreshToken && integration.isValid !== 0) {
+        return {
+          accessToken: integration.accessToken,
+          refreshToken: integration.refreshToken,
+        };
+      }
+
+      // Fallback: use env token (persists across DB resets)
+      const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+      if (envRefreshToken) {
+        return { refreshToken: envRefreshToken, accessToken: null };
+      }
+
+      return null;
     } catch (err) {
       console.error('[TokenResolver NativeDB] Error querying tokens:', err);
-      return null;
+      // On DB error, still try env fallback
+      const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+      return envRefreshToken ? { refreshToken: envRefreshToken, accessToken: null } : null;
     }
   });
 

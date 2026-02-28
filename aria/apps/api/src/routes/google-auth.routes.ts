@@ -63,12 +63,8 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
                 prompt: 'consent', // Force consent to always get refresh_token
             });
 
-            // Return both a redirect (for browser direct access) and JSON (for API clients)
-            const acceptHeader = (_req as FastifyRequest).headers.accept ?? '';
-            if (acceptHeader.includes('text/html')) {
-                return reply.redirect(url);
-            }
-
+            // Always return JSON — the frontend fetches this URL and navigates the popup directly
+            // to Google's auth URL, which is more reliable than relying on browser redirect.
             return reply.send({
                 success: true,
                 message: 'Open the authorization URL in your browser to grant access',
@@ -181,21 +177,29 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
     /**
      * GET /api/auth/google/status
      * Returns the current status of the Google integration in the native database.
+     * Falls back to GOOGLE_REFRESH_TOKEN in .env so the integration never "falls" on restart.
      */
     fastify.get('/status', async (_req, reply) => {
         try {
             const stmt = db.prepare('SELECT refreshToken, isValid, updatedAt FROM integrations WHERE provider = ?');
             const integration = stmt.get('google') as any;
 
-            if (!integration || !integration.refreshToken) {
-                return reply.send({ connected: false, isValid: false });
+            if (integration?.refreshToken && integration.isValid === 1) {
+                return reply.send({
+                    connected: true,
+                    isValid: true,
+                    updatedAt: integration.updatedAt,
+                    source: 'db',
+                });
             }
 
-            return reply.send({
-                connected: true,
-                isValid: integration.isValid === 1,
-                updatedAt: integration.updatedAt
-            });
+            // Fallback: use GOOGLE_REFRESH_TOKEN from .env (token is permanent and env persists)
+            const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+            if (envRefreshToken) {
+                return reply.send({ connected: true, isValid: true, source: 'env' });
+            }
+
+            return reply.send({ connected: false, isValid: false });
         } catch (error) {
             return reply.status(500).send({
                 success: false,
