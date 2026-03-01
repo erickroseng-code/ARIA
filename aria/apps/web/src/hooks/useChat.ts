@@ -77,10 +77,52 @@ export function useChat() {
     [isStreaming, addMessage, setStreaming, appendStreamChunk, commitStreamedMessage]
   );
 
+  const regenerateResponse = useCallback(
+    async () => {
+      const currentMessages = store.messages();
+      if (currentMessages.length < 1 || isStreaming) return;
+
+      let lastUserMsg: any = null;
+      let assistantMsgIdToRemove: string | null = null;
+
+      // Find the last assistant message to remove and the user message before it
+      for (let i = currentMessages.length - 1; i >= 0; i--) {
+        const msg = currentMessages[i];
+        if (msg.role === 'assistant' && !assistantMsgIdToRemove) {
+          assistantMsgIdToRemove = msg.id;
+        } else if (msg.role === 'user' && !lastUserMsg) {
+          lastUserMsg = msg;
+          break;
+        }
+      }
+
+      if (!lastUserMsg) return;
+
+      if (assistantMsgIdToRemove) {
+        store.removeMessageById(assistantMsgIdToRemove);
+      }
+
+      setStreaming(true);
+      const sessionId = sessionIdRef.current;
+
+      try {
+        for await (const chunk of streamMessage(lastUserMsg.content, sessionId)) {
+          appendStreamChunk(chunk);
+        }
+        commitStreamedMessage();
+      } catch (error) {
+        console.error('Stream error:', error);
+        commitStreamedMessage();
+      }
+    },
+    [isStreaming, store, setStreaming, appendStreamChunk, commitStreamedMessage]
+  );
+
   return {
     messages,
     isStreaming,
     streamingContent,
     sendMessage,
+    regenerateResponse,
   };
 }

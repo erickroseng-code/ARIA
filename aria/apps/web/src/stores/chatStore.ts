@@ -37,6 +37,8 @@ interface ChatStore {
   setStreaming: (v: boolean) => void;
   appendStreamChunk: (chunk: string) => void;
   commitStreamedMessage: () => void;
+  removeLastMessage: () => void;
+  removeMessageById: (id: string) => void;
   setPendingDocumentsCount: (count: number) => void;
   setHubOpen: (v: boolean) => void;
   clear: () => void;
@@ -181,6 +183,24 @@ export const useChatStore = create<ChatStore>()(
             streamingContent: '',
             isStreaming: false,
           };
+        }),
+
+      removeLastMessage: () =>
+        set((s) => {
+          const updated = s.conversations.map((c) => {
+            if (c.id !== s.activeConversationId) return c;
+            return { ...c, messages: c.messages.slice(0, -1) };
+          });
+          return { conversations: updated };
+        }),
+
+      removeMessageById: (id) =>
+        set((s) => {
+          const updated = s.conversations.map((c) => {
+            if (c.id !== s.activeConversationId) return c;
+            return { ...c, messages: c.messages.filter((m) => m.id !== id) };
+          });
+          return { conversations: updated };
         }),
 
       setPendingDocumentsCount: (count) => set({ pendingDocumentsCount: count }),

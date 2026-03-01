@@ -26,7 +26,7 @@ export function ChatInterface() {
   const { conversations, activeConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
 
   // Real ARIA backend integration
-  const { messages, isStreaming, streamingContent, sendMessage } = useChat();
+  const { messages, isStreaming, streamingContent, sendMessage, regenerateResponse } = useChat();
   const { speak, setOnSpeakingChange, setOnEnergyPulse } = useAriaSpeech();
 
   // On mount: always start a fresh conversation so the app opens on the welcome screen
@@ -116,80 +116,87 @@ export function ChatInterface() {
             <MaverickSession onClose={() => setMaverickOpen(false)} />
           ) : (
             <>
-          <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
-            <div className="flex items-center gap-2" />
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
-              <div
-                className={cn(
-                  "w-2 h-2 rounded-full transition-colors duration-300 shadow-[0_0_8px_rgba(255,255,255,0.4)]",
-                  speakingMessageId ? "bg-white animate-pulse" : "bg-white/80"
-                )}
-              />
-              <span className="text-xs text-white/80 font-medium drop-shadow-sm">
-                {speakingMessageId ? "Falando" : "Online"}
-              </span>
-            </div>
-          </header>
-
-          {messages.length === 0 && !isStreaming ? (
-            <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0 lg:pr-64">
-              <div className="bg-white/[0.01] backdrop-blur-xl border border-white/[0.06] shadow-[0_16px_40px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[28px] px-8 py-10 w-full max-w-[560px] flex flex-col gap-6">
-                <AriaWelcome onSelect={handleQuickCommand} />
-                <ChatInput
-                  onSend={handleSend}
-                  disabled={isStreaming || !!speakingMessageId}
-                  prefill={prefill}
-                  onPrefillConsumed={handlePrefillConsumed}
-                />
-              </div>
-            </div>
-          ) : (
-            <>
-              <div
-                className="flex-1 overflow-y-auto scrollbar-hidden px-4"
-                style={{
-                  maskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)',
-                  WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)'
-                }}
-              >
-                <div className="max-w-3xl mx-auto pt-8 pb-36 space-y-0">
-                  {messages.map((msg) => (
-                    <ChatMessage
-                      key={msg.id}
-                      message={{
-                        id: msg.id,
-                        role: msg.role === 'assistant' ? 'aria' : 'user',
-                        content: msg.content,
-                        timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-                      }}
-                      revealLength={msg.id === speakingMessageId ? revealLength : undefined}
-                    />
-                  ))}
-                  {isStreaming && streamingContent && (
-                    <ChatMessage
-                      message={{
-                        id: "streaming",
-                        role: "aria",
-                        content: streamingContent,
-                        timestamp: new Date(Date.now()),
-                      }}
-                    />
-                  )}
-                  {isStreaming && !streamingContent && <TypingIndicator />}
-                  <div ref={messagesEndRef} />
+              <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
+                <div className="flex items-center gap-2" />
+                <div className="flex-1" />
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-colors duration-300 shadow-[0_0_8px_rgba(255,255,255,0.4)]",
+                      speakingMessageId ? "bg-white animate-pulse" : "bg-white/80"
+                    )}
+                  />
+                  <span className="text-xs text-white/80 font-medium drop-shadow-sm">
+                    {speakingMessageId ? "Falando" : "Online"}
+                  </span>
                 </div>
-              </div>
-              <div className="bg-transparent">
-                <ChatInput
-                  onSend={handleSend}
-                  disabled={isStreaming || !!speakingMessageId}
-                  prefill={prefill}
-                  onPrefillConsumed={handlePrefillConsumed}
-                />
-              </div>
-            </>
-          )}
+              </header>
+
+              {messages.length === 0 && !isStreaming ? (
+                <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0 lg:pr-64">
+                  <div className="bg-white/[0.01] backdrop-blur-xl border border-white/[0.06] shadow-[0_16px_40px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[28px] px-8 py-10 w-full max-w-[560px] flex flex-col gap-6">
+                    <AriaWelcome onSelect={handleQuickCommand} />
+                    <ChatInput
+                      onSend={handleSend}
+                      disabled={isStreaming || !!speakingMessageId}
+                      prefill={prefill}
+                      onPrefillConsumed={handlePrefillConsumed}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="flex-1 overflow-y-auto scrollbar-hidden px-4"
+                    style={{
+                      maskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)'
+                    }}
+                  >
+                    <div className="max-w-3xl mx-auto pt-8 pb-36 space-y-0">
+                      {messages.map((msg, idx) => (
+                        <ChatMessage
+                          key={msg.id}
+                          message={{
+                            id: msg.id,
+                            role: msg.role === 'assistant' ? 'aria' : 'user',
+                            content: msg.content,
+                            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                          }}
+                          revealLength={msg.id === speakingMessageId ? revealLength : undefined}
+                          onRegenerate={
+                            !isStreaming &&
+                              msg.role === 'assistant' &&
+                              idx === messages.length - 1
+                              ? regenerateResponse
+                              : undefined
+                          }
+                        />
+                      ))}
+                      {isStreaming && streamingContent && (
+                        <ChatMessage
+                          message={{
+                            id: "streaming",
+                            role: "aria",
+                            content: streamingContent,
+                            timestamp: new Date(Date.now()),
+                          }}
+                        />
+                      )}
+                      {isStreaming && !streamingContent && <TypingIndicator />}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+                  <div className="bg-transparent">
+                    <ChatInput
+                      onSend={handleSend}
+                      disabled={isStreaming || !!speakingMessageId}
+                      prefill={prefill}
+                      onPrefillConsumed={handlePrefillConsumed}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
