@@ -37,14 +37,17 @@ export async function registerClickUpAuthRoutes(fastify: FastifyInstance): Promi
         // If OAuth app is not configured, fall back to legacy PAT check
         if (!clientId || !clientSecret) {
             if (legacyToken) {
-                return reply.status(400).send({
-                    error: 'CLICKUP_CLIENT_ID / CLICKUP_CLIENT_SECRET not configured.',
-                    hint: 'The current ClickUp integration relies on a Personal Access Token (CLICKUP_API_TOKEN). To enable OAuth, add CLICKUP_CLIENT_ID and CLICKUP_CLIENT_SECRET to .env.',
+                // PAT already configured — no OAuth needed, return success with info
+                return reply.send({
+                    success: true,
+                    connected: true,
+                    source: 'pat',
+                    message: 'ClickUp já está conectado via Personal Access Token.',
                 });
             }
             return reply.status(400).send({
                 error: 'ClickUp credentials not configured.',
-                hint: 'Add CLICKUP_CLIENT_ID and CLICKUP_CLIENT_SECRET to .env.',
+                hint: 'Add CLICKUP_API_TOKEN or CLICKUP_CLIENT_ID and CLICKUP_CLIENT_SECRET to .env.',
             });
         }
 

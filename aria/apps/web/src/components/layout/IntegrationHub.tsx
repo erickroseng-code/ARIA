@@ -205,10 +205,19 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
 
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({})) as any;
-                throw new Error(errData?.error || errData?.hint || `Erro ${res.status}: credenciais OAuth não configuradas no servidor`);
+                throw new Error(errData?.error || errData?.hint || `Erro ${res.status}: não foi possível conectar`);
             }
 
-            const data = await res.json() as { url?: string };
+            const data = await res.json() as { url?: string; connected?: boolean; source?: string };
+
+            // Already connected (e.g. ClickUp via PAT) — just refresh status
+            if (data.connected && !data.url) {
+                if (popup && !popup.closed) popup.close();
+                setConnecting(null);
+                await fetchStatuses();
+                return;
+            }
+
             if (!data.url) throw new Error('Backend não retornou URL de autorização');
 
             if (popup && !popup.closed) {
