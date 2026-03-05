@@ -60,6 +60,15 @@ interface EngagementPanorama {
   market_position: string;
 }
 
+interface SuggestedICP {
+  inferred_audience: string;
+  inferred_product: string;
+  recommended_positioning: string;
+  main_pain_addressed: string;
+  icp_next_steps: string[];
+  icp_source: 'inferred' | 'provided';
+}
+
 interface MaverickReport {
   profile: {
     username: string;
@@ -81,6 +90,7 @@ interface MaverickReport {
     next_steps: string[];
     profile_score?: ProfileScore;
     engagement_panorama?: EngagementPanorama;
+    suggested_icp?: SuggestedICP;
   };
 }
 
@@ -666,6 +676,60 @@ function ScoreDelta({ current, previous, label }: { current: number; previous: n
   );
 }
 
+function SuggestedICPCard({ sicp }: { sicp: SuggestedICP }) {
+  const isInferred = sicp.icp_source === 'inferred';
+  return (
+    <div className={`rounded-2xl p-6 border ${isInferred ? 'border-violet-500/25 bg-violet-500/[0.05]' : 'border-indigo-500/25 bg-indigo-500/[0.05]'}`}>
+      <div className="flex items-center gap-2.5 mb-5">
+        <Lightbulb className={`w-5 h-5 ${isInferred ? 'text-violet-400' : 'text-indigo-400'}`} />
+        <span className={`text-base font-bold ${isInferred ? 'text-violet-300' : 'text-indigo-300'}`}>
+          {isInferred ? 'Posicionamento Inferido pelo Maverick' : 'Posicionamento Validado'}
+        </span>
+        <span className={`ml-auto text-[10px] font-bold px-2.5 py-1 rounded-full ${isInferred ? 'bg-violet-500/15 text-violet-400 border border-violet-500/20' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'}`}>
+          {isInferred ? 'Inferido' : 'Com ICP'}
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Público provável</p>
+            <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_audience}</p>
+          </div>
+          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Produto / Oferta</p>
+            <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_product}</p>
+          </div>
+        </div>
+
+        <div className={`rounded-xl p-4 border ${isInferred ? 'bg-violet-500/[0.08] border-violet-500/20' : 'bg-indigo-500/[0.08] border-indigo-500/20'}`}>
+          <p className="text-[10px] text-white/35 uppercase tracking-wider mb-1.5 font-semibold">Posicionamento recomendado</p>
+          <p className="text-sm text-white/85 leading-relaxed font-medium">{sicp.recommended_positioning}</p>
+        </div>
+
+        <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Dor principal a enderecar</p>
+          <p className="text-sm text-white/65 leading-relaxed">{sicp.main_pain_addressed}</p>
+        </div>
+
+        {sicp.icp_next_steps?.length > 0 && (
+          <div>
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2.5 font-semibold">Proximos passos de posicionamento</p>
+            <ul className="space-y-2">
+              {sicp.icp_next_steps.map((step, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-white/65 leading-relaxed">
+                  <span className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isInferred ? 'bg-violet-400' : 'bg-indigo-400'}`} />
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ComparisonPanel({ current, previous, previousDate }: {
   current: MaverickReport;
   previous: HistoryEntry;
@@ -1166,11 +1230,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
                 <div className="text-center space-y-2">
                   <div className="text-2xl mb-2">🎯</div>
-                  <h2 className="text-2xl font-extrabold text-white tracking-tight">Perfil do Cliente Ideal</h2>
-                  <p className="text-white/45 text-sm leading-relaxed">
-                    Opcional — quanto mais contexto você der, mais precisa é a análise e os roteiros.
+                  <h2 className="text-2xl font-extrabold text-white tracking-tight">Contexto do Negócio</h2>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Se souber, preencha — a análise fica mais precisa. Se não souber ainda, pode pular:
+                    o Maverick vai inferir o posicionamento a partir do perfil.
                   </p>
-                  <p className="text-white/25 text-xs">Analisando <span className="text-white/50 font-semibold">@{username.replace(/^@/, '')}</span></p>
+                  <p className="text-white/25 text-xs">Perfil: <span className="text-white/50 font-semibold">@{username.replace(/^@/, '')}</span></p>
                 </div>
 
                 <div className="space-y-4">
@@ -1196,19 +1261,25 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   ))}
                 </div>
 
-                <div className="flex gap-3 pt-1">
-                  <button
-                    onClick={() => setPhase('asking')}
-                    className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white/40 text-sm font-medium hover:text-white/70 hover:border-white/20 transition-all"
-                  >
-                    Voltar
-                  </button>
+                <div className="flex flex-col gap-3 pt-1">
                   <button
                     onClick={() => handleAnalyze(icp)}
-                    className="flex-[2] py-3.5 bg-white text-black rounded-2xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(255,255,255,0.1)]"
+                    className="w-full py-4 bg-white text-black rounded-2xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(255,255,255,0.1)]"
                   >
                     <TrendingUp className="w-4 h-4" />
-                    Iniciar Análise Maverick
+                    Analisar com este contexto
+                  </button>
+                  <button
+                    onClick={() => handleAnalyze()}
+                    className="w-full py-3 rounded-2xl border border-white/[0.08] text-white/35 text-sm font-medium hover:text-white/60 hover:border-white/20 hover:bg-white/[0.03] transition-all"
+                  >
+                    Pular — o Maverick vai inferir o posicionamento
+                  </button>
+                  <button
+                    onClick={() => setPhase('asking')}
+                    className="text-xs text-white/20 hover:text-white/40 transition-colors text-center pt-1"
+                  >
+                    Voltar
                   </button>
                 </div>
               </div>
@@ -1388,6 +1459,11 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   {/* Panorama de Engajamento */}
                   {report.strategy.engagement_panorama && (
                     <EngagementPanoramaCard panorama={report.strategy.engagement_panorama} />
+                  )}
+
+                  {/* Posicionamento Sugerido / Validado */}
+                  {report.strategy.suggested_icp && (
+                    <SuggestedICPCard sicp={report.strategy.suggested_icp} />
                   )}
 
                   {/* Painel Antes/Depois */}

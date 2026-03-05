@@ -34,6 +34,15 @@ export interface FunnelMix {
     bofu_focus: string;   // what BOFU content should achieve
 }
 
+export interface SuggestedICP {
+    inferred_audience: string;      // quem provavelmente é o público baseado no conteúdo
+    inferred_product: string;       // o que o criador provavelmente oferece ou deveria oferecer
+    recommended_positioning: string; // posicionamento recomendado em 1-2 frases diretas
+    main_pain_addressed: string;    // dor principal que o conteúdo já aborda (ou deveria abordar)
+    icp_next_steps: string[];       // 2-3 ações concretas para clarificar/reforçar o posicionamento
+    icp_source: 'inferred' | 'provided'; // se veio do usuário ou foi inferido pelo Maverick
+}
+
 export interface MaverickReport {
     profile: {
         username: string;
@@ -56,6 +65,7 @@ export interface MaverickReport {
         profile_score: ProfileScore;
         engagement_panorama?: EngagementPanorama;
         funnel_mix?: FunnelMix;
+        suggested_icp?: SuggestedICP;
     };
 }
 
@@ -177,6 +187,17 @@ ${benchmarkContext}`
       "tofu_focus": "O que o conteúdo TOFU deve fazer especificamente para este perfil (alcance, descoberta, topo de funil)",
       "mofu_focus": "O que o conteúdo MOFU deve fazer (nurturing, autoridade, consideração)",
       "bofu_focus": "O que o conteúdo BOFU deve fazer (conversão, venda, captação de leads)"
+    },
+    "suggested_icp": {
+      "inferred_audience": "Descrição do público provável com base no conteúdo analisado — seja específico: faixa etária, ocupação, situação, aspiração",
+      "inferred_product": "O que o criador provavelmente vende ou deveria vender com base no nicho e no conteúdo — seja direto",
+      "recommended_positioning": "1-2 frases de posicionamento recomendado — o que o perfil deveria comunicar como sua proposta de valor central",
+      "main_pain_addressed": "A dor principal que o conteúdo já aborda (ou que deveria abordar) para converter esse público",
+      "icp_next_steps": [
+        "Ação concreta 1 para clarificar ou fortalecer o posicionamento",
+        "Ação concreta 2",
+        "Ação concreta 3"
+      ]
     }
   }
 }`;
@@ -193,6 +214,7 @@ COMO VOCÊ OPERA:
 - Quando o engagement_rate estiver abaixo de 1%, classifique como crítico. Entre 1-3%, mediano. Acima de 3%, saudável para o tamanho do perfil.
 - Você cita os conceitos pelo nome: "Moeda Social (Berger)", "Sweet Spot (Pulizzi)", "PAS", "HOOK-STORY-OFFER", etc.
 - No campo "engagement_panorama_verdict", escreva 2-3 frases comparando a taxa de engajamento do perfil com os benchmarks fornecidos, citando os números de referência.
+- No campo "suggested_icp": ${icp ? 'o criador JÁ FORNECEU contexto de negócio. Use-o para VALIDAR e REFINAR — confirme o que está alinhado, corrija o que os dados contradizem, e adicione nuances que o criador pode ter deixado de fora.' : 'o criador NÃO forneceu contexto. INFIRA o público, produto e posicionamento prováveis com base EXCLUSIVAMENTE nos dados do perfil e conteúdo analisado. Seja específico — não escreva "pode ser que...", escreva "o público provável é..."'}
 - Você retorna APENAS JSON válido. Nenhum texto fora do JSON.`;
 
         const icpContext = icp ? `
@@ -255,6 +277,14 @@ ${jsonSchema}`;
         // Capturar funnel_mix do LLM
         if (analysisResult.strategy.funnel_mix) {
             fullReport.strategy.funnel_mix = analysisResult.strategy.funnel_mix;
+        }
+
+        // Capturar suggested_icp e marcar a fonte
+        if ((analysisResult.strategy as any).suggested_icp) {
+            fullReport.strategy.suggested_icp = {
+                ...(analysisResult.strategy as any).suggested_icp,
+                icp_source: icp ? 'provided' : 'inferred',
+            };
         }
 
         // Garantir engagement_panorama com dados reais — não depender do LLM
