@@ -2,6 +2,7 @@ import { ScoutAgent, ProfileAnalysis } from '../scout/index';
 import { ScholarEngine } from '../scholar/engine';
 import { LLMService } from '../core/llm';
 import { loadMaverickMethodology } from '../knowledge/methodology';
+import { buildBenchmarkContext, getTierBenchmarks } from '../knowledge/engagement-benchmarks';
 
 export interface ProfileScore {
     overall: number;
@@ -12,6 +13,15 @@ export interface ProfileScore {
         cta_presence: number;
         bio_quality: number;
     };
+}
+
+export interface EngagementPanorama {
+    profile_rate: string;         // ex: "2.34%"
+    classification: string;       // "Ruim" | "Abaixo da Media" | "Bom" | "Muito Bom" | "Otimo"
+    tier: string;                 // "Nano" | "Micro" | "Medio/Macro" | "Mega"
+    tier_benchmark: string;       // ex: "Otimo: >4% | Bom: 2%–3.5% | Ruim: <1%"
+    verdict: string;              // 2-3 sentences comparing vs market
+    market_position: string;      // "Top 10%" | "Acima da Media" | "Media" | "Abaixo da Media" | "Critico"
 }
 
 export interface MaverickReport {
@@ -34,6 +44,7 @@ export interface MaverickReport {
         citation: string;
         next_steps: string[];
         profile_score: ProfileScore;
+        engagement_panorama?: EngagementPanorama;
     };
 }
 
@@ -90,14 +101,21 @@ export class StrategistAgent {
             return `  [Post ${p.id}][${p.type}] ${p.caption}${metricsStr}`;
         }).join('\n');
 
+        const benchmarkContext = buildBenchmarkContext(
+            profileData.stats.followers,
+            profileData.engagement_summary?.avg_engagement_rate,
+        );
+        const tier = getTierBenchmarks(profileData.stats.followers);
+
         const engagementContext = profileData.engagement_summary
             ? `\nENGAJAMENTO REAL (calculado sobre ${profileData.stats.followers} seguidores):
 - Taxa média de engajamento: ${profileData.engagement_summary.avg_engagement_rate}%
 - Formato com melhor performance: ${profileData.engagement_summary.best_format}
 - Post com maior engajamento: Post ${profileData.engagement_summary.top_post_id}
 - Post com menor engajamento: Post ${profileData.engagement_summary.worst_post_id}
-- Referência de mercado: micro-influenciadores saudáveis ficam entre 3-6%; mega-influenciadores entre 0,5-2%`
-            : '';
+
+${benchmarkContext}`
+            : `\n${benchmarkContext}`;
 
         const jsonSchema = `{
   "analysis": {
@@ -130,6 +148,14 @@ export class StrategistAgent {
         "cta_presence": 0,
         "bio_quality": 0
       }
+    },
+    "engagement_panorama": {
+      "profile_rate": "X.XX%",
+      "classification": "Ruim|Abaixo da Media|Bom|Muito Bom|Otimo",
+      "tier": "${tier.tierName}",
+      "tier_benchmark": "Otimo: >X% | Bom: X%–X% | Ruim: <X%",
+      "verdict": "2-3 sentenças comparando a taxa do perfil com os benchmarks de mercado para o seu porte",
+      "market_position": "Top 10%|Acima da Media|Media|Abaixo da Media|Critico"
     }
   }
 }`;
@@ -145,6 +171,7 @@ COMO VOCÊ OPERA:
 - Você diagnostica com precisão cirúrgica — use os dados REAIS de likes, comentários e engagement rate fornecidos para identificar padrões concretos (ex: "Reels têm 3x mais engajamento que Carrosséis neste perfil").
 - Quando o engagement_rate estiver abaixo de 1%, classifique como crítico. Entre 1-3%, mediano. Acima de 3%, saudável para o tamanho do perfil.
 - Você cita os conceitos pelo nome: "Moeda Social (Berger)", "Sweet Spot (Pulizzi)", "PAS", "HOOK-STORY-OFFER", etc.
+- No campo "engagement_panorama", use os BENCHMARKS DE ENGAJAMENTO fornecidos nos dados do usuário para preencher "tier_benchmark" com os valores exatos do tier do perfil, "classification" com a classificação correta da taxa média, e "verdict" com uma análise comparativa de 2-3 frases citando os números de referência.
 - Você retorna APENAS JSON válido. Nenhum texto fora do JSON.`;
 
         const userPrompt = `Analise o perfil @${profileData.username} e retorne o diagnóstico estratégico completo.

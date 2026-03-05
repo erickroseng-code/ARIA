@@ -24,6 +24,15 @@ interface ProfileScore {
   };
 }
 
+interface EngagementPanorama {
+  profile_rate: string;
+  classification: string;
+  tier: string;
+  tier_benchmark: string;
+  verdict: string;
+  market_position: string;
+}
+
 interface MaverickReport {
   profile: {
     username: string;
@@ -44,6 +53,7 @@ interface MaverickReport {
     citation: string;
     next_steps: string[];
     profile_score?: ProfileScore;
+    engagement_panorama?: EngagementPanorama;
   };
 }
 
@@ -258,6 +268,88 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Engagement Panorama Card ──────────────────────────────────────────────────
+
+const PANORAMA_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+  'Otimo':           { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-300', badge: 'bg-violet-500/20 text-violet-200' },
+  'Muito Bom':       { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', badge: 'bg-emerald-500/20 text-emerald-200' },
+  'Bom':             { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', badge: 'bg-cyan-500/20 text-cyan-200' },
+  'Abaixo da Media': { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', badge: 'bg-amber-500/20 text-amber-200' },
+  'Ruim':            { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', badge: 'bg-rose-500/20 text-rose-200' },
+};
+
+const SCALE_ITEMS = [
+  { label: 'Ruim', max: 0.5 },
+  { label: 'Abaixo da Media', max: 1.0 },
+  { label: 'Bom', max: 3.0 },
+  { label: 'Muito Bom', max: 6.0 },
+  { label: 'Otimo', max: Infinity },
+];
+
+function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) {
+  const classification = panorama.classification || 'Bom';
+  const colors = PANORAMA_COLORS[classification] ?? PANORAMA_COLORS['Bom'];
+  const rate = parseFloat(panorama.profile_rate ?? '0') || 0;
+
+  // Scale position: log scale for visual clarity
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const scalePercent = clamp((rate / 7) * 100, 2, 98);
+
+  const scaleColors = ['bg-rose-500', 'bg-amber-500', 'bg-cyan-400', 'bg-emerald-400', 'bg-violet-400'];
+
+  return (
+    <div className={`rounded-2xl p-6 border ${colors.border} ${colors.bg}`}>
+      <div className="flex items-center gap-2 mb-5">
+        <TrendingUp className={`w-4 h-4 ${colors.text}`} />
+        <span className={`text-sm font-semibold ${colors.text}`}>Panorama de Engajamento</span>
+        <span className={`ml-auto text-xs font-bold px-2.5 py-1 rounded-full ${colors.badge}`}>
+          {classification}
+        </span>
+      </div>
+
+      {/* Rate + tier */}
+      <div className="flex items-baseline gap-3 mb-5">
+        <span className={`text-4xl font-black ${colors.text}`}>{panorama.profile_rate}</span>
+        <div className="flex flex-col">
+          <span className="text-xs text-white/40">taxa média</span>
+          <span className="text-xs text-white/50">{panorama.tier} · {panorama.market_position}</span>
+        </div>
+      </div>
+
+      {/* Visual scale bar */}
+      <div className="mb-4">
+        <div className="flex h-2 rounded-full overflow-hidden gap-0.5 mb-1.5">
+          {scaleColors.map((c, i) => (
+            <div key={i} className={`flex-1 ${c} opacity-30`} />
+          ))}
+        </div>
+        <div className="relative h-1">
+          <div
+            className={`absolute top-0 w-2 h-2 rounded-full -translate-y-0.5 ${colors.text.replace('text-', 'bg-')} shadow-lg`}
+            style={{ left: `${scalePercent}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[9px] text-white/25 mt-2 uppercase tracking-wider">
+          <span>Ruim</span>
+          <span>Abaixo</span>
+          <span>Bom</span>
+          <span>Muito Bom</span>
+          <span>Ótimo</span>
+        </div>
+      </div>
+
+      {/* Benchmark reference */}
+      <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06] mb-3">
+        <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Referência para {panorama.tier}</p>
+        <p className="text-xs text-white/60 font-mono">{panorama.tier_benchmark}</p>
+      </div>
+
+      {/* Verdict */}
+      <p className="text-sm text-white/65 leading-relaxed">{panorama.verdict}</p>
     </div>
   );
 }
@@ -892,12 +984,17 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     </div>
                   </div>
 
-                  {/* Score do Perfil (Feature 3) */}
+                  {/* Score do Perfil */}
                   {report.strategy.profile_score && (
                     <ProfileScoreCard score={report.strategy.profile_score} />
                   )}
 
-                  {/* Painel Antes/Depois (Feature 4) */}
+                  {/* Panorama de Engajamento */}
+                  {report.strategy.engagement_panorama && (
+                    <EngagementPanoramaCard panorama={report.strategy.engagement_panorama} />
+                  )}
+
+                  {/* Painel Antes/Depois */}
                   {showComparison && previousAnalysis && (
                     <ComparisonPanel
                       current={report}
