@@ -7,16 +7,14 @@ async function main() {
     const scholar = new ScholarEngine();
     await scholar.loadKnowledgeBase(); // Lê o manifesto.txt
 
-    const results = scholar.search(query);
+    const results = await scholar.search(query);
 
-    console.log("
---- 💡 Respostas Encontradas ---");
+    console.log('\n--- 💡 Respostas Encontradas ---');
     if (results.length === 0) {
-        console.log("Nenhum conhecimento relevante encontrado para este termo.");
+        console.log('Nenhum conhecimento relevante encontrado para este termo.');
     } else {
         results.forEach((r, i) => {
-            console.log(`
-[${i + 1}] (Fonte: ${r.source})`);
+            console.log(`\n[${i + 1}] (Fonte: ${r.source})`);
             console.log(`"${r.content}"`);
         });
     }

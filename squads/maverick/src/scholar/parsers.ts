@@ -14,7 +14,6 @@ export class DocumentParser {
         const ext = filePath.split('.').pop()?.toLowerCase();
         let fullText = '';
 
-        console.log(`📚 Scholar: Lendo arquivo ${filePath}...`);
 
         if (ext === 'pdf') {
             const dataBuffer = fs.readFileSync(filePath);
@@ -33,17 +32,42 @@ export class DocumentParser {
     }
 
     private chunkText(text: string, source: string): DocumentChunk[] {
-        // Separa por parágrafos duplos (estrutura comum de livros/artigos)
-        const rawChunks = text.split(/\n\s*\n/);
-        
-        return rawChunks
-            .map(chunk => chunk.trim())
-            .filter(chunk => chunk.length > 50) // Ignora pedaços muito pequenos (títulos soltos)
-            .map(chunk => ({
-                source: source.split('/').pop() || source, // Apenas nome do arquivo
-                content: chunk,
-                tags: this.extractKeywords(chunk)
-            }));
+        const filename = source.split(/[/\\]/).pop() || source;
+        const targetSize = 800;  // chars per chunk — enough context, fits in embedding well
+        const overlap = 150;     // chars carried over to next chunk to avoid losing context at boundaries
+
+        // Split into paragraphs, clean noise typical of PDF extraction
+        const paragraphs = text
+            .split(/\n\s*\n/)
+            .map(p => p.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
+            .filter(p => p.length > 40); // drop page numbers, isolated headers, artifacts
+
+        const chunks: DocumentChunk[] = [];
+        let current = '';
+
+        for (const para of paragraphs) {
+            if (current.length + para.length + 1 > targetSize && current.length > 0) {
+                chunks.push({
+                    source: filename,
+                    content: current.trim(),
+                    tags: this.extractKeywords(current),
+                });
+                // Carry overlap from end of current chunk into next
+                current = current.slice(-overlap) + ' ' + para;
+            } else {
+                current = current ? current + ' ' + para : para;
+            }
+        }
+
+        if (current.trim().length > 40) {
+            chunks.push({
+                source: filename,
+                content: current.trim(),
+                tags: this.extractKeywords(current),
+            });
+        }
+
+        return chunks;
     }
 
     // Versão "Pobre" de extração de keywords (apenas palavras grandes)

@@ -14,23 +14,19 @@ if (fs.existsSync(envPath)) {
 
 export class LLMService {
     private openai: OpenAI;
-    
-    // Lista de modelos para fallback em ordem de preferência
-    // Lista fornecida pelo usuário
-    private models: string[] = [
-        "arcee-ai/trinity-large-preview:free",
-        "stepfun/step-3.5-flash:free",
-        "z-ai/glm-4.5-air:free",
-        "deepseek/deepseek-r1-0528:free",
-        "openai/gpt-oss-120b:free",
-        "meta-llama/llama-3.3-70b-instruct:free"
-    ];
+    private models: string[];
 
-    constructor() {
+    constructor(primary: 'sonnet' | 'deepseek' = 'deepseek') {
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
             throw new Error("❌ ERRO: OPENROUTER_API_KEY não encontrada no .env do Maverick.");
         }
+
+        // Sonnet: melhor para copywriting criativo em PT-BR
+        // DeepSeek: melhor custo-benefício para análise e raciocínio
+        this.models = primary === 'sonnet'
+            ? ["anthropic/claude-sonnet-4-6", "deepseek/deepseek-v3.2"]
+            : ["deepseek/deepseek-v3.2", "anthropic/claude-sonnet-4-6"];
 
         this.openai = new OpenAI({
             apiKey: apiKey,
@@ -76,19 +72,60 @@ export class LLMService {
         throw lastError || new Error("Todos os modelos falharam.");
     }
 
-    async analyzeJson<T>(prompt: string, schemaDescription: string): Promise<T> {
-        const jsonPrompt = prompt + 
-            "\n\nIMPORTANTE: Responda APENAS com um JSON válido seguindo esta estrutura:\n" + 
-            schemaDescription + 
+    private extractJson<T>(raw: string): T {
+        // 1. Strip markdown code fences
+        let text = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+        // 2. Try direct parse first
+        try { return JSON.parse(text) as T; } catch { /* continue */ }
+
+        // 3. Extract largest {...} block (handles preamble/postamble text)
+        const objMatch = text.match(/\{[\s\S]*\}/);
+        if (objMatch) {
+            try { return JSON.parse(objMatch[0]) as T; } catch { /* continue */ }
+        }
+
+        // 4. Extract largest [...] block
+        const arrMatch = text.match(/\[[\s\S]*\]/);
+        if (arrMatch) {
+            try { return JSON.parse(arrMatch[0]) as T; } catch { /* continue */ }
+        }
+
+        throw new Error(`Não foi possível extrair JSON. Resposta: ${text.slice(0, 200)}`);
+    }
+
+    async analyzeJson<T>(prompt: string, schemaDescription: string, systemPrompt?: string): Promise<T> {
+        const jsonPrompt = prompt +
+            "\n\nIMPORTANTE: Responda APENAS com um JSON válido seguindo esta estrutura:\n" +
+            schemaDescription +
             "\n\nNão adicione markdown, explicações ou code blocks. Apenas o JSON puro.";
 
-        try {
-            const text = await this.chat(jsonPrompt, "Você é uma API JSON estrita. Nunca retorne nada além de JSON.");
-            const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            return JSON.parse(cleanText) as T;
-        } catch (error) {
-            console.error("LLM JSON Error. Raw text:", error);
-            throw new Error("Falha ao gerar JSON estruturado.");
+        const system = systemPrompt || "Você é uma API JSON estrita. Nunca retorne nada além de JSON.";
+
+        // Tenta cada modelo individualmente — fallback também em caso de JSON inválido
+        for (const model of this.models) {
+            let raw = '';
+            try {
+                const completion = await this.openai.chat.completions.create({
+                    model,
+                    messages: [
+                        { role: "system" as const, content: system },
+                        { role: "user", content: jsonPrompt },
+                    ],
+                });
+                raw = completion.choices[0]?.message?.content || '';
+                return this.extractJson<T>(raw);
+            } catch (error: any) {
+                // Log do texto bruto para debug nos logs do PM2
+                if (raw) process.stderr.write(`[WARN][JSON] Modelo ${model} retornou JSON inválido: ${raw.slice(0, 300)}\n`);
+                else process.stderr.write(`[WARN][JSON] Modelo ${model} falhou: ${error?.message}\n`);
+
+                // Se for erro de autenticação, abort imediato
+                if (error?.status === 401 || error?.status === 400) throw error;
+                // Caso contrário, tenta o próximo modelo
+            }
         }
+
+        throw new Error("Falha ao gerar JSON estruturado — todos os modelos falharam.");
     }
 }

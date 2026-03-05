@@ -30,7 +30,6 @@ export class BrowserService {
     async init() {
         if (!this.browser) {
             const isHeadless = this.options.headless ? "new" : false;
-            console.log(`🧭 Scout: Launching Browser (Headless: ${isHeadless}, Session: ${this.options.sessionDir})...`);
             
             this.browser = await puppeteer.launch({
                 headless: isHeadless as any, 
@@ -57,7 +56,6 @@ export class BrowserService {
 
     async navigateTo(url: string) {
         if (!this.page) await this.init();
-        console.log(`🧭 Scout: Navigating to ${url}...`);
         
         // Human-like navigation: Go to URL and wait for network idle
         await this.page!.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
@@ -74,7 +72,6 @@ export class BrowserService {
     // Simulate human scrolling to load dynamic content (posts)
     async autoScroll(scrollAmount: number = 3) {
         if (!this.page) return;
-        console.log("compass Scout: Scrolling down to see more posts...");
 
         await this.page.evaluate(async (maxScrolls) => {
             await new Promise<void>((resolve) => {
@@ -108,7 +105,6 @@ export class BrowserService {
             await this.browser.close();
             this.browser = null;
             this.page = null;
-            console.log("🧭 Scout: Browser closed.");
         }
     }
 

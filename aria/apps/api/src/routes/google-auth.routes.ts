@@ -54,7 +54,7 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
      * Generates the Google OAuth authorization URL.
      * Open this URL in a browser to start the OAuth flow.
      */
-    fastify.get('/url', async (_req, reply) => {
+    fastify.get('/url', async (req, reply) => {
         try {
             const oAuth2Client = createOAuthClient();
             const url = oAuth2Client.generateAuthUrl({
@@ -63,8 +63,13 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
                 prompt: 'consent', // Force consent to always get refresh_token
             });
 
-            // Always return JSON — the frontend fetches this URL and navigates the popup directly
-            // to Google's auth URL, which is more reliable than relying on browser redirect.
+            // Se acessado pelo browser diretamente (Accept: text/html), redireciona para o Google.
+            // Se chamado via fetch/API (Accept: application/json), retorna JSON para o frontend abrir popup.
+            const accept = (req as any).headers?.accept || '';
+            if (accept.includes('text/html')) {
+                return reply.redirect(url);
+            }
+
             return reply.send({
                 success: true,
                 message: 'Open the authorization URL in your browser to grant access',

@@ -13,8 +13,9 @@ async function runMaverick() {
 
     console.clear();
     console.log("==========================================");
-    console.log(`🦅 SQUAD MAVERICK INICIADO: @${username}`);
+    console.log(`🦅 SQUAD MAVERICK: @${username}`);
     console.log("==========================================\n");
+    console.log("⏳ O time do Maverick está trabalhando na análise...\n");
 
     // 1. Strategist
     const strategist = new StrategistAgent();
@@ -39,7 +40,7 @@ async function runMaverick() {
         }
 
         // 3. Copywriter
-        console.log("\n🚀 Aprovado! Iniciando Copywriter...");
+        console.log("\n⏳ O time do Maverick está trabalhando na análise...\n");
         const copywriter = new CopywriterAgent();
         const scripts = await copywriter.generateScripts(plan);
 

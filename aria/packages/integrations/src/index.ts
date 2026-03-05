@@ -48,7 +48,7 @@ export { NotionTaskService, type NotionTaskCreateRequest, type NotionTask } from
 export { NotionManager } from './notion/NotionManager';
 
 // Google Workspace exports
-export { createWorkspaceClient, isWorkspaceConfigured, setWorkspaceTokenResolver } from './google-workspace/WorkspaceClient';
+export { createWorkspaceClient, isWorkspaceConfigured, setWorkspaceTokenResolver, setOnInvalidGrant, notifyInvalidGrant } from './google-workspace/WorkspaceClient';
 export { DriveService, type DriveFile } from './google-workspace/DriveService';
 export { GmailService, type GmailMessage, type SendEmailOptions } from './google-workspace/GmailService';
 export { SheetsService, type SheetData } from './google-workspace/SheetsService';

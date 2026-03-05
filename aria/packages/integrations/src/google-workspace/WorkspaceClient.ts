@@ -14,6 +14,17 @@ export function setWorkspaceTokenResolver(resolver: TokenResolver) {
     globalTokenResolver = resolver;
 }
 
+// Callback invocado quando `invalid_grant` é detectado — permite ao servidor marcar o token como inválido no DB.
+let globalInvalidGrantCallback: (() => void) | null = null;
+
+export function setOnInvalidGrant(cb: () => void) {
+    globalInvalidGrantCallback = cb;
+}
+
+export function notifyInvalidGrant() {
+    globalInvalidGrantCallback?.();
+}
+
 /**
  * GoogleWorkspaceClient
  * Shared OAuth2 client for all Google Workspace APIs.
@@ -80,7 +91,11 @@ export async function withRetry<T>(
             const isAuthError = msg.includes('401') || msg.includes('403')
                 || msg.includes('Unauthorized') || msg.includes('Forbidden')
                 || msg.includes('insufficient_scope') || msg.includes('invalid_grant');
-            if (isAuthError) throw err;
+            if (isAuthError) {
+                // Notifica servidor para marcar token como inválido no DB
+                if (msg.includes('invalid_grant')) notifyInvalidGrant();
+                throw err;
+            }
 
             if (attempt < maxAttempts) {
                 const delay = initialBackoffMs * Math.pow(2, attempt - 1);

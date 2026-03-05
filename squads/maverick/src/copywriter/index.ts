@@ -1,68 +1,83 @@
 import { LLMService } from '../core/llm';
 import { ScholarEngine } from '../scholar/engine';
+import { loadMaverickMethodology } from '../knowledge/methodology';
 
 export class CopywriterAgent {
     private llm: LLMService;
     private scholar: ScholarEngine;
+    private methodology: string;
 
     constructor() {
-        this.llm = new LLMService();
+        this.llm = new LLMService('sonnet'); // copywriting criativo — Sonnet ganha em qualidade PT-BR
         this.scholar = new ScholarEngine();
+        // Same internalized knowledge as Strategist — LLM already knows the frameworks
+        this.methodology = loadMaverickMethodology();
     }
 
     async generateScripts(strategicPlan: string): Promise<string> {
-        console.log("✍️ Copywriter: Analisando plano estratégico para gerar roteiros...");
 
-        // 1. Extrair as ideias do plano (usando LLM para ser robusto a variações de formatação)
-        const extractionPrompt = "Analise o seguinte Plano de Ação e extraia as 3 ideias de roteiros sugeridas no final.\n\nPLANO:\n" + strategicPlan;
-        const schema = 'Uma lista de objetos: [{ "title": "Titulo da Ideia", "context": "Descrição do que fazer", "format": "Reels/Carrossel/Stories" }]';
-        
-        const ideas = await this.llm.analyzeJson<{ title: string, context: string, format: string }[]>(
-            extractionPrompt,
-            schema
+        // 1. Extract script ideas from strategic plan
+        const ideas = await this.llm.analyzeJson<{ title: string; context: string; format: string; recommended_framework: string }[]>(
+            `Analise o plano estratégico abaixo e extraia as ideias de roteiros sugeridas.\n\nPLANO:\n${strategicPlan}`,
+            '[{ "title": "Título da ideia", "context": "O que comunicar e para quem", "format": "Reels|Carrossel|Stories", "recommended_framework": "AIDA|PAS|BAB|HOOK_STORY_OFFER|OPEN_LOOP|VOSS" }]'
         );
 
-        console.log(`✍️ Copywriter: ${ideas.length} ideias identificadas. Escrevendo roteiros...`);
 
-        // 2. Buscar modelos de copy na base
-        await this.scholar.loadKnowledgeBase();
-        const copyModels = this.scholar.search("template roteiro copywriting aida pas", 5);
-        const modelsText = copyModels.map(k => k.content).join("\n\n");
+        // 2. Optional: find specific supporting quotes from the books
+        let bookCitations = '';
+        try {
+            await this.scholar.loadKnowledgeBase();
+            const niche = ideas.map(i => i.context).join(' ');
+            const citations = await this.scholar.search(niche, 3);
+            if (citations.length > 0) {
+                bookCitations = citations
+                    .map(c => `[${c.source}]: "${c.content.slice(0, 250)}..."`)
+                    .join('\n\n');
+            }
+        } catch {
+            // Scholar is optional
+        }
 
-        let finalOutput = "# 🎬 Roteiros Finais Maverick\n\n";
+        // 3. Write each script — LLM applies internalized framework knowledge
+        const systemPrompt = `Você é o MAVERICK COPYWRITER — o melhor redator de conteúdo estratégico do Brasil.
 
-        // 3. Escrever cada roteiro
+Você internalizou completamente os seguintes frameworks e princípios de copywriting:
+
+${this.methodology}
+
+COMO VOCÊ ESCREVE:
+- Você NUNCA escreve copy genérica. Cada palavra serve um propósito calculado.
+- Você seleciona o framework mais adequado para o formato e objetivo do conteúdo.
+- O GANCHO (primeiros 3 segundos/slide 1) é não negociável — brutal e irresistível.
+- Você inclui indicações visuais entre colchetes [Visual: ...] e de tom [Tom: ...].
+- Você cita qual framework está usando e por quê no início de cada roteiro.
+- Você retorna APENAS o roteiro em texto limpo. Sem explicações fora do roteiro.`;
+
+        let finalOutput = '# 🎬 Roteiros Finais Maverick\n\n';
+
         for (const idea of ideas) {
-            console.log(`   > Escrevendo: ${idea.title}...`);
-            
-            const prompt = `
-            VOCÊ É O MAVERICK COPYWRITER.
-            
-            SUA MISSÃO: Escrever um roteiro técnico para redes sociais baseado na ideia abaixo.
-            
-            IDEIA:
-            - Título: ${idea.title}
-            - Contexto: ${idea.context}
-            - Formato: ${idea.format}
 
-            USE ESTES MODELOS/CONHECIMENTOS DE COPY (Se houver):
-            ${modelsText}
+            const prompt = `Escreva o roteiro completo para o conteúdo abaixo.
 
-            REGRAS DE ESCRITA:
-            1. Use o framework AIDA (Atenção, Interesse, Desejo, Ação) ou PAS (Problema, Agitação, Solução).
-            2. Seja direto. Evite "nariz de cera" (enrolação no começo).
-            3. O GANCHO (primeiros 3 segundos/slide 1) deve ser brutal.
-            4. Inclua indicações visuais entre colchetes [Visual: ...].
+BRIEFING:
+- Título: ${idea.title}
+- Contexto e público: ${idea.context}
+- Formato: ${idea.format}
+- Framework recomendado: ${idea.recommended_framework}
 
-            FORMATO DO OUTPUT:
-            ## 🎥 Roteiro: ${idea.title}
-            **Formato:** ${idea.format}
-            
-            [Conteúdo do Roteiro aqui...]
-            `;
+${bookCitations ? `REFERÊNCIAS DIRETAS DOS LIVROS (use para embasar o copy):\n${bookCitations}\n` : ''}
 
-            const script = await this.llm.chat(prompt);
-            finalOutput += script + "\n\n---\n\n";
+ESTRUTURA DO OUTPUT:
+## 🎥 ${idea.title}
+**Formato:** ${idea.format} | **Framework:** ${idea.recommended_framework}
+**Por que este framework:** [1 frase explicando a escolha]
+
+[Roteiro completo com indicações visuais e de tom]
+
+**CTA:** [chamada para ação específica]`;
+
+            const script = await this.llm.chat(prompt, systemPrompt);
+            finalOutput += script + '\n\n---\n\n';
         }
 
         return finalOutput;

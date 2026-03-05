@@ -1,6 +1,18 @@
 import { ScoutAgent, ProfileAnalysis } from '../scout/index';
 import { ScholarEngine } from '../scholar/engine';
 import { LLMService } from '../core/llm';
+import { loadMaverickMethodology } from '../knowledge/methodology';
+
+export interface ProfileScore {
+    overall: number;
+    dimensions: {
+        consistency: number;
+        engagement: number;
+        niche_clarity: number;
+        cta_presence: number;
+        bio_quality: number;
+    };
+}
 
 export interface MaverickReport {
     profile: {
@@ -21,6 +33,7 @@ export interface MaverickReport {
         key_concept: string;
         citation: string;
         next_steps: string[];
+        profile_score: ProfileScore;
     };
 }
 
@@ -28,18 +41,18 @@ export class StrategistAgent {
     private scout: ScoutAgent;
     private scholar: ScholarEngine;
     private llm: LLMService;
+    private methodology: string;
 
     constructor() {
         this.scout = new ScoutAgent();
         this.scholar = new ScholarEngine();
-        this.llm = new LLMService();
+        this.llm = new LLMService('deepseek'); // análise JSON — custo menor, qualidade equivalente
+        // Load methodology once at startup — this is the LLM's "internalized knowledge"
+        this.methodology = loadMaverickMethodology();
     }
 
     async createStrategicPlan(username: string): Promise<string> {
-        console.log(`🧠 Strategist: Iniciando análise para @${username}...`);
-
-        // 1. Coleta de Dados (A Realidade)
-        console.log('--- Passo 1: Scout (Análise de Perfil) ---');
+        // 1. Collect profile data
         let profileData: ProfileAnalysis;
         try {
             profileData = await this.scout.analyzeProfile(username);
@@ -47,78 +60,123 @@ export class StrategistAgent {
             throw new Error(`Scout falhou: ${error}`);
         }
 
-        // 2. Busca de Conhecimento (O Ideal)
-        console.log('--- Passo 2: Scholar (Busca de Referências) ---');
-        await this.scholar.loadKnowledgeBase();
+        // 2. Scholar: find specific supporting citations from the books
+        // (optional — enriches analysis with exact quotes, not the primary knowledge source)
+        let supportingCitations = '';
+        try {
+            await this.scholar.loadKnowledgeBase();
+            const nicheContext = [
+                profileData.bio.detected_promise || '',
+                profileData.bio.text,
+            ].filter(Boolean).join(' ');
 
-        const query = (profileData.bio.detected_promise || '') + ' estratégia conteúdo autoridade vendas posicionamento';
-        const knowledge = this.scholar.search(query, 10);
-        const knowledgeText = knowledge.map(k => `[Fonte: ${k.source}]\n${k.content}`).join('\n\n---\n\n');
+            const citations = await this.scholar.search(nicheContext, 5);
+            if (citations.length > 0) {
+                supportingCitations = citations
+                    .map(c => `[${c.source}]: "${c.content.slice(0, 300)}..."`)
+                    .join('\n\n');
+            }
+        } catch {
+            // Scholar is optional — analysis proceeds without it
+        }
 
-        // 3. Análise Estratégica com IA — retorna JSON estruturado
-        console.log('--- Passo 3: Raciocínio Estratégico (LLM) ---');
+        // 3. Strategic analysis — LLM applies internalized methodology to profile
 
-        const postsFormatted = profileData.recent_posts
-            .map(p => `  [Post ${p.id}] ${p.caption}`)
-            .join('\n');
+        const postsFormatted = profileData.recent_posts.map(p => {
+            const m = p.metrics;
+            const metricsStr = m
+                ? ` | 👍 ${m.likes} likes | 💬 ${m.comments} comentários${m.views ? ` | 👁 ${m.views} views` : ''} | 📊 ${m.engagement_rate}% eng.`
+                : '';
+            return `  [Post ${p.id}][${p.type}] ${p.caption}${metricsStr}`;
+        }).join('\n');
+
+        const engagementContext = profileData.engagement_summary
+            ? `\nENGAJAMENTO REAL (calculado sobre ${profileData.stats.followers} seguidores):
+- Taxa média de engajamento: ${profileData.engagement_summary.avg_engagement_rate}%
+- Formato com melhor performance: ${profileData.engagement_summary.best_format}
+- Post com maior engajamento: Post ${profileData.engagement_summary.top_post_id}
+- Post com menor engajamento: Post ${profileData.engagement_summary.worst_post_id}
+- Referência de mercado: micro-influenciadores saudáveis ficam entre 3-6%; mega-influenciadores entre 0,5-2%`
+            : '';
 
         const jsonSchema = `{
   "analysis": {
-    "positive_points": ["string (cite conceito do Expert)", "string", "string"],
-    "profile_gaps": ["string (brecha específica baseada no Expert)", "string", "string"],
+    "positive_points": ["string — cite o conceito/princípio aplicado", "string", "string"],
+    "profile_gaps": ["string — brecha específica com nome do framework violado", "string", "string"],
     "best_posts": [
-      { "caption_preview": "primeiros 70 chars da legenda", "reason": "Por que funciona segundo o Expert (cite fonte)" },
+      { "caption_preview": "primeiros 70 chars", "reason": "por que funciona — cite o princípio" },
       { "caption_preview": "...", "reason": "..." }
     ],
     "worst_posts": [
-      { "caption_preview": "primeiros 70 chars da legenda", "reason": "Por que falha segundo o Expert (seja específico)" },
+      { "caption_preview": "primeiros 70 chars", "reason": "por que falha — cite o princípio violado" },
       { "caption_preview": "...", "reason": "..." }
     ]
   },
   "strategy": {
-    "diagnosis": "2-3 frases: o GAP central entre o que o perfil faz e o que o Expert recomenda",
-    "key_concept": "Nome do conceito do Expert mais relevante para este perfil",
-    "citation": "Trecho exato ou parafraseado da base de conhecimento que embase o diagnóstico",
+    "diagnosis": "2-3 frases: GAP central entre o perfil atual e o que a metodologia recomenda",
+    "key_concept": "Nome do conceito/framework mais relevante para este perfil",
+    "citation": "Trecho da metodologia que embasa o diagnóstico",
     "next_steps": [
-      "Ideia de roteiro 1 — específica e acionável",
-      "Ideia de roteiro 2",
-      "Ideia de roteiro 3"
-    ]
+      "Roteiro acionável 1 — específico para este perfil e nicho",
+      "Roteiro acionável 2",
+      "Roteiro acionável 3"
+    ],
+    "profile_score": {
+      "overall": 0,
+      "dimensions": {
+        "consistency": 0,
+        "engagement": 0,
+        "niche_clarity": 0,
+        "cta_presence": 0,
+        "bio_quality": 0
+      }
+    }
   }
 }`;
 
-        const prompt = `VOCÊ É O MAVERICK STRATEGIST — um consultor de conteúdo que usa EXCLUSIVAMENTE a metodologia do Expert abaixo.
+        const systemPrompt = `Você é o MAVERICK STRATEGIST — o mais preciso consultor de posicionamento e conteúdo digital do Brasil.
 
-CONHECIMENTO DO EXPERT (Sua única referência):
-${knowledgeText || 'Nenhum conhecimento específico encontrado. Use princípios de marketing de autoridade e posicionamento.'}
+Você internalizou completamente a seguinte metodologia. Ela define como você pensa, analisa e recomenda:
 
-DADOS EXTRAÍDOS DO PERFIL @${profileData.username}:
+${this.methodology}
+
+COMO VOCÊ OPERA:
+- Você NÃO dá conselhos genéricos. Cada observação é ancorada em um princípio específico da metodologia.
+- Você diagnostica com precisão cirúrgica — use os dados REAIS de likes, comentários e engagement rate fornecidos para identificar padrões concretos (ex: "Reels têm 3x mais engajamento que Carrosséis neste perfil").
+- Quando o engagement_rate estiver abaixo de 1%, classifique como crítico. Entre 1-3%, mediano. Acima de 3%, saudável para o tamanho do perfil.
+- Você cita os conceitos pelo nome: "Moeda Social (Berger)", "Sweet Spot (Pulizzi)", "PAS", "HOOK-STORY-OFFER", etc.
+- Você retorna APENAS JSON válido. Nenhum texto fora do JSON.`;
+
+        const userPrompt = `Analise o perfil @${profileData.username} e retorne o diagnóstico estratégico completo.
+
+DADOS DO PERFIL:
 - Bio: "${profileData.bio.text}"
 - Seguidores: ${profileData.stats.followers}
 - Seguindo: ${profileData.stats.following}
 - Total de Posts: ${profileData.stats.posts_count}
 - Destaques: ${profileData.highlights.has_highlights ? 'Sim' : 'Não detectados'}
-- Posts Recentes Analisados:
+
+POSTS RECENTES ANALISADOS (com métricas reais):
 ${postsFormatted || '  [Nenhum post extraído]'}
+${engagementContext}
 
-REGRAS CRÍTICAS:
-1. NÃO use conselhos genéricos. USE os conceitos e vocabulário do Expert.
-2. CITE a fonte de cada argumento (ex: "Segundo o Manifesto...", "O Expert afirma em [Fonte]...").
-3. Identifique melhores e piores posts baseado nos critérios do Expert.
-4. O diagnóstico deve ser cirúrgico, não genérico.
+${supportingCitations ? `CITAÇÕES DIRETAS DOS LIVROS (para reforçar sua análise):\n${supportingCitations}\n` : ''}
+SCORE DE PERFIL — avalie cada dimensão de 0-100 com rigor. Use os dados reais de engajamento para calibrar o score de "engagement" (não estime — calcule com base nos números acima):
+- consistency: regularidade e cadência detectável de publicação
+- engagement: qualidade das legendas para gerar conversa e compartilhamento
+- niche_clarity: clareza de QUEM o perfil serve e COMO ele ajuda
+- cta_presence: presença de CTAs explícitas na bio e nas legendas
+- bio_quality: a bio tem promessa clara, diferenciação e link?
+- overall: média ponderada (não arredonde para múltiplos de 5)
 
-RETORNE APENAS JSON VÁLIDO sem markdown, sem texto fora do JSON:
+RETORNE APENAS O JSON ABAIXO preenchido:
 ${jsonSchema}`;
 
         const analysisResult = await this.llm.analyzeJson<{
             analysis: MaverickReport['analysis'];
             strategy: MaverickReport['strategy'];
-        }>(
-            prompt,
-            jsonSchema
-        );
+        }>(userPrompt, jsonSchema, systemPrompt);
 
-        // Montar relatório completo com dados do Scout + análise do LLM
         const fullReport: MaverickReport = {
             profile: {
                 username: profileData.username,
