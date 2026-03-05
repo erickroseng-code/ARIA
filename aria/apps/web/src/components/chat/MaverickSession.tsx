@@ -6,6 +6,7 @@ import {
   Users, UserCheck, ImageIcon, TrendingUp, AlertTriangle,
   Star, ThumbsDown, Lightbulb, Quote, ChevronRight,
   BarChart2, History, ArrowUpRight, ArrowDownRight, Minus,
+  Copy, Check, Zap, Film, LayoutGrid, MessageCircle,
 } from 'lucide-react';
 import { useAriaSpeech } from '@/hooks/useAriaSpeech';
 
@@ -22,6 +23,17 @@ interface ProfileScore {
     cta_presence: number;
     bio_quality: number;
   };
+}
+
+interface ScriptData {
+  title: string;
+  format: 'Reels' | 'Carrossel' | 'Stories' | string;
+  framework: string;
+  why_framework: string;
+  hook: string;
+  body: string;
+  visual_cues: string[];
+  cta: string;
 }
 
 interface EngagementPanorama {
@@ -272,6 +284,136 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
   );
 }
 
+// ── Script Cards ──────────────────────────────────────────────────────────────
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all"
+    >
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copiado!' : label}
+    </button>
+  );
+}
+
+const FORMAT_CONFIG: Record<string, { icon: React.ElementType; gradient: string; badge: string; label: string }> = {
+  'Reels':     { icon: Film,          gradient: 'from-purple-600/20 to-violet-500/10', badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/30', label: '🎬 Reels' },
+  'Carrossel': { icon: LayoutGrid,    gradient: 'from-cyan-600/20 to-blue-500/10',    badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',      label: '📱 Carrossel' },
+  'Stories':   { icon: MessageCircle, gradient: 'from-amber-600/20 to-orange-500/10', badge: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',   label: '📲 Stories' },
+};
+
+function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
+  const fmt = FORMAT_CONFIG[script.format] ?? FORMAT_CONFIG['Reels'];
+  const bodyLines = script.body?.split('\n').filter(Boolean) ?? [];
+
+  return (
+    <div className={`rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${fmt.gradient}`}>
+      {/* Header */}
+      <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-white/[0.06]">
+        <span className="text-2xl font-black text-white/20 flex-shrink-0 leading-none mt-0.5">
+          #{index + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-bold text-white leading-snug mb-2">{script.title}</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${fmt.badge}`}>
+              {fmt.label}
+            </span>
+            <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/[0.08]">
+              {script.framework}
+            </span>
+          </div>
+        </div>
+        <CopyButton
+          text={`HOOK:\n${script.hook}\n\nCORPO:\n${script.body}\n\nCTA:\n${script.cta}`}
+          label="Copiar tudo"
+        />
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* Why framework */}
+        {script.why_framework && (
+          <div className="flex items-start gap-2">
+            <Lightbulb className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-white/40 italic leading-relaxed">{script.why_framework}</p>
+          </div>
+        )}
+
+        {/* Hook */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Hook</span>
+            </div>
+            <CopyButton text={script.hook} label="Copiar hook" />
+          </div>
+          <div className="rounded-xl px-4 py-3 bg-amber-500/[0.08] border border-amber-500/20">
+            <p className="text-sm text-white/85 leading-relaxed font-medium">{script.hook}</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Roteiro</span>
+            <CopyButton text={script.body} label="Copiar roteiro" />
+          </div>
+          <div className="rounded-xl px-4 py-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
+            {bodyLines.map((line, i) => {
+              const isVisual = line.startsWith('[Visual:') || line.startsWith('[Tom:') || line.startsWith('[');
+              return (
+                <p
+                  key={i}
+                  className={`text-sm leading-relaxed ${
+                    isVisual ? 'text-white/35 italic text-xs' : 'text-white/75'
+                  }`}
+                >
+                  {line}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Visual cues */}
+        {script.visual_cues?.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2">Produção</p>
+            <div className="flex flex-wrap gap-1.5">
+              {script.visual_cues.map((cue, i) => (
+                <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-white/40">
+                  {cue}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CTA */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest">CTA</span>
+            <CopyButton text={script.cta} label="Copiar CTA" />
+          </div>
+          <div className="rounded-xl px-4 py-3 bg-emerald-500/[0.08] border border-emerald-500/20">
+            <p className="text-sm text-emerald-300 font-semibold leading-relaxed">{script.cta}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Engagement Panorama Card ──────────────────────────────────────────────────
 
 const PANORAMA_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -464,6 +606,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [rawPlan, setRawPlan] = useState('');
   const [scripts, setScripts] = useState('');
   const [streamingScripts, setStreamingScripts] = useState('');
+  const [parsedScripts, setParsedScripts] = useState<ScriptData[] | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [previousAnalysis, setPreviousAnalysis] = useState<HistoryEntry | null>(null);
   const [showComparison, setShowComparison] = useState(false);
@@ -606,6 +749,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setPhase('running-scripts');
     setStreamingScripts('');
     setScripts('');
+    setParsedScripts(null);
     abortRef.current = false;
     setSteps([]);
 
@@ -620,10 +764,18 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           case 'chunk':
             setStreamingScripts(prev => prev + (event.content as string));
             break;
-          case 'scripts':
-            setScripts(event.content as string);
+          case 'scripts': {
+            const raw = event.content as string;
+            setScripts(raw);
+            try {
+              const parsed = JSON.parse(raw) as ScriptData[];
+              setParsedScripts(Array.isArray(parsed) ? parsed : null);
+            } catch {
+              setParsedScripts(null);
+            }
             setPhase('done');
             break;
+          }
           case 'error':
             setErrorMsg(event.message as string);
             setPhase('error');
@@ -649,6 +801,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setRawPlan('');
     setScripts('');
     setStreamingScripts('');
+    setParsedScripts(null);
     setErrorMsg('');
     setPreviousAnalysis(null);
     setShowComparison(false);
@@ -1013,39 +1166,69 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           )}
 
           {/* ═══════════════════════════════════════════════════════
-              FASE: RUNNING-SCRIPTS — streaming
+              FASE: RUNNING-SCRIPTS — loading elegante
           ════════════════════════════════════════════════════════ */}
           {phase === 'running-scripts' && (
-            <div className="space-y-4">
-              <StepLog steps={steps} />
-              <div className="flex items-center gap-3 mb-4">
-                <Loader2 className="w-5 h-5 text-white/30 animate-spin" />
-                <span className="text-white/50 text-sm">Copywriter gerando roteiros...</span>
-              </div>
-              {streamingScripts && (
-                <div className="rounded-2xl p-6 border border-white/10 bg-white/[0.03]">
-                  <pre className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap font-sans">
-                    {streamingScripts}
-                  </pre>
+            <div className="flex flex-col items-center gap-8 pt-12">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full border-2 border-white/10 flex items-center justify-center text-4xl">
+                  ✍️
                 </div>
-              )}
+                <Loader2 className="absolute -right-1 -bottom-1 w-6 h-6 text-purple-400/60 animate-spin" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-white font-semibold">Gerando roteiros em paralelo</h3>
+                <p className="text-white/40 text-sm">Sonnet está escrevendo todos os roteiros ao mesmo tempo...</p>
+              </div>
+              <StepLog steps={steps} />
+              {/* Skeleton cards */}
+              <div className="w-full max-w-2xl space-y-4">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="rounded-2xl border border-white/[0.06] overflow-hidden animate-pulse">
+                    <div className="px-5 py-4 border-b border-white/[0.04] flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/[0.05]" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 bg-white/[0.06] rounded w-3/4" />
+                        <div className="h-2 bg-white/[0.04] rounded w-1/3" />
+                      </div>
+                    </div>
+                    <div className="px-5 py-4 space-y-3">
+                      <div className="h-12 bg-white/[0.04] rounded-xl" />
+                      <div className="h-24 bg-white/[0.03] rounded-xl" />
+                      <div className="h-8 bg-white/[0.04] rounded-xl" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* ═══════════════════════════════════════════════════════
-              FASE: DONE — roteiros finais
+              FASE: DONE — roteiros em cards
           ════════════════════════════════════════════════════════ */}
           {phase === 'done' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-emerald-300 text-sm font-medium">Roteiros gerados com sucesso!</span>
+                <span className="text-emerald-300 text-sm font-medium">
+                  {parsedScripts ? `${parsedScripts.length} roteiros prontos!` : 'Roteiros gerados!'}
+                </span>
               </div>
-              <div className="rounded-2xl p-6 border border-white/10 bg-white/[0.03]">
-                <pre className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap font-sans">
-                  {scripts || streamingScripts}
-                </pre>
-              </div>
+
+              {parsedScripts && parsedScripts.length > 0 ? (
+                <div className="space-y-5">
+                  {parsedScripts.map((script, i) => (
+                    <ScriptCard key={i} script={script} index={i} />
+                  ))}
+                </div>
+              ) : (
+                /* Fallback: raw text if JSON parsing failed */
+                <div className="rounded-2xl p-6 border border-white/10 bg-white/[0.03]">
+                  <pre className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap font-sans">
+                    {scripts || streamingScripts}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 
