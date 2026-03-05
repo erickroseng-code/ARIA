@@ -22,6 +22,7 @@ interface ChatStore {
   activeConversationId: string;
   isStreaming: boolean;
   streamingContent: string;
+  streamingConversationId: string | null;
   pendingDocumentsCount: number;
   isHubOpen: boolean;
 
@@ -105,6 +106,7 @@ export const useChatStore = create<ChatStore>()(
       activeConversationId: INITIAL_CONV.id,
       isStreaming: false,
       streamingContent: '',
+      streamingConversationId: null,
       pendingDocumentsCount: 0,
       isHubOpen: false,
 
@@ -119,28 +121,27 @@ export const useChatStore = create<ChatStore>()(
         set((s) => ({
           conversations: [conv, ...s.conversations],
           activeConversationId: conv.id,
-          streamingContent: '',
-          isStreaming: false,
         }));
         return conv.id;
       },
 
       switchConversation: (id) =>
-        set({ activeConversationId: id, streamingContent: '', isStreaming: false }),
+        set({ activeConversationId: id }),
 
       deleteConversation: (id) =>
         set((s) => {
           const remaining = s.conversations.filter((c) => c.id !== id);
-          // If we deleted the active conversation, switch to most recent or create new
+          const streamingReset = s.streamingConversationId === id
+            ? { streamingContent: '', isStreaming: false, streamingConversationId: null }
+            : {};
           if (s.activeConversationId !== id) {
-            return { conversations: remaining };
+            return { conversations: remaining, ...streamingReset };
           }
           if (remaining.length > 0) {
-            return { conversations: remaining, activeConversationId: remaining[0].id, streamingContent: '', isStreaming: false };
+            return { conversations: remaining, activeConversationId: remaining[0].id, ...streamingReset };
           }
-          // No conversations left — create a fresh one
           const fresh = { id: generateId(), title: 'Nova Conversa', createdAt: now(), messages: [] };
-          return { conversations: [fresh], activeConversationId: fresh.id, streamingContent: '', isStreaming: false };
+          return { conversations: [fresh], activeConversationId: fresh.id, streamingContent: '', isStreaming: false, streamingConversationId: null };
         }),
 
       addMessage: (msg) =>
@@ -158,13 +159,18 @@ export const useChatStore = create<ChatStore>()(
           return { conversations: updated };
         }),
 
-      setStreaming: (v) => set({ isStreaming: v }),
+      setStreaming: (v) =>
+        set((s) => ({
+          isStreaming: v,
+          streamingConversationId: v ? s.activeConversationId : s.streamingConversationId,
+        })),
 
       appendStreamChunk: (chunk) =>
         set((s) => ({ streamingContent: s.streamingContent + chunk })),
 
       commitStreamedMessage: () =>
         set((s) => {
+          const targetId = s.streamingConversationId ?? s.activeConversationId;
           const assistantMsg: Message = {
             id: generateId(),
             role: 'assistant',
@@ -174,7 +180,7 @@ export const useChatStore = create<ChatStore>()(
             contentType: 'text',
           };
           const updated = s.conversations.map((c) =>
-            c.id !== s.activeConversationId
+            c.id !== targetId
               ? c
               : { ...c, messages: [...c.messages, assistantMsg] }
           );
@@ -182,6 +188,7 @@ export const useChatStore = create<ChatStore>()(
             conversations: updated,
             streamingContent: '',
             isStreaming: false,
+            streamingConversationId: null,
           };
         }),
 

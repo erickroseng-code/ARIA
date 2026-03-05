@@ -14,6 +14,7 @@ interface AriaSidebarProps {
     onSelectSquad?: (squadId: string) => void;
     conversations?: Conversation[];
     activeConversationId?: string;
+    streamingConversationId?: string | null;
     onNewConversation?: () => void;
     onSwitchConversation?: (id: string) => void;
     onDeleteConversation?: (id: string) => void;
@@ -28,6 +29,7 @@ const AriaSidebar = ({
     onSelectSquad,
     conversations = [],
     activeConversationId,
+    streamingConversationId,
     onNewConversation,
     onSwitchConversation,
     onDeleteConversation,
@@ -96,7 +98,13 @@ const AriaSidebar = ({
                                         title={conv.title}
                                         className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
                                     >
-                                        <MessageSquare className="w-4 h-4 flex-shrink-0 opacity-60" />
+                                        {conv.id === streamingConversationId && conv.id !== activeConversationId ? (
+                                            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                                            </span>
+                                        ) : (
+                                            <MessageSquare className="w-4 h-4 flex-shrink-0 opacity-60" />
+                                        )}
                                         <span className="truncate">{conv.title}</span>
                                     </button>
                                     <button
