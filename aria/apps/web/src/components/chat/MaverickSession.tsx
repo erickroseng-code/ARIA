@@ -5,11 +5,24 @@ import {
   ArrowLeft, Send, CheckCircle, XCircle, Loader2,
   Users, UserCheck, ImageIcon, TrendingUp, AlertTriangle,
   Star, ThumbsDown, Lightbulb, Quote, ChevronRight,
+  BarChart2, History, ArrowUpRight, ArrowDownRight, Minus,
 } from 'lucide-react';
+import { useAriaSpeech } from '@/hooks/useAriaSpeech';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
+
+interface ProfileScore {
+  overall: number;
+  dimensions: {
+    consistency: number;
+    engagement: number;
+    niche_clarity: number;
+    cta_presence: number;
+    bio_quality: number;
+  };
+}
 
 interface MaverickReport {
   profile: {
@@ -30,7 +43,24 @@ interface MaverickReport {
     key_concept: string;
     citation: string;
     next_steps: string[];
+    profile_score?: ProfileScore;
   };
+}
+
+interface HistoryEntry {
+  id: string;
+  createdAt: string;
+  strategy: { profile_score?: ProfileScore; diagnosis?: string };
+}
+
+interface HistoryListEntry {
+  id: string;
+  username: string;
+  createdAt: string;
+  status: string;
+  profile?: MaverickReport['profile'];
+  analysis?: MaverickReport['analysis'];
+  strategy?: MaverickReport['strategy'] & { profile_score?: ProfileScore };
 }
 
 type Phase = 'asking' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
@@ -44,7 +74,7 @@ interface MaverickSessionProps {
 async function* streamSse(
   endpoint: string,
   body: Record<string, string>,
-): AsyncGenerator<{ type: string; [k: string]: unknown }> {
+): AsyncGenerator<{ type: string;[k: string]: unknown }> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -165,7 +195,174 @@ function StepLog({ steps }: { steps: string[] }) {
   );
 }
 
+// ── Score Gauge ───────────────────────────────────────────────────────────────
+
+function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between items-center text-xs">
+        <span className="text-white/50">{label}</span>
+        <span className={`font-bold ${color}`}>{value}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ${color.replace('text-', 'bg-')}`}
+          style={{ width: `${value}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ProfileScoreCard({ score }: { score: ProfileScore }) {
+  const overall = score.overall;
+  const color =
+    overall >= 75 ? 'text-emerald-400' :
+      overall >= 50 ? 'text-amber-400' :
+        'text-rose-400';
+
+  const dims = [
+    { label: 'Consistência', key: 'consistency' as const },
+    { label: 'Engajamento', key: 'engagement' as const },
+    { label: 'Clareza de Nicho', key: 'niche_clarity' as const },
+    { label: 'CTAs', key: 'cta_presence' as const },
+    { label: 'Qualidade da Bio', key: 'bio_quality' as const },
+  ];
+
+  return (
+    <div className="rounded-2xl p-6 border border-white/[0.08] bg-white/[0.03]">
+      <div className="flex items-center gap-2 mb-5">
+        <BarChart2 className="w-4 h-4 text-white/40" />
+        <span className="text-sm font-semibold text-white/70">Score do Perfil</span>
+      </div>
+
+      <div className="flex items-center gap-6 mb-6">
+        {/* Nota geral em destaque */}
+        <div className="flex flex-col items-center justify-center w-24 h-24 rounded-2xl border border-white/[0.08] bg-white/[0.04] flex-shrink-0">
+          <span className={`text-4xl font-black ${color}`}>{overall}</span>
+          <span className="text-[10px] text-white/30 uppercase tracking-widest mt-0.5">/ 100</span>
+        </div>
+        {/* Barras de dimensões */}
+        <div className="flex-1 space-y-2.5">
+          {dims.map(({ label, key }) => (
+            <ScoreBar
+              key={key}
+              label={label}
+              value={score.dimensions[key]}
+              color={
+                score.dimensions[key] >= 75 ? 'text-emerald-400' :
+                  score.dimensions[key] >= 50 ? 'text-amber-400' :
+                    'text-rose-400'
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Comparison Panel ──────────────────────────────────────────────────────────
+
+function ScoreDelta({ current, previous, label }: { current: number; previous: number; label: string }) {
+  const delta = current - previous;
+  const Icon = delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : Minus;
+  const color = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-white/40';
+
+  return (
+    <div className="flex flex-col gap-1 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+      <span className="text-[10px] text-white/30 uppercase tracking-wider">{label}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-xl font-bold text-white">{current}</span>
+        <div className={`flex items-center gap-0.5 text-xs font-semibold ${color}`}>
+          <Icon className="w-3.5 h-3.5" />
+          {delta !== 0 ? Math.abs(delta) : '='}
+        </div>
+      </div>
+      <span className="text-[11px] text-white/25">anterior: {previous}</span>
+    </div>
+  );
+}
+
+function ComparisonPanel({ current, previous, previousDate }: {
+  current: MaverickReport;
+  previous: HistoryEntry;
+  previousDate: string;
+}) {
+  const curScore = current.strategy.profile_score;
+  const prevScore = previous.strategy.profile_score;
+  if (!curScore || !prevScore) return null;
+
+  const dims = [
+    { label: 'Consistência', key: 'consistency' as const },
+    { label: 'Engajamento', key: 'engagement' as const },
+    { label: 'Nicho', key: 'niche_clarity' as const },
+    { label: 'CTAs', key: 'cta_presence' as const },
+    { label: 'Bio', key: 'bio_quality' as const },
+  ];
+
+  const dateStr = new Date(previousDate).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+
+  return (
+    <div className="rounded-2xl p-6 border border-indigo-500/20 bg-white/[0.03]">
+      <div className="flex items-center gap-2 mb-5">
+        <History className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-semibold text-indigo-300">Evolução vs. análise de {dateStr}</span>
+      </div>
+
+      {/* Score geral */}
+      <div className="mb-4">
+        <ScoreDelta
+          label="Score Geral"
+          current={curScore.overall}
+          previous={prevScore.overall}
+        />
+      </div>
+
+      {/* Dimensões */}
+      <div className="grid grid-cols-5 gap-2">
+        {dims.map(({ label, key }) => (
+          <ScoreDelta
+            key={key}
+            label={label}
+            current={curScore.dimensions[key]}
+            previous={prevScore.dimensions[key]}
+          />
+        ))}
+      </div>
+
+      {/* Diagnóstico anterior */}
+      {previous.strategy.diagnosis && (
+        <div className="mt-4 rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Diagnóstico anterior</p>
+          <p className="text-xs text-white/45 leading-relaxed italic">{previous.strategy.diagnosis}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente Principal ──────────────────────────────────────────────────────
+
+// Gera o texto do briefing a partir do relatório — conciso, para ser lido em voz alta
+function buildBriefing(report: MaverickReport): string {
+  const score = report.strategy.profile_score?.overall;
+  const scoreText = score != null ? `Score geral: ${score} de 100. ` : '';
+
+  const positivos = report.analysis.positive_points.slice(0, 2).join(' e ');
+  const brechas = report.analysis.profile_gaps.slice(0, 2).join(' e ');
+
+  const posText = positivos ? `Pontos fortes: ${positivos}. ` : '';
+  const brecText = brechas ? `Principais brechas: ${brechas}. ` : '';
+
+  const diagnostico = report.strategy.diagnosis
+    ? `Diagnóstico: ${report.strategy.diagnosis.slice(0, 200)}${report.strategy.diagnosis.length > 200 ? '...' : ''}`
+    : '';
+
+  return `Análise do perfil @${report.profile.username} concluída. ${scoreText}${posText}${brecText}${diagnostico}`;
+}
 
 export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [phase, setPhase] = useState<Phase>('asking');
@@ -176,8 +373,19 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [scripts, setScripts] = useState('');
   const [streamingScripts, setStreamingScripts] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [previousAnalysis, setPreviousAnalysis] = useState<HistoryEntry | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryListEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
+
+  const { speak, stop: stopSpeech } = useAriaSpeech();
+
+  // Para o TTS ao sair do modo Maverick
+  useEffect(() => {
+    return () => { stopSpeech(); };
+  }, [stopSpeech]);
 
   useEffect(() => {
     if (phase === 'asking') {
@@ -185,8 +393,73 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     }
   }, [phase]);
 
+  // Briefing em voz quando o relatório fica pronto
+  useEffect(() => {
+    if (report && phase === 'report') {
+      const text = buildBriefing(report);
+      speak(text);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report]);
+
+  // Briefing dos roteiros quando ficam prontos
+  useEffect(() => {
+    if (phase === 'done' && scripts) {
+      speak('Roteiros prontos. Confira o conteúdo gerado na tela.');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   const addStep = useCallback((msg: string) => {
     setSteps(prev => [...prev, msg]);
+  }, []);
+
+  // Carrega lista de análises passadas no mount
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const res = await fetch(`${API_URL}/api/maverick/history?limit=20`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setHistoryItems(data.analyses ?? []);
+      } catch { /* ignora */ }
+    }
+    loadHistory();
+  }, []);
+
+  const handleLoadHistoryEntry = useCallback((entry: HistoryListEntry) => {
+    if (!entry.profile || !entry.analysis || !entry.strategy) return;
+    const reconstructed: MaverickReport = {
+      profile: entry.profile,
+      analysis: entry.analysis,
+      strategy: entry.strategy,
+    };
+    setReport(reconstructed);
+    setRawPlan(JSON.stringify(reconstructed));
+    setUsername(entry.profile.username);
+    setSteps([]);
+    setPreviousAnalysis(null);
+    setShowComparison(false);
+    setShowHistory(false);
+    setPhase('report');
+  }, []);
+
+  const fetchPreviousAnalysis = useCallback(async (user: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/maverick/history/${user}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // Pega a penúltima análise (a última é a atual que acabou de ser salva)
+      const entries: HistoryEntry[] = (data.analyses ?? []).filter(
+        (a: any) => a.strategy?.profile_score
+      );
+      if (entries.length >= 2) {
+        setPreviousAnalysis(entries[1]); // índice 1 = penúltima (mais recente anterior)
+      } else if (entries.length === 1 && data.analyses.length > 1) {
+        // histórico sem score: usa a segunda entrada disponível
+        setPreviousAnalysis(data.analyses[1]);
+      }
+    } catch { /* ignora */ }
   }, []);
 
   const handleAnalyze = useCallback(async () => {
@@ -197,6 +470,8 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
     setReport(null);
     setRawPlan('');
+    setPreviousAnalysis(null);
+    setShowComparison(false);
     abortRef.current = false;
 
     try {
@@ -214,8 +489,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               const parsed = JSON.parse(content) as MaverickReport;
               setReport(parsed);
               setPhase('report');
+              // Busca histórico em background para o modo Antes/Depois
+              fetchPreviousAnalysis(clean);
             } catch {
-              // LLM retornou texto não-JSON: mostrar como texto
               setReport(null);
               setPhase('report');
             }
@@ -233,7 +509,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
         setPhase('error');
       }
     }
-  }, [username, addStep]);
+  }, [username, addStep, fetchPreviousAnalysis]);
 
   const handleApprove = useCallback(async () => {
     setPhase('running-scripts');
@@ -273,6 +549,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
   const handleReset = useCallback(() => {
     abortRef.current = true;
+    stopSpeech();
     setPhase('asking');
     setUsername('');
     setSteps([]);
@@ -281,7 +558,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setScripts('');
     setStreamingScripts('');
     setErrorMsg('');
-  }, []);
+    setPreviousAnalysis(null);
+    setShowComparison(false);
+    setShowHistory(false);
+  }, [stopSpeech]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -312,8 +592,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           )}
         </div>
         <div className="flex-1" />
+        {phase === 'report' && previousAnalysis && previousAnalysis.strategy?.profile_score && (
+          <button
+            onClick={() => setShowComparison(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showComparison
+              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+              : 'bg-white/[0.05] text-white/40 border border-white/10 hover:text-white/70'
+              }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            Antes/Depois
+          </button>
+        )}
         {(phase === 'report' || phase === 'running-scripts' || phase === 'done') && (
-          <span className="text-[11px] text-white/30 uppercase tracking-wider font-medium">
+          <span className="text-[11px] text-white/30 uppercase tracking-wider font-medium ml-2">
             {phase === 'report' ? 'Relatório' : phase === 'running-scripts' ? 'Gerando roteiros...' : 'Roteiros prontos'}
           </span>
         )}
@@ -327,53 +619,111 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               FASE: ASKING — formulário de input
           ════════════════════════════════════════════════════════ */}
           {phase === 'asking' && (
-            <div className="flex flex-col gap-6 pt-8">
-              {/* Headline */}
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-white">Análise de Perfil</h2>
-                <p className="text-white/50 text-sm max-w-md mx-auto leading-relaxed">
-                  Scout analisa o perfil, Scholar consulta a base de conhecimento, Strategist gera o diagnóstico.
-                </p>
-              </div>
+            <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
+              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden group">
+                {/* Discrete background glow */}
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[80px] pointer-events-none group-hover:bg-purple-500/20 transition-colors duration-700" />
+                <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[80px] pointer-events-none group-hover:bg-blue-500/20 transition-colors duration-700" />
 
-              {/* Fluxo visual */}
-              <div className="flex items-center justify-center gap-3 text-xs text-white/40">
-                {['🧭 Scout', '📚 Scholar', '🧠 Strategist', '✍️ Copywriter'].map((step, i, arr) => (
-                  <span key={step} className="flex items-center gap-2">
-                    <span>{step}</span>
-                    {i < arr.length - 1 && <ChevronRight className="w-3 h-3" />}
-                  </span>
-                ))}
-              </div>
+                {/* Headline */}
+                <div className="text-center space-y-3 relative z-10">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+                    🦅
+                  </div>
+                  <h2 className="text-3xl font-extrabold text-white tracking-tight">Análise de Perfil</h2>
+                  <p className="text-white/50 text-sm max-w-[340px] mx-auto leading-relaxed">
+                    Estratégia e Inteligência para crescer com autoridade no Instagram.
+                  </p>
+                </div>
 
-              {/* Input */}
-              <div className="max-w-md mx-auto w-full">
-                <label className="block text-sm text-white/60 mb-2 text-center">
-                  Perfil público do Instagram para analisar
-                </label>
-                <div className="flex gap-3">
-                  <div className="relative flex-1">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 text-sm font-medium">@</span>
+                {/* Fluxo visual */}
+                <div className="flex items-center justify-center gap-3 text-[10px] text-white/30 uppercase tracking-[0.15em] font-bold relative z-10">
+                  {['Scout', 'Scholar', 'Strategist', 'Copywriter'].map((step, i, arr) => (
+                    <span key={step} className="flex items-center gap-2">
+                      <span className="hover:text-white/60 transition-colors">{step}</span>
+                      {i < arr.length - 1 && <ChevronRight className="w-3 h-3 opacity-30" />}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Input Area */}
+                <div className="space-y-6 relative z-10">
+                  <div className="group/input relative">
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 text-xl font-semibold transition-colors group-focus-within/input:text-purple-400">@</span>
                     <input
                       ref={inputRef}
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="username"
-                      className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl pl-9 pr-4 py-3.5 text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-white/25 focus:bg-white/[0.07] transition-all"
+                      placeholder="username do perfil"
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 rounded-[24px] pl-14 pr-6 py-6 text-white placeholder:text-white/20 text-lg focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all duration-300 shadow-inner"
                     />
                   </div>
                   <button
                     onClick={handleAnalyze}
                     disabled={!username.trim()}
-                    className="px-5 py-3.5 bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl text-white text-sm font-medium flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    className="w-fit mx-auto px-10 py-4 bg-white text-black hover:bg-white/90 rounded-[20px] text-sm font-bold flex items-center justify-center gap-2.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-[0_12px_30px_rgba(255,255,255,0.1)]"
                   >
-                    <Send className="w-4 h-4" />
-                    Analisar
+                    <TrendingUp className="w-4 h-4" />
+                    Iniciar Análise Maverick
                   </button>
                 </div>
               </div>
+
+              <div className="mt-8 text-center text-[11px] text-white/20 uppercase tracking-widest font-medium">
+                Powered by AIOS Core & OpenRouter
+              </div>
+
+              {/* ── Histórico de análises passadas ── */}
+              {historyItems.length > 0 && (
+                <div className="w-full max-w-[580px] mt-2">
+                  <button
+                    onClick={() => setShowHistory(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 text-sm text-white/50 group-hover:text-white/70 transition-colors">
+                      <History className="w-4 h-4" />
+                      <span>Análises anteriores</span>
+                      <span className="text-[11px] bg-white/10 rounded-full px-2 py-0.5">{historyItems.length}</span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-white/30 transition-transform duration-200 ${showHistory ? 'rotate-90' : ''}`} />
+                  </button>
+
+                  {showHistory && (
+                    <div className="mt-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+                      <div className="max-h-72 overflow-y-auto">
+                        {historyItems.map((item, i) => {
+                          const score = item.strategy?.profile_score?.overall;
+                          const scoreColor = score == null ? '' : score >= 75 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400';
+                          const date = new Date(item.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+                          const canLoad = !!(item.profile && item.analysis && item.strategy);
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => canLoad && handleLoadHistoryEntry(item)}
+                              disabled={!canLoad}
+                              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${i > 0 ? 'border-t border-white/[0.05]' : ''} ${canLoad ? 'hover:bg-white/[0.05] cursor-pointer' : 'opacity-40 cursor-default'}`}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-sm flex-shrink-0">
+                                🦅
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white/80 truncate">@{item.username}</p>
+                                <p className="text-[11px] text-white/30">{date}</p>
+                              </div>
+                              {score != null && (
+                                <span className={`text-sm font-bold flex-shrink-0 ${scoreColor}`}>{score}</span>
+                              )}
+                              <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -541,6 +891,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Score do Perfil (Feature 3) */}
+                  {report.strategy.profile_score && (
+                    <ProfileScoreCard score={report.strategy.profile_score} />
+                  )}
+
+                  {/* Painel Antes/Depois (Feature 4) */}
+                  {showComparison && previousAnalysis && (
+                    <ComparisonPanel
+                      current={report}
+                      previous={previousAnalysis}
+                      previousDate={previousAnalysis.createdAt}
+                    />
+                  )}
                 </>
               ) : (
                 /* Fallback: resposta não-JSON do LLM */

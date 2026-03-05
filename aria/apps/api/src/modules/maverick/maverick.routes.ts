@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { PrismaLibSql } from '@prisma/adapter-libsql';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
@@ -33,7 +34,9 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
   let metricsService: MetricsService;
 
   try {
-    prisma = new PrismaClient();
+    const dbPath = path.resolve(process.cwd(), 'prisma', 'dev.db').replace(/\\/g, '/');
+    const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
+    prisma = new PrismaClient({ adapter } as any);
     maverickService = new MaverickService(prisma);
     metricsService = new MetricsService(prisma);
   } catch (err) {
@@ -68,8 +71,7 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     const raw = reply.raw;
     writeSseHeaders(raw, req.headers['origin'] as string);
 
-    sendEvent(raw, 'step', { message: `🦅 Squad Maverick iniciado para @${username}` });
-    sendEvent(raw, 'step', { message: '🧭 Scout: Conectando ao Instagram...' });
+    sendEvent(raw, 'step', { message: `⏳ O time do Maverick está trabalhando na análise...` });
 
     const child = spawn('npx', ['ts-node', MAVERICK_PLAN_SCRIPT, username], {
       cwd: MAVERICK_ROOT,
@@ -89,7 +91,6 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       for (const line of lines) {
         if (line.trim() === '[PLAN_START]') {
           inPlan = true;
-          sendEvent(raw, 'step', { message: '📄 Gerando plano estratégico...' });
           continue;
         }
         if (line.trim() === '[PLAN_END]') {
@@ -109,15 +110,13 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
         }
         if (inPlan) {
           planBuffer += line + '\n';
-        } else if (line.startsWith('[LOG]')) {
-          const msg = line.slice(5).trim();
-          sendEvent(raw, 'step', { message: msg });
         }
       }
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
+      process.stderr.write(`[maverick/plan] ${text}`); // visível no PM2 logs
       if (text.includes('[ERROR]')) {
         const msg = text.replace('[ERROR]', '').trim();
         sendEvent(raw, 'error', { message: msg });
@@ -158,7 +157,7 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     const raw = reply.raw;
     writeSseHeaders(raw, req.headers['origin'] as string);
 
-    sendEvent(raw, 'step', { message: '✍️ Copywriter: Analisando plano estratégico...' });
+    sendEvent(raw, 'step', { message: '⏳ O time do Maverick está trabalhando na análise...' });
 
     const child = spawn('npx', ['ts-node', MAVERICK_SCRIPTS_SCRIPT, tempFile], {
       cwd: MAVERICK_ROOT,
@@ -189,15 +188,13 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
           scriptsBuffer += line + '\n';
           // Streaming em tempo real linha a linha
           sendEvent(raw, 'chunk', { content: line + '\n' });
-        } else if (line.startsWith('[LOG]')) {
-          const msg = line.slice(5).trim();
-          sendEvent(raw, 'step', { message: msg });
         }
       }
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
+      process.stderr.write(`[maverick/scripts] ${text}`); // visível no PM2 logs
       if (text.includes('[ERROR]')) {
         const msg = text.replace('[ERROR]', '').trim();
         sendEvent(raw, 'error', { message: msg });
@@ -293,6 +290,9 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
           username: a.username,
           createdAt: a.createdAt,
           status: a.status,
+          profile: a.profile,
+          analysis: a.analysis,
+          strategy: a.strategy,
         })),
       });
     } catch (error) {
