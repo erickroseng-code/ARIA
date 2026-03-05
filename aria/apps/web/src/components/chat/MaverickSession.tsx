@@ -381,6 +381,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const abortRef = useRef<boolean>(false);
 
   const { speak, stop: stopSpeech } = useAriaSpeech();
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Para o TTS ao sair do modo Maverick
   useEffect(() => {
@@ -393,22 +394,18 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     }
   }, [phase]);
 
-  // Briefing em voz quando o relatório fica pronto
-  useEffect(() => {
-    if (report && phase === 'report') {
-      const text = buildBriefing(report);
-      speak(text);
+  const handleToggleSpeech = useCallback(() => {
+    if (isSpeaking) {
+      stopSpeech();
+      setIsSpeaking(false);
+    } else if (report) {
+      setIsSpeaking(true);
+      speak(buildBriefing(report));
+      // O TTS não expõe onEnd aqui, então reseta após duração estimada
+      const words = buildBriefing(report).split(' ').length;
+      setTimeout(() => setIsSpeaking(false), words * 400);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report]);
-
-  // Briefing dos roteiros quando ficam prontos
-  useEffect(() => {
-    if (phase === 'done' && scripts) {
-      speak('Roteiros prontos. Confira o conteúdo gerado na tela.');
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [isSpeaking, report, speak, stopSpeech]);
 
   const addStep = useCallback((msg: string) => {
     setSteps(prev => [...prev, msg]);
@@ -429,6 +426,8 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
   const handleLoadHistoryEntry = useCallback((entry: HistoryListEntry) => {
     if (!entry.profile || !entry.analysis || !entry.strategy) return;
+    stopSpeech();
+    setIsSpeaking(false);
     const reconstructed: MaverickReport = {
       profile: entry.profile,
       analysis: entry.analysis,
@@ -550,6 +549,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const handleReset = useCallback(() => {
     abortRef.current = true;
     stopSpeech();
+    setIsSpeaking(false);
     setPhase('asking');
     setUsername('');
     setSteps([]);
@@ -976,6 +976,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           <div className="max-w-4xl mx-auto flex items-center gap-3">
             {phase === 'report' && (
               <>
+                <button
+                  onClick={handleToggleSpeech}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium border transition-all flex-shrink-0 ${isSpeaking ? 'bg-purple-500/20 border-purple-500/30 text-purple-300' : 'bg-white/[0.05] border-white/10 text-white/50 hover:text-white/80 hover:bg-white/10'}`}
+                  title={isSpeaking ? 'Parar' : 'Ouvir briefing'}
+                >
+                  {isSpeaking ? '⏹ Parar' : '🔊 Ouvir'}
+                </button>
                 <button
                   onClick={handleApprove}
                   className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white text-sm font-semibold transition-all"
