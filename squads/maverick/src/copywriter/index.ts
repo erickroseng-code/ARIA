@@ -39,7 +39,7 @@ export class CopywriterAgent {
     private methodology: string;
 
     constructor() {
-        this.llm = new LLMService('sonnet');
+        this.llm = new LLMService('deepseek');
         this.scholar = new ScholarEngine();
         this.methodology = loadMaverickMethodology();
     }
