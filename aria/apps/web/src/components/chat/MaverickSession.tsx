@@ -27,12 +27,16 @@ interface ProfileScore {
 
 interface ScriptData {
   title: string;
-  format: 'Reels' | 'Carrossel' | 'Stories' | string;
+  format: string;
+  format_type: string;
+  format_name: string;
+  why_format: string;
   framework: string;
   why_framework: string;
   hook: string;
   body: string;
   visual_cues: string[];
+  filming_tip: string;
   cta: string;
 }
 
@@ -305,46 +309,71 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-const FORMAT_CONFIG: Record<string, { icon: React.ElementType; gradient: string; badge: string; label: string }> = {
-  'Reels':     { icon: Film,          gradient: 'from-purple-600/20 to-violet-500/10', badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/30', label: '🎬 Reels' },
-  'Carrossel': { icon: LayoutGrid,    gradient: 'from-cyan-600/20 to-blue-500/10',    badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',      label: '📱 Carrossel' },
-  'Stories':   { icon: MessageCircle, gradient: 'from-amber-600/20 to-orange-500/10', badge: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',   label: '📲 Stories' },
+// Category-level config (by format field: "Reels" | "Carrossel")
+const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; gradient: string; badge: string }> = {
+  'Reels':     { icon: Film,       gradient: 'from-purple-600/15 to-violet-500/5',  badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' },
+  'Carrossel': { icon: LayoutGrid, gradient: 'from-cyan-600/15 to-blue-500/5',      badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' },
+};
+
+// Format-type emoji icons
+const FORMAT_TYPE_EMOJI: Record<string, string> = {
+  reels_react:           '😲',
+  reels_caixinha:        '❓',
+  reels_terceira_pessoa: '🎥',
+  reels_primeira_pessoa: '🤳',
+  reels_talking_head:    '🎙️',
+  reels_tutorial:        '📋',
+  reels_broll_texto:     '✨',
+  reels_trend_meme:      '🔥',
+  carrossel_educativo:   '📚',
+  carrossel_narrativo:   '📖',
+  carrossel_antes_depois:'⚡',
+  carrossel_opinion:     '💬',
 };
 
 function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
-  const fmt = FORMAT_CONFIG[script.format] ?? FORMAT_CONFIG['Reels'];
+  const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
+  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
   const bodyLines = script.body?.split('\n').filter(Boolean) ?? [];
+  const fullText = `HOOK:\n${script.hook}\n\nROTEIRO:\n${script.body}\n\nCTA:\n${script.cta}`;
 
   return (
-    <div className={`rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${fmt.gradient}`}>
+    <div className={`rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${cat.gradient}`}>
       {/* Header */}
       <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-white/[0.06]">
-        <span className="text-2xl font-black text-white/20 flex-shrink-0 leading-none mt-0.5">
-          #{index + 1}
-        </span>
+        <span className="text-xl font-black text-white/20 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-bold text-white leading-snug mb-2">{script.title}</h3>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${fmt.badge}`}>
-              {fmt.label}
+            {/* Format type badge — primary */}
+            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${cat.badge}`}>
+              {formatEmoji} {script.format_name || script.format}
             </span>
+            {/* Framework badge */}
             <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/[0.08]">
               {script.framework}
             </span>
           </div>
         </div>
-        <CopyButton
-          text={`HOOK:\n${script.hook}\n\nCORPO:\n${script.body}\n\nCTA:\n${script.cta}`}
-          label="Copiar tudo"
-        />
+        <CopyButton text={fullText} label="Copiar tudo" />
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Why framework */}
-        {script.why_framework && (
-          <div className="flex items-start gap-2">
-            <Lightbulb className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-white/40 italic leading-relaxed">{script.why_framework}</p>
+        {/* Why format + why framework */}
+        {(script.why_format || script.why_framework) && (
+          <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-1.5">
+            {script.why_format && (
+              <div className="flex items-start gap-2">
+                <span className="text-[10px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5">Formato</span>
+                <p className="text-xs text-white/45 italic leading-relaxed">{script.why_format}</p>
+              </div>
+            )}
+            {script.why_framework && (
+              <div className="flex items-start gap-2">
+                <span className="text-[10px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5">Copy</span>
+                <p className="text-xs text-white/40 italic leading-relaxed">{script.why_framework}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -370,14 +399,14 @@ function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
           </div>
           <div className="rounded-xl px-4 py-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
             {bodyLines.map((line, i) => {
-              const isVisual = line.startsWith('[Visual:') || line.startsWith('[Tom:') || line.startsWith('[');
+              const isDirective = /^\[.+\]/.test(line.trim());
+              const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
               return (
-                <p
-                  key={i}
-                  className={`text-sm leading-relaxed ${
-                    isVisual ? 'text-white/35 italic text-xs' : 'text-white/75'
-                  }`}
-                >
+                <p key={i} className={`text-sm leading-relaxed ${
+                  isDirective ? 'text-white/30 italic text-xs' :
+                  isSlideHeader ? 'text-white/60 text-xs font-bold uppercase tracking-wider pt-1' :
+                  'text-white/75'
+                }`}>
                   {line}
                 </p>
               );
@@ -388,7 +417,7 @@ function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
         {/* Visual cues */}
         {script.visual_cues?.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2">Produção</p>
+            <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2">Direção</p>
             <div className="flex flex-wrap gap-1.5">
               {script.visual_cues.map((cue, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-white/40">
@@ -396,6 +425,14 @@ function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Filming tip */}
+        {script.filming_tip && (
+          <div className="flex items-start gap-2 rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05]">
+            <Film className="w-3.5 h-3.5 text-white/25 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-white/40 leading-relaxed">{script.filming_tip}</p>
           </div>
         )}
 
