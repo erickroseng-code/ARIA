@@ -27,6 +27,7 @@ model MaverickAnalysis {
   analysis        Json             // Analysis section
   strategy        Json             // Strategy section
   fullReport      Json             // Complete MaverickReport
+  scripts         Json?            // Generated scripts (saved after copywriter runs)
   status          String           @default("completed") // completed, failed, pending
   error           String?          // Error message if failed
   createdAt       DateTime         @default(now())

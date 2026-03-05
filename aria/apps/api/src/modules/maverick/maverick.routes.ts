@@ -58,10 +58,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
   // POST /api/maverick/plan — Scout + Strategist com SSE streaming
   fastify.post('/plan', async (
-    req: FastifyRequest<{ Body: { username: string } }>,
+    req: FastifyRequest<{ Body: { username: string; icp?: Record<string, string> } }>,
     reply: FastifyReply,
   ) => {
-    const { username } = req.body;
+    const { username, icp } = req.body;
 
     if (!username) {
       return reply.status(400).send({ error: 'username é obrigatório' });
@@ -73,7 +73,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     sendEvent(raw, 'step', { message: `⏳ O time do Maverick está trabalhando na análise...` });
 
-    const child = spawn('npx', ['ts-node', MAVERICK_PLAN_SCRIPT, username], {
+    const planArgs = ['ts-node', MAVERICK_PLAN_SCRIPT, username];
+    if (icp) planArgs.push(JSON.stringify(icp));
+
+    const child = spawn('npx', planArgs, {
       cwd: MAVERICK_ROOT,
       env: { ...process.env },
       shell: process.platform === 'win32',
@@ -100,7 +103,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
           // Salvar análise no banco de dados
           try {
             const report = JSON.parse(planBuffer.trim());
-            maverickService.saveAnalysis(report).catch(err => {
+            maverickService.saveAnalysis(report).then(saved => {
+              // Envia o analysisId ao frontend para vincular os roteiros depois
+              sendEvent(raw, 'analysis_id', { analysisId: saved.id });
+            }).catch(err => {
               console.error('[ERROR] Erro ao salvar análise:', err);
             });
           } catch (err) {
@@ -140,10 +146,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
   // POST /api/maverick/scripts — Copywriter com SSE streaming
   fastify.post('/scripts', async (
-    req: FastifyRequest<{ Body: { plan: string } }>,
+    req: FastifyRequest<{ Body: { plan: string; analysisId?: string } }>,
     reply: FastifyReply,
   ) => {
-    const { plan } = req.body;
+    const { plan, analysisId } = req.body;
 
     if (!plan) {
       return reply.status(400).send({ error: 'plan é obrigatório' });
@@ -181,7 +187,17 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
         }
         if (line.trim() === '[SCRIPTS_END]') {
           inScripts = false;
-          sendEvent(raw, 'scripts', { content: scriptsBuffer.trim() });
+          const scriptsContent = scriptsBuffer.trim();
+          sendEvent(raw, 'scripts', { content: scriptsContent });
+          // Salvar roteiros vinculados à análise
+          if (analysisId) {
+            try {
+              const parsed = JSON.parse(scriptsContent);
+              maverickService.saveScripts(analysisId, parsed).catch(err => {
+                console.error('[ERROR] Erro ao salvar roteiros:', err);
+              });
+            } catch { /* ignora parse error */ }
+          }
           continue;
         }
         if (inScripts) {

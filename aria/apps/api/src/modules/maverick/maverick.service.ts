@@ -55,6 +55,21 @@ export class MaverickService {
   }
 
   /**
+   * Salva os roteiros gerados para uma análise existente
+   */
+  async saveScripts(analysisId: string, scripts: any[]) {
+    try {
+      await this.prisma.maverickAnalysis.update({
+        where: { id: analysisId },
+        data: { scripts: scripts as any },
+      });
+    } catch (err) {
+      console.error('[ERROR] Erro ao salvar roteiros:', err);
+      throw err;
+    }
+  }
+
+  /**
    * Recupera todas as análises de um usuário
    */
   async getAnalysisByUsername(username: string) {

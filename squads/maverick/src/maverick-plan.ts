@@ -1,11 +1,21 @@
-import { StrategistAgent } from './strategist/index';
+import { StrategistAgent, ICP } from './strategist/index';
 
 async function runPlan() {
     const username = process.argv[2];
+    const icpJson = process.argv[3];
 
     if (!username) {
         process.stderr.write('[ERROR] username required\n');
         process.exit(1);
+    }
+
+    let icp: ICP | undefined;
+    if (icpJson) {
+        try {
+            icp = JSON.parse(icpJson);
+        } catch {
+            process.stderr.write('[WARN] ICP JSON inválido — análise sem ICP\n');
+        }
     }
 
     // Redireciona console.log para stdout com prefixo [LOG]
@@ -20,7 +30,7 @@ async function runPlan() {
 
     try {
         const strategist = new StrategistAgent();
-        const plan = await strategist.createStrategicPlan(username);
+        const plan = await strategist.createStrategicPlan(username, icp);
 
         process.stdout.write('[PLAN_START]\n');
         process.stdout.write(plan);

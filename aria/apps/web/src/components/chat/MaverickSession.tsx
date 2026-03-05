@@ -30,6 +30,9 @@ interface ScriptData {
   format: string;
   format_type: string;
   format_name: string;
+  funnel_stage?: string;
+  funnel_goal?: string;
+  conversion_angle?: string;
   why_format: string;
   framework: string;
   why_framework: string;
@@ -38,6 +41,14 @@ interface ScriptData {
   visual_cues: string[];
   filming_tip: string;
   cta: string;
+}
+
+interface ICPData {
+  product: string;
+  price_range: string;
+  main_objection: string;
+  ideal_customer: string;
+  transformation: string;
 }
 
 interface EngagementPanorama {
@@ -87,9 +98,10 @@ interface HistoryListEntry {
   profile?: MaverickReport['profile'];
   analysis?: MaverickReport['analysis'];
   strategy?: MaverickReport['strategy'] & { profile_score?: ProfileScore };
+  scripts?: ScriptData[];
 }
 
-type Phase = 'asking' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
+type Phase = 'asking' | 'icp-form' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
 
 interface MaverickSessionProps {
   onClose: () => void;
@@ -99,7 +111,7 @@ interface MaverickSessionProps {
 
 async function* streamSse(
   endpoint: string,
-  body: Record<string, string>,
+  body: Record<string, unknown>,
 ): AsyncGenerator<{ type: string;[k: string]: unknown }> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     method: 'POST',
@@ -142,12 +154,12 @@ function MetricCard({ icon: Icon, label, value, color }: {
   icon: React.ElementType; label: string; value: string; color: string;
 }) {
   return (
-    <div className={`flex flex-col gap-2 rounded-2xl p-5 border ${color} bg-white/[0.03]`}>
+    <div className={`flex flex-col gap-3 rounded-2xl p-6 border ${color} bg-white/[0.03]`}>
       <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 opacity-60" />
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium">{label}</span>
+        <Icon className="w-5 h-5 opacity-60" />
+        <span className="text-sm text-white/50 uppercase tracking-wider font-semibold">{label}</span>
       </div>
-      <span className="text-3xl font-bold text-white leading-none">{value}</span>
+      <span className="text-4xl font-bold text-white leading-none">{value}</span>
     </div>
   );
 }
@@ -157,18 +169,18 @@ function ListCard({ icon: Icon, title, items, color, emptyMsg }: {
   color: { border: string; accent: string; dot: string }; emptyMsg: string;
 }) {
   return (
-    <div className={`rounded-2xl p-5 border ${color.border} bg-white/[0.03] flex flex-col gap-4`}>
-      <div className={`flex items-center gap-2 ${color.accent}`}>
-        <Icon className="w-4 h-4" />
-        <span className="text-sm font-semibold">{title}</span>
+    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+      <div className={`flex items-center gap-2.5 ${color.accent}`}>
+        <Icon className="w-5 h-5" />
+        <span className="text-base font-bold">{title}</span>
       </div>
       {items.length === 0 ? (
-        <p className="text-white/30 text-sm italic">{emptyMsg}</p>
+        <p className="text-white/30 text-base italic">{emptyMsg}</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-3">
           {items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-sm text-white/75 leading-relaxed">
-              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${color.dot}`} />
+            <li key={i} className="flex items-start gap-3 text-base text-white/78 leading-relaxed">
+              <span className={`mt-2.5 w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
               {item}
             </li>
           ))}
@@ -184,21 +196,21 @@ function PostCard({ icon: Icon, title, posts, color }: {
   color: { border: string; accent: string; badge: string };
 }) {
   return (
-    <div className={`rounded-2xl p-5 border ${color.border} bg-white/[0.03] flex flex-col gap-4`}>
-      <div className={`flex items-center gap-2 ${color.accent}`}>
-        <Icon className="w-4 h-4" />
-        <span className="text-sm font-semibold">{title}</span>
+    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+      <div className={`flex items-center gap-2.5 ${color.accent}`}>
+        <Icon className="w-5 h-5" />
+        <span className="text-base font-bold">{title}</span>
       </div>
       {posts.length === 0 ? (
-        <p className="text-white/30 text-sm italic">Sem dados suficientes</p>
+        <p className="text-white/30 text-base italic">Sem dados suficientes</p>
       ) : (
         <div className="space-y-3">
           {posts.map((post, i) => (
-            <div key={i} className={`rounded-xl p-3 border ${color.badge} bg-white/[0.02]`}>
-              <p className="text-white/80 text-xs font-mono leading-relaxed mb-1.5 truncate">
+            <div key={i} className={`rounded-xl p-4 border ${color.badge} bg-white/[0.02]`}>
+              <p className="text-white/80 text-sm font-mono leading-relaxed mb-2 truncate">
                 "{post.caption_preview}..."
               </p>
-              <p className="text-white/50 text-xs leading-relaxed">{post.reason}</p>
+              <p className="text-white/65 text-base leading-relaxed">{post.reason}</p>
             </div>
           ))}
         </div>
@@ -225,9 +237,9 @@ function StepLog({ steps }: { steps: string[] }) {
 
 function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between items-center text-xs">
-        <span className="text-white/50">{label}</span>
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-white/55">{label}</span>
         <span className={`font-bold ${color}`}>{value}</span>
       </div>
       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -257,19 +269,19 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
 
   return (
     <div className="rounded-2xl p-6 border border-white/[0.08] bg-white/[0.03]">
-      <div className="flex items-center gap-2 mb-5">
-        <BarChart2 className="w-4 h-4 text-white/40" />
-        <span className="text-sm font-semibold text-white/70">Score do Perfil</span>
+      <div className="flex items-center gap-2.5 mb-6">
+        <BarChart2 className="w-5 h-5 text-white/40" />
+        <span className="text-base font-bold text-white/70">Score do Perfil</span>
       </div>
 
-      <div className="flex items-center gap-6 mb-6">
+      <div className="flex items-center gap-8 mb-2">
         {/* Nota geral em destaque */}
-        <div className="flex flex-col items-center justify-center w-24 h-24 rounded-2xl border border-white/[0.08] bg-white/[0.04] flex-shrink-0">
-          <span className={`text-4xl font-black ${color}`}>{overall}</span>
-          <span className="text-[10px] text-white/30 uppercase tracking-widest mt-0.5">/ 100</span>
+        <div className="flex flex-col items-center justify-center w-28 h-28 rounded-2xl border border-white/[0.08] bg-white/[0.04] flex-shrink-0">
+          <span className={`text-5xl font-black ${color}`}>{overall}</span>
+          <span className="text-xs text-white/30 uppercase tracking-widest mt-1">/ 100</span>
         </div>
         {/* Barras de dimensões */}
-        <div className="flex-1 space-y-2.5">
+        <div className="flex-1 space-y-3">
           {dims.map(({ label, key }) => (
             <ScoreBar
               key={key}
@@ -331,119 +343,218 @@ const FORMAT_TYPE_EMOJI: Record<string, string> = {
   carrossel_opinion:     '💬',
 };
 
-function ScriptCard({ script, index }: { script: ScriptData; index: number }) {
+// ── Script Preview Card (compact, grid-friendly) ─────────────────────────────
+
+function ScriptPreviewCard({ script, index, onClick }: {
+  script: ScriptData; index: number; onClick: () => void;
+}) {
+  const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
+  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${cat.gradient} hover:border-white/[0.18] hover:scale-[1.01] transition-all duration-200 group`}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-3 px-4 pt-4 pb-3 border-b border-white/[0.06]">
+        <span className="text-base font-black text-white/15 flex-shrink-0 leading-none mt-0.5">#{index + 1}</span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-white leading-snug mb-2 line-clamp-2">{script.title}</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.badge}`}>
+              {formatEmoji} {script.format_name || script.format}
+            </span>
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 border border-white/[0.08]">
+              {script.framework}
+            </span>
+            {script.funnel_stage && (
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+                script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
+                'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+              }`}>
+                {script.funnel_stage}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Hook preview */}
+      <div className="px-4 py-3 border-b border-white/[0.04]">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Zap className="w-3 h-3 text-amber-400/70" />
+          <p className="text-[11px] font-bold text-amber-400/70 uppercase tracking-widest">Hook</p>
+        </div>
+        <p className="text-sm text-white/60 leading-relaxed line-clamp-3">{script.hook}</p>
+      </div>
+
+      {/* CTA preview + open hint */}
+      <div className="px-4 py-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-emerald-400/60 truncate flex-1">{script.cta}</p>
+        <span className="text-[11px] text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0 font-medium">
+          Ver roteiro →
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// ── Script Modal (popup com roteiro completo) ─────────────────────────────────
+
+function ScriptModal({ script, index, onClose }: {
+  script: ScriptData; index: number; onClose: () => void;
+}) {
   const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
   const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
   const bodyLines = script.body?.split('\n').filter(Boolean) ?? [];
   const fullText = `HOOK:\n${script.hook}\n\nROTEIRO:\n${script.body}\n\nCTA:\n${script.cta}`;
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const handleBackdrop = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
   return (
-    <div className={`rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${cat.gradient}`}>
-      {/* Header */}
-      <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-white/[0.06]">
-        <span className="text-xl font-black text-white/20 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-white leading-snug mb-2">{script.title}</h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Format type badge — primary */}
-            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${cat.badge}`}>
-              {formatEmoji} {script.format_name || script.format}
-            </span>
-            {/* Framework badge */}
-            <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/[0.08]">
-              {script.framework}
-            </span>
-          </div>
-        </div>
-        <CopyButton text={fullText} label="Copiar tudo" />
-      </div>
-
-      <div className="px-5 py-4 space-y-4">
-        {/* Why format + why framework */}
-        {(script.why_format || script.why_framework) && (
-          <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-1.5">
-            {script.why_format && (
-              <div className="flex items-start gap-2">
-                <span className="text-[10px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5">Formato</span>
-                <p className="text-xs text-white/45 italic leading-relaxed">{script.why_format}</p>
-              </div>
-            )}
-            {script.why_framework && (
-              <div className="flex items-start gap-2">
-                <span className="text-[10px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5">Copy</span>
-                <p className="text-xs text-white/40 italic leading-relaxed">{script.why_framework}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Hook */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Hook</span>
-            </div>
-            <CopyButton text={script.hook} label="Copiar hook" />
-          </div>
-          <div className="rounded-xl px-4 py-3 bg-amber-500/[0.08] border border-amber-500/20">
-            <p className="text-sm text-white/85 leading-relaxed font-medium">{script.hook}</p>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Roteiro</span>
-            <CopyButton text={script.body} label="Copiar roteiro" />
-          </div>
-          <div className="rounded-xl px-4 py-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
-            {bodyLines.map((line, i) => {
-              const isDirective = /^\[.+\]/.test(line.trim());
-              const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
-              return (
-                <p key={i} className={`text-sm leading-relaxed ${
-                  isDirective ? 'text-white/30 italic text-xs' :
-                  isSlideHeader ? 'text-white/60 text-xs font-bold uppercase tracking-wider pt-1' :
-                  'text-white/75'
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.12] overflow-hidden bg-[#0d0d12] bg-gradient-to-br ${cat.gradient}`}>
+        {/* Modal header */}
+        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-white/[0.08] flex-shrink-0">
+          <span className="text-xl font-black text-white/15 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-white leading-snug mb-2">{script.title}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${cat.badge}`}>
+                {formatEmoji} {script.format_name || script.format}
+              </span>
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/[0.08]">
+                {script.framework}
+              </span>
+              {script.funnel_stage && (
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                  script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+                  script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
+                  'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
                 }`}>
-                  {line}
-                </p>
-              );
-            })}
+                  {script.funnel_stage} · {script.funnel_goal}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <CopyButton text={fullText} label="Copiar tudo" />
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Visual cues */}
-        {script.visual_cues?.length > 0 && (
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Why choices + conversion angle */}
+          {(script.why_format || script.why_framework || script.conversion_angle) && (
+            <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-2">
+              {script.why_format && (
+                <div className="flex items-start gap-3">
+                  <span className="text-[11px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Formato</span>
+                  <p className="text-sm text-white/50 italic leading-relaxed">{script.why_format}</p>
+                </div>
+              )}
+              {script.why_framework && (
+                <div className="flex items-start gap-3">
+                  <span className="text-[11px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Copy</span>
+                  <p className="text-sm text-white/45 italic leading-relaxed">{script.why_framework}</p>
+                </div>
+              )}
+              {script.conversion_angle && (
+                <div className="flex items-start gap-3">
+                  <span className="text-[11px] font-bold text-emerald-400/40 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Angulo</span>
+                  <p className="text-sm text-emerald-300/60 italic leading-relaxed">{script.conversion_angle}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hook */}
           <div>
-            <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2">Direção</p>
-            <div className="flex flex-wrap gap-1.5">
-              {script.visual_cues.map((cue, i) => (
-                <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-white/40">
-                  {cue}
-                </span>
-              ))}
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-bold text-amber-400 uppercase tracking-widest">Hook</span>
+              </div>
+              <CopyButton text={script.hook} label="Copiar hook" />
+            </div>
+            <div className="rounded-xl px-5 py-4 bg-amber-500/[0.08] border border-amber-500/20">
+              <p className="text-base text-white/90 leading-relaxed font-medium">{script.hook}</p>
             </div>
           </div>
-        )}
 
-        {/* Filming tip */}
-        {script.filming_tip && (
-          <div className="flex items-start gap-2 rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05]">
-            <Film className="w-3.5 h-3.5 text-white/25 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-white/40 leading-relaxed">{script.filming_tip}</p>
+          {/* Body */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-sm font-bold text-white/35 uppercase tracking-widest">Roteiro</span>
+              <CopyButton text={script.body} label="Copiar roteiro" />
+            </div>
+            <div className="rounded-xl px-5 py-4 bg-white/[0.03] border border-white/[0.06] space-y-2.5">
+              {bodyLines.map((line, i) => {
+                const isDirective = /^\[.+\]/.test(line.trim());
+                const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
+                return (
+                  <p key={i} className={`leading-relaxed ${
+                    isDirective ? 'text-white/30 italic text-sm' :
+                    isSlideHeader ? 'text-white/55 text-sm font-bold uppercase tracking-wider pt-2' :
+                    'text-base text-white/82'
+                  }`}>
+                    {line}
+                  </p>
+                );
+              })}
+            </div>
           </div>
-        )}
 
-        {/* CTA */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest">CTA</span>
-            <CopyButton text={script.cta} label="Copiar CTA" />
-          </div>
-          <div className="rounded-xl px-4 py-3 bg-emerald-500/[0.08] border border-emerald-500/20">
-            <p className="text-sm text-emerald-300 font-semibold leading-relaxed">{script.cta}</p>
+          {/* Visual cues */}
+          {script.visual_cues?.length > 0 && (
+            <div>
+              <p className="text-sm font-bold text-white/25 uppercase tracking-widest mb-2.5">Direção Visual</p>
+              <div className="flex flex-wrap gap-2">
+                {script.visual_cues.map((cue, i) => (
+                  <span key={i} className="text-sm px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-white/45">
+                    {cue}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Filming tip */}
+          {script.filming_tip && (
+            <div className="flex items-start gap-3 rounded-xl px-5 py-4 bg-white/[0.02] border border-white/[0.05]">
+              <Film className="w-4 h-4 text-white/25 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-white/50 leading-relaxed">{script.filming_tip}</p>
+            </div>
+          )}
+
+          {/* CTA */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-sm font-bold text-emerald-500/70 uppercase tracking-widest">CTA</span>
+              <CopyButton text={script.cta} label="Copiar CTA" />
+            </div>
+            <div className="rounded-xl px-5 py-4 bg-emerald-500/[0.08] border border-emerald-500/20">
+              <p className="text-base text-emerald-300 font-semibold leading-relaxed">{script.cta}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -482,20 +593,20 @@ function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) 
 
   return (
     <div className={`rounded-2xl p-6 border ${colors.border} ${colors.bg}`}>
-      <div className="flex items-center gap-2 mb-5">
-        <TrendingUp className={`w-4 h-4 ${colors.text}`} />
-        <span className={`text-sm font-semibold ${colors.text}`}>Panorama de Engajamento</span>
-        <span className={`ml-auto text-xs font-bold px-2.5 py-1 rounded-full ${colors.badge}`}>
+      <div className="flex items-center gap-2.5 mb-6">
+        <TrendingUp className={`w-5 h-5 ${colors.text}`} />
+        <span className={`text-base font-bold ${colors.text}`}>Panorama de Engajamento</span>
+        <span className={`ml-auto text-sm font-bold px-3 py-1 rounded-full ${colors.badge}`}>
           {classification}
         </span>
       </div>
 
       {/* Rate + tier */}
-      <div className="flex items-baseline gap-3 mb-5">
-        <span className={`text-4xl font-black ${colors.text}`}>{panorama.profile_rate}</span>
-        <div className="flex flex-col">
-          <span className="text-xs text-white/40">taxa média</span>
-          <span className="text-xs text-white/50">{panorama.tier} · {panorama.market_position}</span>
+      <div className="flex items-baseline gap-4 mb-6">
+        <span className={`text-5xl font-black ${colors.text}`}>{panorama.profile_rate}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm text-white/45">taxa média de engajamento</span>
+          <span className="text-sm text-white/55 font-medium">{panorama.tier} · {panorama.market_position}</span>
         </div>
       </div>
 
@@ -528,7 +639,7 @@ function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) 
       </div>
 
       {/* Verdict */}
-      <p className="text-sm text-white/65 leading-relaxed">{panorama.verdict}</p>
+      <p className="text-base text-white/70 leading-relaxed">{panorama.verdict}</p>
     </div>
   );
 }
@@ -644,7 +755,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [scripts, setScripts] = useState('');
   const [streamingScripts, setStreamingScripts] = useState('');
   const [parsedScripts, setParsedScripts] = useState<ScriptData[] | null>(null);
+  const [selectedScript, setSelectedScript] = useState<{ script: ScriptData; index: number } | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [icp, setIcp] = useState<ICPData>({
+    product: '', price_range: '', main_objection: '', ideal_customer: '', transformation: '',
+  });
   const [previousAnalysis, setPreviousAnalysis] = useState<HistoryEntry | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryListEntry[]>([]);
@@ -707,13 +823,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     };
     setReport(reconstructed);
     setRawPlan(JSON.stringify(reconstructed));
+    setAnalysisId(entry.id);
     setUsername(entry.profile.username);
     setSteps([]);
     setPreviousAnalysis(null);
     setShowComparison(false);
     setShowHistory(false);
-    setPhase('report');
-  }, []);
+    // Se já tem roteiros salvos, vai direto para done
+    if (entry.scripts && Array.isArray(entry.scripts) && entry.scripts.length > 0) {
+      setParsedScripts(entry.scripts as ScriptData[]);
+      setPhase('done');
+    } else {
+      setPhase('report');
+    }
+  }, [stopSpeech]);
 
   const fetchPreviousAnalysis = useCallback(async (user: string) => {
     try {
@@ -733,7 +856,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     } catch { /* ignora */ }
   }, []);
 
-  const handleAnalyze = useCallback(async () => {
+  const handleGoToIcpForm = useCallback(() => {
+    const clean = username.trim().replace(/^@/, '');
+    if (!clean) return;
+    setPhase('icp-form');
+  }, [username]);
+
+  const handleAnalyze = useCallback(async (icpOverride?: ICPData) => {
     const clean = username.trim().replace(/^@/, '');
     if (!clean) return;
 
@@ -741,17 +870,27 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
     setReport(null);
     setRawPlan('');
+    setAnalysisId(null);
     setPreviousAnalysis(null);
     setShowComparison(false);
     abortRef.current = false;
 
+    const activeIcp = icpOverride ?? icp;
+    const icpPayload = activeIcp.product ? activeIcp : undefined;
+
     try {
-      for await (const event of streamSse('/api/maverick/plan', { username: clean })) {
+      for await (const event of streamSse('/api/maverick/plan', {
+        username: clean,
+        ...(icpPayload ? { icp: icpPayload as unknown as string } : {}),
+      } as any)) {
         if (abortRef.current) break;
 
         switch (event.type) {
           case 'step':
             addStep(event.message as string);
+            break;
+          case 'analysis_id':
+            setAnalysisId(event.analysisId as string);
             break;
           case 'plan': {
             const content = event.content as string;
@@ -791,7 +930,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
 
     try {
-      for await (const event of streamSse('/api/maverick/scripts', { plan: rawPlan })) {
+      for await (const event of streamSse('/api/maverick/scripts', { plan: rawPlan, ...(analysisId ? { analysisId } : {}) } as Record<string, unknown>)) {
         if (abortRef.current) break;
 
         switch (event.type) {
@@ -839,16 +978,19 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setScripts('');
     setStreamingScripts('');
     setParsedScripts(null);
+    setSelectedScript(null);
+    setAnalysisId(null);
     setErrorMsg('');
     setPreviousAnalysis(null);
     setShowComparison(false);
     setShowHistory(false);
+    setIcp({ product: '', price_range: '', main_objection: '', ideal_customer: '', transformation: '' });
   }, [stopSpeech]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleAnalyze();
+      handleGoToIcpForm();
     }
   };
 
@@ -895,7 +1037,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
       {/* ── Conteúdo scrollável ── */}
       <div className="flex-1 overflow-y-auto scrollbar-hidden px-6 py-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
 
           {/* ═══════════════════════════════════════════════════════
               FASE: ASKING — formulário de input
@@ -943,12 +1085,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     />
                   </div>
                   <button
-                    onClick={handleAnalyze}
+                    onClick={handleGoToIcpForm}
                     disabled={!username.trim()}
                     className="w-fit mx-auto px-10 py-4 bg-white text-black hover:bg-white/90 rounded-[20px] text-sm font-bold flex items-center justify-center gap-2.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-[0_12px_30px_rgba(255,255,255,0.1)]"
                   >
                     <TrendingUp className="w-4 h-4" />
-                    Iniciar Análise Maverick
+                    Continuar
                   </button>
                 </div>
               </div>
@@ -994,6 +1136,11 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                 <p className="text-sm font-medium text-white/80 truncate">@{item.username}</p>
                                 <p className="text-[11px] text-white/30">{date}</p>
                               </div>
+                              {item.scripts && item.scripts.length > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
+                                  {item.scripts.length} roteiros
+                                </span>
+                              )}
                               {score != null && (
                                 <span className={`text-sm font-bold flex-shrink-0 ${scoreColor}`}>{score}</span>
                               )}
@@ -1006,6 +1153,65 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════
+              FASE: ICP-FORM — coleta do perfil de cliente ideal
+          ════════════════════════════════════════════════════════ */}
+          {phase === 'icp-form' && (
+            <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
+              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-7 relative overflow-hidden">
+                <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 blur-[60px] pointer-events-none" />
+
+                <div className="text-center space-y-2">
+                  <div className="text-2xl mb-2">🎯</div>
+                  <h2 className="text-2xl font-extrabold text-white tracking-tight">Perfil do Cliente Ideal</h2>
+                  <p className="text-white/45 text-sm leading-relaxed">
+                    Opcional — quanto mais contexto você der, mais precisa é a análise e os roteiros.
+                  </p>
+                  <p className="text-white/25 text-xs">Analisando <span className="text-white/50 font-semibold">@{username.replace(/^@/, '')}</span></p>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { key: 'product' as const, label: 'Produto / Serviço', placeholder: 'Ex: mentoria de copywriting, curso de emagrecimento, consultoria financeira', icon: '📦' },
+                    { key: 'price_range' as const, label: 'Faixa de preço', placeholder: 'Ex: R$97–R$497, R$5.000 a R$15.000', icon: '💰' },
+                    { key: 'main_objection' as const, label: 'Principal objeção do cliente', placeholder: 'Ex: "não tenho tempo", "é muito caro", "já tentei antes"', icon: '🚧' },
+                    { key: 'ideal_customer' as const, label: 'Cliente ideal', placeholder: 'Ex: mulheres 30-45 anos, mães, que querem emagrecer sem academia', icon: '👤' },
+                    { key: 'transformation' as const, label: 'Transformação entregue', placeholder: 'Ex: de sedentária a ativa em 60 dias sem dieta de fome', icon: '✨' },
+                  ].map(({ key, label, placeholder, icon }) => (
+                    <div key={key} className="flex flex-col gap-1.5">
+                      <label className="text-xs text-white/40 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                        <span>{icon}</span>{label}
+                      </label>
+                      <input
+                        type="text"
+                        value={icp[key]}
+                        onChange={(e) => setIcp(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder={placeholder}
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white/25 focus:bg-white/[0.06] transition-all"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setPhase('asking')}
+                    className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white/40 text-sm font-medium hover:text-white/70 hover:border-white/20 transition-all"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => handleAnalyze(icp)}
+                    className="flex-[2] py-3.5 bg-white text-black rounded-2xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(255,255,255,0.1)]"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    Iniciar Análise Maverick
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1077,7 +1283,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   {report.profile.bio && (
                     <div className="rounded-2xl px-5 py-4 border border-white/[0.06] bg-white/[0.02]">
                       <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Bio</p>
-                      <p className="text-sm text-white/70 leading-relaxed">{report.profile.bio}</p>
+                      <p className="text-base text-white/70 leading-relaxed">{report.profile.bio}</p>
                     </div>
                   )}
 
@@ -1141,20 +1347,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     <div className="space-y-4">
                       {/* Diagnóstico */}
                       <div>
-                        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Diagnóstico</p>
-                        <p className="text-sm text-white/75 leading-relaxed">{report.strategy.diagnosis}</p>
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Diagnóstico</p>
+                        <p className="text-base text-white/78 leading-relaxed">{report.strategy.diagnosis}</p>
                       </div>
 
                       {/* Conceito chave + citação */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-                          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Conceito Chave</p>
-                          <p className="text-sm font-medium text-purple-300">{report.strategy.key_concept}</p>
+                          <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Conceito Chave</p>
+                          <p className="text-base font-medium text-purple-300">{report.strategy.key_concept}</p>
                         </div>
                         <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
                           <div className="flex items-start gap-2">
-                            <Quote className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-white/50 leading-relaxed italic">{report.strategy.citation}</p>
+                            <Quote className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm text-white/55 leading-relaxed italic">{report.strategy.citation}</p>
                           </div>
                         </div>
                       </div>
@@ -1162,11 +1368,11 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                       {/* Próximos passos / ideias de roteiros */}
                       <div>
                         <p className="text-xs text-white/40 uppercase tracking-wider mb-3">Ideias de Roteiros</p>
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {report.strategy.next_steps.map((step, i) => (
-                            <div key={i} className="flex items-start gap-3 rounded-xl p-3 bg-white/[0.03] border border-white/[0.05]">
-                              <span className="text-xs font-bold text-purple-400/60 flex-shrink-0 mt-0.5">#{i + 1}</span>
-                              <p className="text-sm text-white/70 leading-relaxed">{step}</p>
+                            <div key={i} className="flex items-start gap-3 rounded-xl p-4 bg-white/[0.03] border border-white/[0.05]">
+                              <span className="text-sm font-bold text-purple-400/60 flex-shrink-0 mt-0.5">#{i + 1}</span>
+                              <p className="text-base text-white/72 leading-relaxed">{step}</p>
                             </div>
                           ))}
                         </div>
@@ -1215,12 +1421,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               </div>
               <div className="text-center space-y-2">
                 <h3 className="text-white font-semibold">Gerando roteiros em paralelo</h3>
-                <p className="text-white/40 text-sm">Sonnet está escrevendo todos os roteiros ao mesmo tempo...</p>
+                <p className="text-white/40 text-sm">DeepSeek está escrevendo todos os roteiros ao mesmo tempo...</p>
               </div>
               <StepLog steps={steps} />
               {/* Skeleton cards */}
-              <div className="w-full max-w-2xl space-y-4">
-                {[0, 1, 2].map(i => (
+              <div className="w-full grid grid-cols-2 gap-4">
+                {[0, 1, 2, 4].map(i => (
                   <div key={i} className="rounded-2xl border border-white/[0.06] overflow-hidden animate-pulse">
                     <div className="px-5 py-4 border-b border-white/[0.04] flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-white/[0.05]" />
@@ -1253,11 +1459,25 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               </div>
 
               {parsedScripts && parsedScripts.length > 0 ? (
-                <div className="space-y-5">
-                  {parsedScripts.map((script, i) => (
-                    <ScriptCard key={i} script={script} index={i} />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {parsedScripts.map((script, i) => (
+                      <ScriptPreviewCard
+                        key={i}
+                        script={script}
+                        index={i}
+                        onClick={() => setSelectedScript({ script, index: i })}
+                      />
+                    ))}
+                  </div>
+                  {selectedScript && (
+                    <ScriptModal
+                      script={selectedScript.script}
+                      index={selectedScript.index}
+                      onClose={() => setSelectedScript(null)}
+                    />
+                  )}
+                </>
               ) : (
                 /* Fallback: raw text if JSON parsing failed */
                 <div className="rounded-2xl p-6 border border-white/10 bg-white/[0.03]">

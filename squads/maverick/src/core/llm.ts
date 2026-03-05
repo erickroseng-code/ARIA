@@ -16,17 +16,24 @@ export class LLMService {
     private openai: OpenAI;
     private models: string[];
 
-    constructor(primary: 'sonnet' | 'deepseek' = 'deepseek') {
+    constructor(
+        primary: 'sonnet' | 'deepseek' | 'minimax' = 'deepseek',
+        fallback?: 'sonnet' | 'deepseek' | 'minimax',
+    ) {
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
             throw new Error("❌ ERRO: OPENROUTER_API_KEY não encontrada no .env do Maverick.");
         }
 
-        // Sonnet: melhor para copywriting criativo em PT-BR
-        // DeepSeek: melhor custo-benefício para análise e raciocínio
-        this.models = primary === 'sonnet'
-            ? ["anthropic/claude-sonnet-4-6", "deepseek/deepseek-v3.2"]
-            : ["deepseek/deepseek-v3.2", "anthropic/claude-sonnet-4-6"];
+        const MODELS: Record<string, string> = {
+            sonnet:   "anthropic/claude-sonnet-4-6",
+            deepseek: "deepseek/deepseek-v3.2",
+            minimax:  "minimax/minimax-m2.5",
+        };
+
+        this.models = fallback
+            ? [MODELS[primary], MODELS[fallback]]
+            : [MODELS[primary]];
 
         this.openai = new OpenAI({
             apiKey: apiKey,
