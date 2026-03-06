@@ -6,7 +6,7 @@ import {
   Users, UserCheck, ImageIcon, TrendingUp, AlertTriangle,
   Star, ThumbsDown, Lightbulb, Quote, ChevronRight,
   BarChart2, History, ArrowUpRight, ArrowDownRight, Minus,
-  Copy, Check, Zap, Film, LayoutGrid, MessageCircle, ExternalLink, Search,
+  Copy, Check, Zap, Film, LayoutGrid, MessageCircle, ExternalLink, Search, Trash2,
 } from 'lucide-react';
 import { useAriaSpeech } from '@/hooks/useAriaSpeech';
 
@@ -920,6 +920,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [showComparison, setShowComparison] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryListEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -965,6 +966,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       } catch { /* ignora */ }
     }
     loadHistory();
+  }, []);
+
+
+  const handleClearHistory = useCallback(async () => {
+    if (!confirm('Tem certeza que deseja limpar todo o histórico? Esta ação não pode ser desfeita.')) return;
+    setClearingHistory(true);
+    try {
+      await fetch(`${API_URL}/api/maverick/history`, { method: 'DELETE' });
+      setHistoryItems([]);
+    } catch {
+      // silently ignore
+    } finally {
+      setClearingHistory(false);
+    }
   }, []);
 
   const handleLoadHistoryEntry = useCallback((entry: HistoryListEntry) => {
@@ -1258,9 +1273,19 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-4">
-                    {historyItems.length} {historyItems.length === 1 ? 'análise' : 'análises'}
-                  </p>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold">
+                      {historyItems.length} {historyItems.length === 1 ? 'análise' : 'análises'}
+                    </p>
+                    <button
+                      onClick={handleClearHistory}
+                      disabled={clearingHistory}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      {clearingHistory ? 'Limpando...' : 'Limpar histórico'}
+                    </button>
+                  </div>
                   {historyItems.map((item) => {
                     const score = item.strategy?.profile_score?.overall;
                     const scoreColor = score == null ? '' : score >= 75 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400';

@@ -162,6 +162,21 @@ export class MaverickService {
     }
   }
 
+
+  /**
+   * Limpa todo o histórico de análises
+   */
+  async clearAllHistory() {
+    try {
+      const result = await this.prisma.maverickAnalysis.deleteMany({});
+      console.log();
+      return { success: true, deleted: result.count };
+    } catch (err) {
+      console.error('[ERROR] Erro ao limpar histórico:', err);
+      throw err;
+    }
+  }
+
   /**
    * Recupera estatísticas do histórico
    */

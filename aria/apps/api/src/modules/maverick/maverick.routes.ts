@@ -390,6 +390,20 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     }
   });
 
+
+  // DELETE /api/maverick/history — Limpar todo o histórico
+  fastify.delete('/history', async (
+    _req: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const result = await maverickService.clearAllHistory();
+      return reply.send(result);
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao limpar histórico' });
+    }
+  });
+
   // ========== PHASE 4: Quality Metrics Dashboard ==========
 
   // GET /api/maverick/metrics/analysis/:analysisId — Métricas de uma análise
