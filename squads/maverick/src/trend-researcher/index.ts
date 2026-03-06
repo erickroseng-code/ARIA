@@ -62,33 +62,63 @@ export class TrendResearcherAgent {
     }
 
     /**
-     * Extrai 3 keywords de busca do Instagram a partir do plano estratégico.
-     * São as palavras que um usuário digitaria na busca do Instagram para encontrar
-     * conteúdo do nicho — sem # obrigatório, sem depender de quem tagueou o quê.
+     * Extrai temas principais do plano estratégico
+     * Depois decompõe em palavras-chave individuais para buscas mais precisas
+     *
+     * Estratégia: Em vez de extrair keywords longos como
+     * "marketing digital para vendas" (0 resultados),
+     * quebramos em temas curtos: ["marketing", "digital", "vendas"]
+     * Cada um é garantido de retornar posts relevantes
      */
     async extractKeywords(plan: string): Promise<string[]> {
-        const result = await this.llm.analyzeJson<{ keywords: string[] }>(
-            `A partir do plano estratégico abaixo, extraia EXATAMENTE 3 termos de busca que representam o nicho e o público-alvo do criador.
+        // Passo 1: Extrai os TEMAS principais (sem ser muito específico)
+        const themesResult = await this.llm.analyzeJson<{ themes: string[] }>(
+            `A partir do plano estratégico abaixo, extraia os TEMAS principais do nicho.
 
-Estes termos serão usados na busca do Instagram (como se um usuário digitasse na barra de pesquisa).
+Não queremos frases longas! Queremos os TEMAS (palavras-chave simples) que definem o nicho.
+
+EXEMPLOS:
+❌ Ruim (muito específico): "marketing digital para vendas online de produtos"
+✅ Bom (temas simples): marketing, digital, vendas, negocios
+
+❌ Ruim: "tecnicas de emagrecimento feminino com foco em saude"
+✅ Bom: emagrecimento, feminino, saude, fitness
 
 CRITÉRIOS:
-- Termos que alguém digitaria para encontrar conteúdo sobre o tema
-- Podem ser palavras compostas com espaço (ex: "copywriting para iniciantes", "emagrecimento feminino")
-- Em português quando o nicho for br
-- Específicos o suficiente para ser relevantes, mas não tão longos que retornem zero resultado
-- Bons exemplos: "emagrecimento feminino", "copywriting", "investimentos iniciantes", "maternidade real", "marketing digital"
-- Ruins (genéricos demais): "fitness", "saude", "vida"
+- Palavras simples (1-2 palavras máximo)
+- Que alguém digitaria na barra de pesquisa do Instagram
+- Garantidas de retornar posts (não muito específicas)
+- Em português quando for BR
+- Máximo 6 temas
 
 PLANO ESTRATÉGICO:
 ${plan.slice(0, 2500)}`,
-            '{ "keywords": ["termo1", "termo2", "termo3"] }',
+            '{ "themes": ["tema1", "tema2", "tema3"] }',
         );
 
-        return (result.keywords || [])
-            .slice(0, 3)
-            .map(k => k.trim())
-            .filter(Boolean);
+        const themes = (themesResult.themes || [])
+            .map(t => t.trim().toLowerCase())
+            .filter(t => t.length > 2 && t.length < 30)
+            .slice(0, 6);
+
+        // Passo 2: Para cada tema, decompõe em palavras individuais
+        const keywords = new Set<string>();
+
+        for (const theme of themes) {
+            // Adiciona o tema completo
+            keywords.add(theme);
+
+            // Separa em palavras individuais (se tiver múltiplas)
+            const words = theme.split(/\s+/).filter(w => w.length > 2);
+            for (const word of words) {
+                keywords.add(word);
+            }
+        }
+
+        // Log: mostra a estratégia
+        process.stdout.write(`[KEYWORDS] Temas extraídos: ${Array.from(keywords).join(', ')}\n`);
+
+        return Array.from(keywords).slice(0, 8); // até 8 keywords únicos
     }
 
     /**
@@ -345,8 +375,8 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
             throw new Error('Não foi possível extrair keywords relevantes do plano');
         }
 
-        process.stdout.write(`[STEP] Keywords extraídos: ${keywords.join(', ')}\n`);
-        process.stdout.write(`[STEP] Buscando posts virais por tópico (sem hashtags)...\n`);
+        process.stdout.write(`[STEP] ${keywords.length} temas extraídos: ${keywords.join(', ')}\n`);
+        process.stdout.write(`[STEP] Buscando posts virais por tema (estratégia: múltiplas buscas simples)...\n`);
 
         const posts = await this.fetchTopPosts(keywords, 8);
 
