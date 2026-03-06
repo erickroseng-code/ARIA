@@ -1,4 +1,6 @@
 import { LLMService } from '../core/llm';
+import { InstagramScraper } from '../tools/instagramScraper';
+import { PatternAnalyzer } from '../tools/patternAnalyzer';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -52,9 +54,13 @@ const INSIGHTS_SCHEMA = `{
 
 export class TrendResearcherAgent {
     private llm: LLMService;
+    private scraper: InstagramScraper;
+    private analyzer: PatternAnalyzer;
 
     constructor() {
         this.llm = new LLMService('deepseek');
+        this.scraper = new InstagramScraper();
+        this.analyzer = new PatternAnalyzer();
     }
 
     /**
@@ -163,7 +169,57 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
-     * ESTRATÉGIA FINAL (Google Search Only - Zero Apify):
+     * NOVA ESTRATÉGIA: Instagram Scraper + Pattern Analysis
+     * 1. Scraper busca vídeos virais via DuckDuckGo + Playwright
+     * 2. Filtra por 100k+ views
+     * 3. LLM analisa padrões (hook, tema, formato, CTA)
+     * 4. Retorna reference posts estruturados
+     */
+    async fetchTopPostsViaInstagramScraper(
+        keywords: string[],
+        minViews = 100_000
+    ): Promise<any[]> {
+        const allPosts: any[] = [];
+
+        for (const keyword of keywords) {
+            try {
+                // Scraper: busca + extrai + filtra
+                const viralPosts = await this.scraper.scrapeViralReels(keyword, minViews);
+
+                if (viralPosts.length === 0) {
+                    process.stdout.write(`[SCRAPER] Nenhum post viral encontrado para "${keyword}"\n`);
+                    continue;
+                }
+
+                // Análise de padrões
+                const patterns = await this.analyzer.analyzeVirtualPosts(viralPosts);
+
+                // Converter para formato compatível
+                const formatted = patterns.map(p => ({
+                    url: p.url,
+                    type: 'Video',
+                    caption: p.analysis.hook,
+                    caption_preview: p.analysis.hook,
+                    likesCount: p.engagement.likes,
+                    commentsCount: p.engagement.comments,
+                    videoPlayCount: p.views,
+                    shortCode: p.url.split('/').pop() || `reel-${p.url.slice(-10)}`,
+                    _viralScore: p.viral_score,
+                    analysis: p.analysis,
+                }));
+
+                allPosts.push(...formatted);
+
+            } catch (error: any) {
+                process.stderr.write(`[SCRAPER] Erro para "${keyword}": ${error.message}\n`);
+            }
+        }
+
+        return allPosts;
+    }
+
+    /**
+     * ESTRATÉGIA FALLBACK (Google Search Only - Zero Apify):
      * 1. Usar Google Search para achar Reels viralizados (site:instagram.com/reels + keyword)
      * 2. Extrair: URL + title (hook) + snippet (preview) + position (ranking = viralidade)
      * 3. Retornar dados EXATAMENTE como o Google forneceu
@@ -177,10 +233,23 @@ ${plan.slice(0, 2500)}`,
      * - Resultado: URLs + metadata PURO do Google
      */
     async fetchTopPosts(keywords: string[], resultsPerKeyword = 15): Promise<any[]> {
+        // PRIMÁRIO: Instagram Scraper (DuckDuckGo + Playwright + LLM)
+        try {
+            process.stdout.write(`\n[FETCH] Tentando Instagram Scraper...\n`);
+            const scraperPosts = await this.fetchTopPostsViaInstagramScraper(keywords, 100_000);
+
+            if (scraperPosts.length > 0) {
+                process.stdout.write(`[FETCH] ✅ ${scraperPosts.length} posts encontrados via Scraper\n`);
+                return scraperPosts;
+            }
+        } catch (error: any) {
+            process.stderr.write(`[FETCH] ⚠️ Scraper falhou: ${error.message}\n`);
+        }
+
+        // FALLBACK: Google Search
+        process.stdout.write(`\n[GOOGLE SEARCH] Buscando Reels viralizados por palavra-chave...\n`);
         const allResults: any[] = [];
 
-        // Buscar Reels no Google para cada keyword
-        process.stdout.write(`\n[GOOGLE SEARCH] Buscando Reels viralizados por palavra-chave...\n`);
         for (let i = 0; i < keywords.length; i++) {
             const keyword = keywords[i];
             const results = await this.searchReelsOnGoogle(keyword);
@@ -188,27 +257,25 @@ ${plan.slice(0, 2500)}`,
         }
 
         if (allResults.length === 0) {
-            process.stdout.write(`[AVISO] Nenhum Reel encontrado no Google.\n`);
+            process.stdout.write(`[AVISO] Nenhum Reel encontrado.\n`);
             return [];
         }
 
-        // Converter resultados Google em posts (usando dados REAIS do Google)
+        // Converter resultados Google em posts
         const posts: any[] = allResults
             .slice(0, resultsPerKeyword * 3)
             .map((result, index) => ({
                 url: result.url,
-                type: 'Video', // Google Search de site:instagram.com/reels = 100% Reels
-                // Simular engajamento baseado em ranking (posição no Google = viralidade)
+                type: 'Video',
                 likesCount: Math.max(1000, 10000 - (result.position * 200)),
                 commentsCount: Math.max(100, 1000 - (result.position * 30)),
                 videoPlayCount: Math.max(5000, 100000 - (result.position * 2000)),
-                // Usar title/snippet do Google como caption
                 caption: result.title || result.snippet || '',
                 caption_preview: result.snippet || result.title || '',
                 shortCode: result.url.split('/').pop() || `reel-${index}`,
             }));
 
-        process.stdout.write(`[RESULTADO] ${posts.length} Reels encontrados (dados puros do Google)\n`);
+        process.stdout.write(`[RESULTADO] ${posts.length} Reels encontrados (Google Search fallback)\n`);
         return posts;
     }
 
@@ -275,6 +342,42 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
+     * Converte análise de padrões do scraper (VideoPattern) em insights estruturados (TrendInsight)
+     * Mapeia: pattern → hook_pattern, emotional_trigger → engagement_signal, etc
+     */
+    private convertAnalysisToInsights(posts: any[]): TrendInsight[] {
+        const patternMap: Record<string, string> = {
+            'Storytelling': 'Narrativa Envolvente',
+            'Pergunta': 'Pergunta Provocadora',
+            'Dissonância': 'Dissonância Absoluta',
+            'Revelação': 'Revelação de Bastidores',
+            'Comparação': 'Comparativo Before/After',
+            'Tópicos': 'Lista de Dicas',
+            'Outro': 'Padrão Único',
+        };
+
+        const triggerMap: Record<string, string> = {
+            'Fear': 'Ativa o medo do cliente não avançar — urgência',
+            'Desire': 'Desejo de transformação — aspiracional',
+            'Shame': 'Vergonha de estar fazendo errado — identidade',
+            'Curiosity': 'Curiosidade e open loops — vicio atencional',
+            'Anger': 'Raiva contra inimigo comum — tribalismo',
+            'Hope': 'Esperança de mudança possível — motivação',
+            'Inspiration': 'Inspiração por exemplo — prova social',
+        };
+
+        const postsWithAnalysis = posts.filter(p => p.analysis);
+
+        return postsWithAnalysis.map(post => ({
+            hook_pattern: patternMap[post.analysis.format] || post.analysis.format,
+            angle: `${post.analysis.theme} — ${post.analysis.pattern}`,
+            engagement_signal: triggerMap[post.analysis.emotional_trigger] || post.analysis.emotional_trigger,
+            example_hook: post.analysis.hook,
+            format: post.type || 'Video',
+        }));
+    }
+
+    /**
      * Usa o LLM para extrair padrões de hooks, ângulos e formatos dos posts mais virais.
      */
     async analyzePatterns(posts: any[], keywords: string[]): Promise<TrendResearch> {
@@ -289,16 +392,54 @@ ${plan.slice(0, 2500)}`,
             };
         }
 
-        // Log debug: mostra campos disponíveis no primeiro post
-        if (posts.length > 0) {
-            const firstPost = posts[0];
-            process.stderr.write(`[DEBUG] Estrutura do post retornado pelo Apify:\n`);
-            process.stderr.write(`  Campos principais: ${Object.keys(firstPost).slice(0, 15).join(', ')}\n`);
-            process.stderr.write(`  Tem 'url'? ${!!firstPost.url} | Tem 'shortCode'? ${!!firstPost.shortCode} | Tem 'postUrl'? ${!!firstPost.postUrl} | Tem 'id'? ${!!firstPost.id} | Tem 'code'? ${!!firstPost.code}\n`);
-        }
-
         // Filtra e ordena por viralidade (remove flopados, mantém top viral)
         const topPosts = this.filterAndSortByVirality(posts);
+
+        // ✅ SE JÁ HÁ ANÁLISE (novo scraper), usar conversão direta
+        const hasAnalysis = topPosts.some(p => p.analysis);
+        if (hasAnalysis) {
+            process.stdout.write(`[ANÁLISE] ✅ Posts já com análise de padrões (novo scraper)\n`);
+            const insightsFromAnalysis = this.convertAnalysisToInsights(topPosts);
+
+            // Detectar formatos dominantes
+            const formats = new Map<string, number>();
+            topPosts.forEach(p => {
+                const fmt = p.type || 'Video';
+                formats.set(fmt, (formats.get(fmt) || 0) + 1);
+            });
+            const dominantFormats = Array.from(formats.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(e => e[0]);
+
+            // Sumarizar
+            const themes = new Set(topPosts.filter(p => p.analysis?.theme).map(p => p.analysis.theme));
+            const triggers = new Set(topPosts.filter(p => p.analysis?.emotional_trigger).map(p => p.analysis.emotional_trigger));
+            const nicheSummary = themes.size > 0
+                ? `Principais temas: ${Array.from(themes).slice(0, 3).join(', ')}. Emoções que convertem: ${Array.from(triggers).slice(0, 2).join(', ')}.`
+                : 'Análise disponível nos padrões extraídos.';
+
+            const referencePosts = topPosts.map(p => ({
+                url: p.url || '',
+                caption_preview: p.caption || p.analysis?.hook || '',
+                likes: p.likesCount || 0,
+                comments: p.commentsCount || 0,
+                views: p.videoPlayCount,
+                type: p.type || 'Video',
+            })).filter(r => r.url);
+
+            return {
+                keywords_searched: keywords,
+                posts_analyzed: topPosts.length,
+                insights: insightsFromAnalysis,
+                dominant_formats: dominantFormats,
+                niche_summary: nicheSummary,
+                reference_posts: referencePosts,
+            };
+        }
+
+        // ⚠️ SE NÃO HÁ ANÁLISE (fallback Google), usar LLM para extrair
+        process.stdout.write(`[ANÁLISE] 🔄 Extraindo padrões via LLM (fallback Google Search)\n`);
 
         // Monta referências com URLs diretas para os posts
         const referencePosts: TrendReferencePost[] = topPosts.map(p => {
@@ -420,3 +561,6 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
         return result;
     }
 }
+
+// Export alias para compatibilidade com testes
+export { TrendResearcherAgent as TrendResearcher };
