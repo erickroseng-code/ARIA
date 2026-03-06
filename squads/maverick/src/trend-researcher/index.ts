@@ -3,6 +3,7 @@ import { LLMService } from '../core/llm';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import axios from 'axios';
 
 const envPath = path.resolve(__dirname, '../../.env');
 if (fs.existsSync(envPath)) {
@@ -120,17 +121,109 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
-     * Busca posts por hashtag derivado do keyword
-     * ESTRATÉGIA COMPROVADA: usar instagram-hashtag-scraper
+     * Busca Reels no Google usando Serper.dev API
+     * Retorna URLs diretas de Reels viralizados encontrados no Instagram
      *
-     * Para cada keyword, derivamos um hashtag simples:
-     * "marketing" → busca hashtag "marketing"
-     * "emagrecimento" → busca hashtag "emagrecimento"
-     * "fitness" → busca hashtag "fitness"
+     * Custo: ~$1 por 1000 buscas (muito mais barato que Apify)
+     * Eficácia: Google indexa Reels e os ordena por popularidade
+     */
+    async searchReelsOnGoogle(keyword: string): Promise<string[]> {
+        const serperApiKey = process.env.SERPER_API_KEY;
+        if (!serperApiKey) {
+            process.stderr.write(`[AVISO] SERPER_API_KEY não configurada. Skipando busca Google.\n`);
+            return [];
+        }
+
+        try {
+            const response = await axios.post(
+                'https://google.serper.dev/search',
+                {
+                    q: `site:instagram.com/reels ${keyword}`,
+                    gl: 'br',
+                    num: 20,
+                },
+                {
+                    headers: {
+                        'X-API-KEY': serperApiKey,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            const urls = (response.data.organic || [])
+                .map((result: any) => result.link)
+                .filter((url: string) => url && url.includes('instagram.com'));
+
+            process.stdout.write(`[GOOGLE] Encontrados ${urls.length} Reels para "${keyword}"\n`);
+            return urls;
+        } catch (error: any) {
+            process.stderr.write(`[GOOGLE] Erro na busca: ${error?.message}\n`);
+            return [];
+        }
+    }
+
+    /**
+     * NOVA ESTRATÉGIA (Google + Apify):
+     * 1. Usar Google Search para achar Reels viralizados (site:instagram.com/reels + keyword)
+     * 2. Google indexa e ranqueia por engajamento — pega só o que está bombando
+     * 3. Depois scrapa dados detalhados dos posts encontrados com Apify (SÓ os que o Google achou)
      *
-     * Cada busca é SEPARADA e INDEPENDENTE
+     * Por que funciona:
+     * - Google Search é baratíssimo vs Apify (~$1/1000 vs gastar muito em CUs)
+     * - Reels viralizados aparecem no Google
+     * - Posts flopados não rankam
+     * - Filtra por palavra-chave real (não aproximado como hashtag)
+     * - Economiza CUs do Apify (scrapa só posts relevantes, não tudo)
      */
     async fetchTopPosts(keywords: string[], resultsPerKeyword = 15): Promise<any[]> {
+        const allPosts: any[] = [];
+        const allUrls: Set<string> = new Set();
+
+        // PASSO 1: Buscar URLs de Reels no Google para cada keyword
+        process.stdout.write(`\n[GOOGLE SEARCH] Buscando Reels viralizados por palavra-chave...\n`);
+        for (let i = 0; i < keywords.length; i++) {
+            const keyword = keywords[i];
+            const urls = await this.searchReelsOnGoogle(keyword);
+            urls.forEach(url => allUrls.add(url));
+        }
+
+        if (allUrls.size === 0) {
+            process.stdout.write(`[AVISO] Nenhum Reel encontrado no Google. Voltando ao fallback Apify...\n`);
+            return await this.fetchTopPostsLegacy(keywords, resultsPerKeyword);
+        }
+
+        // PASSO 2: Scrapa dados dos posts específicos encontrados no Google
+        process.stdout.write(`\n[APIFY] Extraindo dados de ${allUrls.size} Reels encontrados...\n`);
+        let extracted = 0;
+        for (const url of Array.from(allUrls).slice(0, resultsPerKeyword * 3)) {
+            try {
+                // Usa o instagram-posts-scraper com a URL específica do post
+                const run = await this.client.actor('apify/instagram-posts-scraper').call({
+                    urls: [url],
+                });
+
+                const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                if (items && items.length > 0) {
+                    const post = items[0];
+                    if (post.type === 'Video' && (post.likesCount > 0 || post.commentsCount > 0)) {
+                        allPosts.push(post);
+                        extracted++;
+                    }
+                }
+            } catch (error) {
+                // Skip posts que falham na extração
+            }
+        }
+
+        process.stdout.write(`[RESULTADO] ${extracted} Reels (type: Video) extraídos com sucesso\n`);
+        return allPosts;
+    }
+
+    /**
+     * ESTRATÉGIA ANTERIOR (Legacy): usar instagram-hashtag-scraper
+     * Mantido como fallback enquanto não temos Google Search configurado
+     */
+    async fetchTopPostsLegacy(keywords: string[], resultsPerKeyword = 15): Promise<any[]> {
         if (keywords.length === 0) return [];
 
         const allPosts: any[] = [];
@@ -153,7 +246,8 @@ ${plan.slice(0, 2500)}`,
                 process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados para #${keyword}\n`);
                 allPosts.push(...validPosts);
 
-            } catch (error) {
+            } catch (error: any) {
+                process.stderr.write(`[DEBUG] Erro do instagram-reel-scraper: ${error?.message || JSON.stringify(error).slice(0, 200)}\n`);
                 process.stdout.write(`[BUSCA ${i + 1}] ⚠️ instagram-reel-scraper falhou, tentando posts-scraper...\n`);
 
                 // Fallback 1: Se reel-scraper falha, tenta posts-scraper
@@ -164,24 +258,45 @@ ${plan.slice(0, 2500)}`,
                     });
 
                     const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
-                    const validPosts = (items || []).filter((p: any) => (p.shortCode || p.url) && (p.likesCount > 0 || p.commentsCount > 0));
+                    const validPosts = (items || []).filter((p: any) =>
+                        (p.shortCode || p.url) &&
+                        (p.likesCount > 0 || p.commentsCount > 0) &&
+                        p.type === 'Video'
+                    );
 
-                    process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados (fallback: posts-scraper)\n`);
+                    const typeCountsPosts = items ? items.reduce((acc: any, p: any) => {
+                        acc[p.type || 'UNKNOWN'] = (acc[p.type || 'UNKNOWN'] || 0) + 1;
+                        return acc;
+                    }, {}) : {};
+
+                    process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} REELS (de ${items?.length || 0} posts: ${JSON.stringify(typeCountsPosts)}) (fallback: posts-scraper)\n`);
                     allPosts.push(...validPosts);
                 } catch (fallbackError1) {
                     process.stdout.write(`[BUSCA ${i + 1}] ⚠️ posts-scraper também falhou, tentando hashtag-scraper como último fallback...\n`);
 
                     // Fallback 2: Se tudo falha, tenta hashtag-scraper
+                    // Pedindo muito mais porque vamos filtrar APENAS Reels (type: "Video")
                     try {
                         const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
                             hashtags: [keyword],
-                            resultsLimit: resultsPerKeyword * 2,
+                            resultsLimit: Math.max(resultsPerKeyword * 10, 200), // 10x mais pois vai filtrar por type
                         });
 
                         const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
-                        const validPosts = (items || []).filter((p: any) => (p.shortCode || p.url) && (p.likesCount > 0 || p.commentsCount > 0));
 
-                        process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados (fallback: hashtag-scraper)\n`);
+                        // Filtrar APENAS Reels (type: "Video")
+                        const validPosts = (items || []).filter((p: any) =>
+                            (p.shortCode || p.url) &&
+                            (p.likesCount > 0 || p.commentsCount > 0) &&
+                            p.type === 'Video'
+                        );
+
+                        const typeCounts = items ? items.reduce((acc: any, p: any) => {
+                            acc[p.type || 'UNKNOWN'] = (acc[p.type || 'UNKNOWN'] || 0) + 1;
+                            return acc;
+                        }, {}) : {};
+
+                        process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} REELS (de ${items?.length || 0} posts: ${JSON.stringify(typeCounts)})\n`);
                         allPosts.push(...validPosts);
                     } catch (fallbackError2) {
                         process.stdout.write(`[BUSCA ${i + 1}] ❌ Todos os actors falharam para #${keyword}\n`);
