@@ -92,22 +92,118 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
-     * Busca posts via Instagram search — encontra conteúdo viral
-     * usando KEYWORDS DIRETOS (não hashtags) na barra de pesquisa.
-     * Ex: "copywriting para iniciantes" → pesquisa por essa frase exata
+     * Derivar hashtags inteligentes a partir de keywords
+     * Estratégia multi-nível para maximizar resultados:
+     * 1. Decompõe keywords em palavras individuais
+     * 2. Cria variações (plural, singular, expandido)
+     * 3. Adiciona hashtags genéricos relacionados
+     */
+    private deriveHashtagsFromKeywords(keywords: string[]): string[] {
+        const hashtags = new Set<string>();
+
+        for (const keyword of keywords) {
+            // Normaliza: remove acentos, lowercase
+            const normalized = keyword
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, ''); // remove acentos
+
+            // Estratégia 1: cada palavra do keyword vira hashtag (melhor reach)
+            const words = normalized.split(/\s+/).filter(Boolean);
+            for (const word of words) {
+                if (word.length > 2) {
+                    hashtags.add(word); // "iniciantes", "copywriting", etc.
+
+                    // Variação: singular/plural
+                    if (word.endsWith('s')) {
+                        const singular = word.slice(0, -1);
+                        if (singular.length > 2) hashtags.add(singular);
+                    }
+                }
+            }
+
+            // Estratégia 2: combinação completa (menos comum mas mais específico)
+            const fullTag = normalized.replace(/\s+/g, '');
+            if (fullTag.length > 3 && fullTag.length < 30) {
+                hashtags.add(fullTag);
+            }
+
+            // Estratégia 3: hashtags expandidos relacionados ao tema
+            const lowerKeyword = normalized;
+
+            // Tópicos de copywriting/marketing
+            if (lowerKeyword.includes('copy') || lowerKeyword.includes('escrita') || lowerKeyword.includes('texto')) {
+                hashtags.add('copywriting');
+                hashtags.add('copywriter');
+                hashtags.add('marketing');
+                hashtags.add('conteudo');
+            }
+
+            // Tópicos de aprendizado
+            if (lowerKeyword.includes('aprend') || lowerKeyword.includes('tutorial') || lowerKeyword.includes('curso')) {
+                hashtags.add('aprenda');
+                hashtags.add('tutorial');
+                hashtags.add('dica');
+            }
+
+            // Tópicos de negócios/vendas
+            if (lowerKeyword.includes('negocio') || lowerKeyword.includes('venda') || lowerKeyword.includes('fatur')) {
+                hashtags.add('vendas');
+                hashtags.add('negocio');
+                hashtags.add('empreendedor');
+            }
+
+            // Tópicos feminino
+            if (lowerKeyword.includes('mulher') || lowerKeyword.includes('feminino') || lowerKeyword.includes('girl')) {
+                hashtags.add('mulheres');
+                hashtags.add('feminino');
+            }
+
+            // Tópicos de fitness/saúde
+            if (lowerKeyword.includes('fit') || lowerKeyword.includes('emagr') || lowerKeyword.includes('saude') || lowerKeyword.includes('dieta')) {
+                hashtags.add('fitness');
+                hashtags.add('saude');
+                hashtags.add('emagrecimento');
+            }
+
+            // Genéricos que funcionam sempre
+            hashtags.add('dica');
+            hashtags.add('conteudo');
+        }
+
+        const result = Array.from(hashtags).slice(0, 15);
+        return result.length > 0 ? result : ['viral', 'conteudo', 'instagram'];
+    }
+
+    /**
+     * Busca posts via Instagram hashtag scraper — encontra conteúdo viral
+     * usando hashtags derivados inteligentemente dos keywords.
+     *
+     * IMPORTANTE: Usamos hashtags porque:
+     * - instagram-search-scraper não retorna resultados confiáveis
+     * - hashtag-scraper é o actor mais estável do Apify
+     * - Derivamos hashtags DOS keywords (não os removemos)
      */
     async fetchTopPosts(keywords: string[], resultsPerKeyword = 8): Promise<any[]> {
         if (keywords.length === 0) return [];
 
-        // Usar instagram-search-scraper para buscar por keywords na barra de pesquisa
-        const run = await this.client.actor('apify/instagram-search-scraper').call({
-            searchTerms: keywords,
+        const hashtags = this.deriveHashtagsFromKeywords(keywords);
+        if (hashtags.length === 0) return [];
+
+        process.stdout.write(`[BUSCA] Hashtags derivados: #${hashtags.join(', #')}\n`);
+
+        const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
+            hashtags,
             resultsLimit: resultsPerKeyword,
         });
 
         const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+
         // Filter out error objects
-        return (items || []).filter((p: any) => p.shortCode || p.url);
+        const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
+        process.stdout.write(`[BUSCA] ${validPosts.length} posts encontrados via hashtags\n`);
+
+        return validPosts;
     }
 
     /**
@@ -274,9 +370,21 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
             throw new Error('Não foi possível extrair keywords relevantes do plano');
         }
 
-        process.stdout.write(`[STEP] Pesquisando no Instagram por: ${keywords.join(', ')}\n`);
+        process.stdout.write(`[STEP] Keywords extraídos: ${keywords.join(', ')}\n`);
 
         const posts = await this.fetchTopPosts(keywords, 8);
+
+        if (posts.length === 0) {
+            process.stdout.write(`[ERRO] Nenhum post encontrado! Tente:\n  - Hashtags mais populares\n  - Keywords mais genéricos\n  - Verificar API token do Apify\n`);
+            return {
+                keywords_searched: keywords,
+                posts_analyzed: 0,
+                insights: [],
+                dominant_formats: [],
+                niche_summary: 'Nenhum post encontrado para os keywords fornecidos.',
+                reference_posts: [],
+            };
+        }
 
         process.stdout.write(`[STEP] ${posts.length} posts encontrados — filtrando flopados e mantendo apenas virais...\n`);
 
