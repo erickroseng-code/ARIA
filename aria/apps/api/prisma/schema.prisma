@@ -28,6 +28,7 @@ model MaverickAnalysis {
   strategy        Json             // Strategy section
   fullReport      Json             // Complete MaverickReport
   scripts         Json?            // Generated scripts (saved after copywriter runs)
+  trendResearch   Json?            // Trend research: viral reference posts + insights
   status          String           @default("completed") // completed, failed, pending
   error           String?          // Error message if failed
   createdAt       DateTime         @default(now())

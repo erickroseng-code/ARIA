@@ -55,6 +55,21 @@ export class MaverickService {
   }
 
   /**
+   * Salva o trend research (posts de referência + insights) vinculado a uma análise
+   */
+  async saveTrendResearch(analysisId: string, trendResearch: any) {
+    try {
+      await this.prisma.maverickAnalysis.update({
+        where: { id: analysisId },
+        data: { trendResearch: trendResearch as any },
+      });
+    } catch (err) {
+      console.error('[ERROR] Erro ao salvar trend research:', err);
+      throw err;
+    }
+  }
+
+  /**
    * Salva os roteiros gerados para uma análise existente
    */
   async saveScripts(analysisId: string, scripts: any[]) {

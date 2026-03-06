@@ -1,4 +1,5 @@
 import { CopywriterAgent } from './copywriter/index';
+import { TrendResearcherAgent, TrendResearch } from './trend-researcher/index';
 import * as fs from 'fs';
 
 async function runScripts() {
@@ -25,8 +26,28 @@ async function runScripts() {
     };
 
     try {
+        // 1. Trend Research — busca conteúdo viral no nicho do perfil
+        //    Opcional: se falhar, o Copywriter continua apenas com a metodologia
+        let trendResearch: TrendResearch | null = null;
+        try {
+            process.stdout.write('[STEP] Pesquisando tendencias e conteudo viral no nicho...\n');
+            const researcher = new TrendResearcherAgent();
+            trendResearch = await researcher.research(plan);
+            const found = trendResearch.posts_analyzed;
+            const terms = trendResearch.keywords_searched.join(', ');
+            process.stdout.write(`[STEP] Analise de tendencias concluida: ${found} posts virais para "${terms}"\n`);
+            // Emite os dados completos (incluindo URLs de referência) para a rota capturar
+            process.stdout.write('[TREND_DATA_START]\n');
+            process.stdout.write(JSON.stringify(trendResearch));
+            process.stdout.write('\n[TREND_DATA_END]\n');
+        } catch (err: any) {
+            process.stderr.write(`[WARN] Trend research nao disponivel (continuando sem): ${err.message}\n`);
+        }
+
+        // 2. Copywriter — gera roteiros usando metodologia + tendências reais do nicho
+        process.stdout.write('[STEP] Gerando roteiros com base nas tendencias e metodologia Maverick...\n');
         const copywriter = new CopywriterAgent();
-        const scripts = await copywriter.generateScripts(plan);
+        const scripts = await copywriter.generateScripts(plan, trendResearch ?? undefined);
 
         process.stdout.write('[SCRIPTS_START]\n');
         process.stdout.write(scripts);

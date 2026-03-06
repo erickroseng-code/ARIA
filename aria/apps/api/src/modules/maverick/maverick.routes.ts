@@ -58,10 +58,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
   // POST /api/maverick/plan — Scout + Strategist com SSE streaming
   fastify.post('/plan', async (
-    req: FastifyRequest<{ Body: { username: string; icp?: Record<string, string> } }>,
+    req: FastifyRequest<{ Body: { username: string; icp?: Record<string, string>; force?: boolean } }>,
     reply: FastifyReply,
   ) => {
-    const { username, icp } = req.body;
+    const { username, icp, force } = req.body;
 
     if (!username) {
       return reply.status(400).send({ error: 'username é obrigatório' });
@@ -70,6 +70,23 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     reply.hijack();
     const raw = reply.raw;
     writeSseHeaders(raw, req.headers['origin'] as string);
+
+    // ── Cache: verifica análise recente (24h) quando não há ICP e não é forçado ──
+    const CACHE_TTL_MS = (parseInt(process.env.MAVERICK_CACHE_TTL_HOURS ?? '24') || 24) * 60 * 60 * 1000;
+    if (!icp && !force) {
+      try {
+        const cached = await maverickService.getLatestAnalysis(username);
+        if (cached && (Date.now() - new Date(cached.createdAt).getTime()) < CACHE_TTL_MS) {
+          const ageH = Math.round((Date.now() - new Date(cached.createdAt).getTime()) / 3600000);
+          sendEvent(raw, 'step', { message: `✅ Análise recente encontrada (há ${ageH}h) — carregando do histórico` });
+          sendEvent(raw, 'plan', { content: JSON.stringify(cached.fullReport) });
+          sendEvent(raw, 'analysis_id', { analysisId: cached.id });
+          sendEvent(raw, 'done', {});
+          raw.end();
+          return;
+        }
+      } catch { /* ignora erro de cache — prossegue com análise normal */ }
+    }
 
     sendEvent(raw, 'step', { message: `⏳ O time do Maverick está trabalhando na análise...` });
 
@@ -173,6 +190,8 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     let scriptsBuffer = '';
     let inScripts = false;
+    let trendBuffer = '';
+    let inTrend = false;
     let lineBuffer = '';
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -181,6 +200,30 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       lineBuffer = lines.pop() ?? '';
 
       for (const line of lines) {
+        // Mensagens de progresso emitidas pelo processo filho
+        if (line.startsWith('[STEP]')) {
+          sendEvent(raw, 'step', { message: line.replace('[STEP]', '').trim() });
+          continue;
+        }
+        // Captura bloco de trend research (com URLs de referência)
+        if (line.trim() === '[TREND_DATA_START]') { inTrend = true; continue; }
+        if (line.trim() === '[TREND_DATA_END]') {
+          inTrend = false;
+          try {
+            const trendData = JSON.parse(trendBuffer.trim());
+            sendEvent(raw, 'trend_research', { content: trendData });
+            // Salva no banco se houver analysisId
+            if (analysisId) {
+              maverickService.saveTrendResearch(analysisId, trendData).catch(err => {
+                console.error('[ERROR] Erro ao salvar trend research:', err);
+              });
+            }
+          } catch { /* ignora parse error */ }
+          trendBuffer = '';
+          continue;
+        }
+        if (inTrend) { trendBuffer += line + '\n'; continue; }
+
         if (line.trim() === '[SCRIPTS_START]') {
           inScripts = true;
           continue;
@@ -214,6 +257,10 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       if (text.includes('[ERROR]')) {
         const msg = text.replace('[ERROR]', '').trim();
         sendEvent(raw, 'error', { message: msg });
+      } else if (text.includes('[WARN]')) {
+        // Trend research failure: send as informational step (non-blocking)
+        const msg = text.replace('[WARN]', '').trim().split('\n')[0];
+        sendEvent(raw, 'step', { message: `⚠️ ${msg}` });
       }
     });
 

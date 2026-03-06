@@ -2,6 +2,7 @@ import { LLMService } from '../core/llm';
 import { ScholarEngine } from '../scholar/engine';
 import { loadMaverickMethodology } from '../knowledge/methodology';
 import { buildFormatMenu, buildFormatInstructions } from '../knowledge/content-formats';
+import { TrendResearch } from '../trend-researcher/index';
 
 export interface ScriptOutput {
     title: string;
@@ -45,13 +46,23 @@ export class CopywriterAgent {
     private methodology: string;
 
     constructor() {
-        this.llm = new LLMService('minimax', 'deepseek');
+        this.llm = new LLMService('deepseek', 'minimax');
         this.scholar = new ScholarEngine();
         this.methodology = loadMaverickMethodology();
     }
 
-    async generateScripts(strategicPlan: string): Promise<string> {
+    async generateScripts(strategicPlan: string, trendResearch?: TrendResearch): Promise<string> {
         const formatMenu = buildFormatMenu();
+
+        // Formata os insights de tendência para injetar nos prompts
+        const trendContext = trendResearch && trendResearch.posts_analyzed > 0
+            ? `\nTENDÊNCIAS REAIS DO NICHO (pesquisa em ${trendResearch.keywords_searched.join(', ')} — ${trendResearch.posts_analyzed} posts virais analisados):
+O que está dominando: ${trendResearch.niche_summary}
+Formatos com melhor performance: ${trendResearch.dominant_formats.join(', ')}
+${trendResearch.insights.slice(0, 4).map((ins, i) =>
+    `[Tendência ${i+1}] Padrão: ${ins.hook_pattern} | Ângulo: ${ins.angle}\nHook viral: "${ins.example_hook}"\nPor que funciona: ${ins.engagement_signal}`
+).join('\n')}`
+            : '';
 
         // 1. Extract script ideas + choose format, funnel stage and framework
         const ideas = await this.llm.analyzeJson<{
@@ -64,6 +75,7 @@ export class CopywriterAgent {
         }[]>(
             `Analise o plano estratégico abaixo e extraia as ideias de roteiros sugeridas.
 Para cada ideia, escolha o formato mais adequado ao tema e defina o estágio de funil correto.
+${trendContext ? `\nUSE AS TENDÊNCIAS REAIS DO NICHO abaixo para calibrar os formatos e ângulos — prefira ideias que alinhem com o que está funcionando no mercado agora.\n${trendContext}` : ''}
 
 FORMATOS DISPONÍVEIS:
 ${formatMenu}
@@ -118,6 +130,7 @@ COMO VOCÊ ESCREVE:
             { ...idea, funnel_stage: idea.funnel_stage || 'TOFU', funnel_goal: idea.funnel_goal || '' },
             bookCitations,
             systemPrompt,
+            trendResearch,
         ));
         const scripts: ScriptOutput[] = await Promise.all(scriptPromises);
 
@@ -128,6 +141,7 @@ COMO VOCÊ ESCREVE:
         idea: { title: string; context: string; format_type: string; funnel_stage: string; funnel_goal: string; recommended_framework: string },
         bookCitations: string,
         systemPrompt: string,
+        trendResearch?: TrendResearch,
     ): Promise<ScriptOutput> {
         const formatInstructions = buildFormatInstructions(idea.format_type);
 
@@ -151,6 +165,26 @@ COMO VOCÊ ESCREVE:
 
         const funnelCtx = funnelInstructions[idea.funnel_stage] || funnelInstructions['TOFU'];
 
+        // Seleciona os insights de tendência mais relevantes para este formato/funil
+        let trendCtx = '';
+        if (trendResearch && trendResearch.posts_analyzed > 0) {
+            const isReels = idea.format_type.startsWith('reels');
+            const relevant = trendResearch.insights.filter(ins =>
+                isReels ? ins.format === 'Reels' : ins.format === 'Carrossel'
+            );
+            const insightsToUse = relevant.length > 0 ? relevant.slice(0, 2) : trendResearch.insights.slice(0, 2);
+
+            if (insightsToUse.length > 0) {
+                trendCtx = `\nCONTEÚDO VIRAL DE REFERÊNCIA (pesquisado no nicho real — ${trendResearch.keywords_searched.join(', ')}):
+O que está dominando o nicho: ${trendResearch.niche_summary}
+${insightsToUse.map((ins, i) =>
+    `Ref ${i + 1}: "${ins.example_hook}" → Padrão: ${ins.hook_pattern} | Sinal: ${ins.engagement_signal}`
+).join('\n')}
+
+INSTRUÇÃO: Use estas referências como PARÂMETRO DE QUALIDADE para o hook. Não copie — adapte o padrão viral ao contexto específico deste roteiro.\n`;
+            }
+        }
+
         const prompt = `Escreva o roteiro COMPLETO para o conteúdo abaixo. Retorne APENAS JSON.
 
 BRIEFING:
@@ -162,10 +196,8 @@ BRIEFING:
 - Framework de copywriting: ${idea.recommended_framework}
 
 ${funnelCtx}
-
-${formatInstructions ? `INSTRUÇÕES DO FORMATO:\n${formatInstructions}\n` : ''}
-${bookCitations ? `REFERÊNCIAS DOS LIVROS (use para embasar o copy):\n${bookCitations}\n` : ''}
-IMPORTANTE: Siga EXATAMENTE a estrutura de roteiro do formato selecionado.
+${trendCtx}
+${formatInstructions ? `INSTRUÇÕES DO FORMATO:\n${formatInstructions}\n` : ''}${bookCitations ? `REFERÊNCIAS DOS LIVROS (use para embasar o copy):\n${bookCitations}\n` : ''}IMPORTANTE: Siga EXATAMENTE a estrutura de roteiro do formato selecionado.
 O campo "body" deve refletir a estrutura específica deste formato (ex: slides numerados para carrossel, marcações de tempo para reels).
 O campo "filming_tip" deve ser uma instrução prática específica para ESTE roteiro (não genérica).
 O campo "cta" deve ser coerente com o estágio de funil ${idea.funnel_stage}.

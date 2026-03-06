@@ -53,6 +53,7 @@ export class LLMService {
                 // console.log(`🧠 Tentando modelo: ${model}...`);
                 const completion = await this.openai.chat.completions.create({
                     model: model,
+                    temperature: 0,
                     messages: [
                         ...(systemInstruction ? [{ role: "system" as const, content: systemInstruction }] : []),
                         { role: "user", content: prompt }
@@ -115,6 +116,7 @@ export class LLMService {
             try {
                 const completion = await this.openai.chat.completions.create({
                     model,
+                    temperature: 0,
                     messages: [
                         { role: "system" as const, content: system },
                         { role: "user", content: jsonPrompt },

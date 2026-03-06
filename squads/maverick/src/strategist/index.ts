@@ -77,6 +77,24 @@ export interface ICP {
     transformation: string;     // Transformação que o produto entrega (ex: "de sedentário a ativo em 60 dias")
 }
 
+/**
+ * Calcula o score de engajamento (0–100) de forma determinística com base na taxa real
+ * e nos benchmarks do tier — eliminando a variabilidade do LLM nesta dimensão.
+ */
+function calculateEngagementScore(rate: number, tier: ReturnType<typeof getTierBenchmarks>): number {
+    if (rate >= tier.otimo) {
+        return Math.min(100, Math.round(80 + (rate - tier.otimo) / Math.max(tier.otimo, 0.1) * 20));
+    } else if (rate >= tier.bom_max) {
+        return Math.round(65 + (rate - tier.bom_max) / Math.max(tier.otimo - tier.bom_max, 0.1) * 15);
+    } else if (rate >= tier.bom_min) {
+        return Math.round(50 + (rate - tier.bom_min) / Math.max(tier.bom_max - tier.bom_min, 0.1) * 15);
+    } else if (rate >= tier.ruim) {
+        return Math.round(25 + (rate - tier.ruim) / Math.max(tier.bom_min - tier.ruim, 0.1) * 25);
+    } else {
+        return Math.round(Math.max(0, rate / Math.max(tier.ruim, 0.1) * 25));
+    }
+}
+
 export class StrategistAgent {
     private scout: ScoutAgent;
     private scholar: ScholarEngine;
@@ -285,6 +303,19 @@ ${jsonSchema}`;
                 ...(analysisResult.strategy as any).suggested_icp,
                 icp_source: icp ? 'provided' : 'inferred',
             };
+        }
+
+        // Override do score de engagement com valor calculado (determinístico)
+        // Os outros 4 scores ainda vêm do LLM mas com temperature=0 são estáveis
+        if (fullReport.strategy.profile_score && profileData.engagement_summary) {
+            const rate = profileData.engagement_summary.avg_engagement_rate;
+            const engScore = calculateEngagementScore(rate, tier);
+            fullReport.strategy.profile_score.dimensions.engagement = engScore;
+            // Recalcula o overall como média simples das 5 dimensões
+            const d = fullReport.strategy.profile_score.dimensions;
+            fullReport.strategy.profile_score.overall = Math.round(
+                (d.consistency + d.engagement + d.niche_clarity + d.cta_presence + d.bio_quality) / 5
+            );
         }
 
         // Garantir engagement_panorama com dados reais — não depender do LLM

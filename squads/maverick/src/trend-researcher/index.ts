@@ -139,23 +139,54 @@ ${plan.slice(0, 2500)}`,
             const keyword = keywords[i];
             try {
                 process.stdout.write(`\n[BUSCA INDIVIDUAL ${i + 1}/${keywords.length}]\n`);
-                process.stdout.write(`Buscando hashtag: #${keyword}\n`);
+                process.stdout.write(`Buscando REELS virais: #${keyword}\n`);
 
-                // Usa instagram-hashtag-scraper que é COMPROVADAMENTE FUNCIONAL
-                const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
-                    hashtags: [keyword],  // ← Busca ESTE keyword como hashtag
-                    resultsLimit: resultsPerKeyword,
+                // Estratégia 1 (PRIMÁRIA): instagram-reel-scraper — busca APENAS Reels virais
+                const run = await this.client.actor('apify/instagram-reel-scraper').call({
+                    hashtags: [keyword],
+                    resultsLimit: Math.max(resultsPerKeyword * 2, 30),
                 });
 
                 const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
-                const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
+                const validPosts = (items || []).filter((p: any) => (p.shortCode || p.url) && (p.likesCount > 0 || p.commentsCount > 0));
 
                 process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados para #${keyword}\n`);
                 allPosts.push(...validPosts);
 
             } catch (error) {
-                process.stdout.write(`[BUSCA ${i + 1}] ❌ Erro para #${keyword}: ${(error as Error).message}\n`);
-                // Continua com o próximo keyword
+                process.stdout.write(`[BUSCA ${i + 1}] ⚠️ instagram-reel-scraper falhou, tentando posts-scraper...\n`);
+
+                // Fallback 1: Se reel-scraper falha, tenta posts-scraper
+                try {
+                    const run = await this.client.actor('apify/instagram-posts-scraper').call({
+                        searchQuery: keyword,
+                        resultsLimit: resultsPerKeyword * 2,
+                    });
+
+                    const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                    const validPosts = (items || []).filter((p: any) => (p.shortCode || p.url) && (p.likesCount > 0 || p.commentsCount > 0));
+
+                    process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados (fallback: posts-scraper)\n`);
+                    allPosts.push(...validPosts);
+                } catch (fallbackError1) {
+                    process.stdout.write(`[BUSCA ${i + 1}] ⚠️ posts-scraper também falhou, tentando hashtag-scraper como último fallback...\n`);
+
+                    // Fallback 2: Se tudo falha, tenta hashtag-scraper
+                    try {
+                        const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
+                            hashtags: [keyword],
+                            resultsLimit: resultsPerKeyword * 2,
+                        });
+
+                        const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                        const validPosts = (items || []).filter((p: any) => (p.shortCode || p.url) && (p.likesCount > 0 || p.commentsCount > 0));
+
+                        process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados (fallback: hashtag-scraper)\n`);
+                        allPosts.push(...validPosts);
+                    } catch (fallbackError2) {
+                        process.stdout.write(`[BUSCA ${i + 1}] ❌ Todos os actors falharam para #${keyword}\n`);
+                    }
+                }
             }
         }
 
@@ -209,15 +240,18 @@ ${plan.slice(0, 2500)}`,
 
         if (postsWithScore.length === 0) return [];
 
-        // Encontra o score mínimo aceitável (25% do máximo)
+        // Encontra o score mínimo aceitável (15% do máximo — era 25%, agora menos agressivo)
         const maxScore = Math.max(...postsWithScore.map(p => p._viralScore));
-        const minAcceptableScore = maxScore * 0.25;
+        const minAcceptableScore = maxScore * 0.15;
 
-        // Filtra flopados e ordena por viral score decrescente
-        return postsWithScore
+        // Filtra flopados (apenas posts REALMENTE ruins) e ordena por viral score
+        const filtered = postsWithScore
             .filter(p => p._viralScore >= minAcceptableScore)
             .sort((a, b) => b._viralScore - a._viralScore)
             .slice(0, 12);
+
+        process.stdout.write(`[VIRALITY FILTER] Mantidos ${filtered.length}/${postsWithScore.length} posts (threshold: 15% do máximo)\n`);
+        return filtered;
     }
 
     /**
@@ -336,7 +370,7 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
 
         process.stdout.write(`${'='.repeat(80)}\n\n`);
 
-        const posts = await this.fetchTopPosts(keywords, 15);
+        const posts = await this.fetchTopPosts(keywords, 30);  // ← Aumentado para 30 (era 15) para ter mais posts virais após filtro
 
         if (posts.length === 0) {
             process.stdout.write(`\n${'='.repeat(80)}\n`);

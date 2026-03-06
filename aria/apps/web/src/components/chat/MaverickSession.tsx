@@ -6,7 +6,7 @@ import {
   Users, UserCheck, ImageIcon, TrendingUp, AlertTriangle,
   Star, ThumbsDown, Lightbulb, Quote, ChevronRight,
   BarChart2, History, ArrowUpRight, ArrowDownRight, Minus,
-  Copy, Check, Zap, Film, LayoutGrid, MessageCircle,
+  Copy, Check, Zap, Film, LayoutGrid, MessageCircle, ExternalLink, Search,
 } from 'lucide-react';
 import { useAriaSpeech } from '@/hooks/useAriaSpeech';
 
@@ -69,6 +69,24 @@ interface SuggestedICP {
   icp_source: 'inferred' | 'provided';
 }
 
+interface TrendReferencePost {
+  url: string;
+  caption_preview: string;
+  likes: number;
+  comments: number;
+  views?: number;
+  type: string;
+}
+
+interface TrendResearchData {
+  keywords_searched: string[];
+  posts_analyzed: number;
+  insights: { hook_pattern: string; angle: string; engagement_signal: string; example_hook: string; format: string }[];
+  dominant_formats: string[];
+  niche_summary: string;
+  reference_posts: TrendReferencePost[];
+}
+
 interface MaverickReport {
   profile: {
     username: string;
@@ -109,9 +127,10 @@ interface HistoryListEntry {
   analysis?: MaverickReport['analysis'];
   strategy?: MaverickReport['strategy'] & { profile_score?: ProfileScore };
   scripts?: ScriptData[];
+  trendResearch?: TrendResearchData;
 }
 
-type Phase = 'asking' | 'icp-form' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
+type Phase = 'home' | 'asking' | 'icp-form' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
 
 interface MaverickSessionProps {
   onClose: () => void;
@@ -730,6 +749,77 @@ function SuggestedICPCard({ sicp }: { sicp: SuggestedICP }) {
   );
 }
 
+// ── Trend References Panel ────────────────────────────────────────────────────
+
+function TrendReferencesPanel({ data }: { data: TrendResearchData }) {
+  const [open, setOpen] = useState(false);
+  if (!data.reference_posts?.length) return null;
+
+  return (
+    <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04] overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.03] transition-colors"
+      >
+        <Search className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-indigo-300">Referências pesquisadas</span>
+          <span className="text-[11px] text-white/30 ml-2">
+            {data.reference_posts.length} posts virais · {data.keywords_searched.slice(0, 3).join(', ')}
+          </span>
+        </div>
+        <ChevronRight className={`w-4 h-4 text-white/25 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4">
+          {data.niche_summary && (
+            <p className="text-xs text-white/40 leading-relaxed border-t border-white/[0.06] pt-4">{data.niche_summary}</p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {data.reference_posts.map((post, i) => (
+              <div key={i} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex flex-col gap-3">
+                <p className="text-xs text-white/55 leading-relaxed line-clamp-3">
+                  &ldquo;{post.caption_preview}&rdquo;
+                </p>
+                <div className="flex items-center gap-3 text-[11px] text-white/35 flex-wrap">
+                  <span className="flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />{post.likes?.toLocaleString('pt-BR') ?? '—'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MessageCircle className="w-3 h-3" />{post.comments?.toLocaleString('pt-BR') ?? '—'}
+                  </span>
+                  {post.views != null && (
+                    <span className="flex items-center gap-1">
+                      <Film className="w-3 h-3" />{post.views.toLocaleString('pt-BR')}
+                    </span>
+                  )}
+                  <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    post.type === 'Video' || post.type === 'Reel'
+                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/20'
+                      : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+                  }`}>
+                    {post.type === 'Video' || post.type === 'Reel' ? '🎬 Reels' : '🖼 Post'}
+                  </span>
+                </div>
+                <a
+                  href={post.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] text-indigo-400/70 hover:text-indigo-300 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Ver no Instagram
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ComparisonPanel({ current, previous, previousDate }: {
   current: MaverickReport;
   previous: HistoryEntry;
@@ -811,7 +901,7 @@ function buildBriefing(report: MaverickReport): string {
 }
 
 export function MaverickSession({ onClose }: MaverickSessionProps) {
-  const [phase, setPhase] = useState<Phase>('asking');
+  const [phase, setPhase] = useState<Phase>('home');
   const [username, setUsername] = useState('');
   const [steps, setSteps] = useState<string[]>([]);
   const [report, setReport] = useState<MaverickReport | null>(null);
@@ -821,6 +911,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [parsedScripts, setParsedScripts] = useState<ScriptData[] | null>(null);
   const [selectedScript, setSelectedScript] = useState<{ script: ScriptData; index: number } | null>(null);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [trendResearch, setTrendResearch] = useState<TrendResearchData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [icp, setIcp] = useState<ICPData>({
     product: '', price_range: '', main_objection: '', ideal_customer: '', transformation: '',
@@ -893,9 +984,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setPreviousAnalysis(null);
     setShowComparison(false);
     setShowHistory(false);
-    // Se já tem roteiros salvos, vai direto para done
+    if (entry.trendResearch) setTrendResearch(entry.trendResearch);
+    else setTrendResearch(null);
+    // Se já tem roteiros salvos, vai direto para done (mostra relatório + roteiros juntos)
     if (entry.scripts && Array.isArray(entry.scripts) && entry.scripts.length > 0) {
       setParsedScripts(entry.scripts as ScriptData[]);
+      setRawPlan(JSON.stringify({ profile: entry.profile, analysis: entry.analysis, strategy: entry.strategy }));
       setPhase('done');
     } else {
       setPhase('report');
@@ -990,6 +1084,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setStreamingScripts('');
     setScripts('');
     setParsedScripts(null);
+    setTrendResearch(null);
     abortRef.current = false;
     setSteps([]);
 
@@ -1000,6 +1095,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
         switch (event.type) {
           case 'step':
             addStep(event.message as string);
+            break;
+          case 'trend_research':
+            setTrendResearch(event.content as TrendResearchData);
             break;
           case 'chunk':
             setStreamingScripts(prev => prev + (event.content as string));
@@ -1034,7 +1132,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     abortRef.current = true;
     stopSpeech();
     setIsSpeaking(false);
-    setPhase('asking');
+    setPhase('home');
     setUsername('');
     setSteps([]);
     setReport(null);
@@ -1044,11 +1142,17 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setParsedScripts(null);
     setSelectedScript(null);
     setAnalysisId(null);
+    setTrendResearch(null);
     setErrorMsg('');
     setPreviousAnalysis(null);
     setShowComparison(false);
     setShowHistory(false);
     setIcp({ product: '', price_range: '', main_objection: '', ideal_customer: '', transformation: '' });
+    // Recarrega o histórico ao voltar para home
+    fetch(`${API_URL}/api/maverick/history?limit=20`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setHistoryItems(data.analyses ?? []); })
+      .catch(() => {});
   }, [stopSpeech]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1066,16 +1170,23 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       {/* ── Header ── */}
       <header className="flex items-center gap-3 px-6 h-14 border-b border-white/[0.06] flex-shrink-0">
         <button
-          onClick={onClose}
+          onClick={() => {
+            if (phase === 'home') {
+              onClose();
+            } else {
+              abortRef.current = true;
+              setPhase('home');
+            }
+          }}
           className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-          title="Voltar ao chat"
+          title={phase === 'home' ? 'Fechar' : 'Voltar'}
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <span className="text-lg">🦅</span>
         <div>
           <span className="text-sm font-semibold text-white">Squad Maverick</span>
-          {report && (
+          {report && phase !== 'home' && (
             <span className="text-white/40 text-sm"> — @{report.profile.username}</span>
           )}
         </div>
@@ -1104,6 +1215,108 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
         <div className="max-w-5xl mx-auto space-y-6">
 
           {/* ═══════════════════════════════════════════════════════
+              FASE: HOME — lista de análises passadas
+          ════════════════════════════════════════════════════════ */}
+          {phase === 'home' && (
+            <div className="animate-in fade-in duration-300">
+              {/* Topo: branding + botão nova análise */}
+              <div className="flex items-start justify-between mb-8">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-3xl">🦅</span>
+                    <h2 className="text-2xl font-extrabold text-white tracking-tight">Squad Maverick</h2>
+                  </div>
+                  <p className="text-white/40 text-sm leading-relaxed max-w-md">
+                    Estratégia e Inteligência para crescer com autoridade no Instagram.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPhase('asking')}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex-shrink-0 shadow-[0_6px_20px_rgba(255,255,255,0.12)]"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Nova Análise
+                </button>
+              </div>
+
+              {/* Lista de análises */}
+              {historyItems.length === 0 ? (
+                <div className="flex flex-col items-center gap-5 py-20 rounded-2xl border border-white/[0.06] bg-white/[0.01]">
+                  <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
+                    🦅
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-white/60 text-sm font-medium">Nenhuma análise realizada ainda</p>
+                    <p className="text-white/30 text-xs">Clique em Nova Análise para começar</p>
+                  </div>
+                  <button
+                    onClick={() => setPhase('asking')}
+                    className="px-6 py-2.5 bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] rounded-xl text-white/70 text-sm font-medium transition-all"
+                  >
+                    Começar primeira análise
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-4">
+                    {historyItems.length} {historyItems.length === 1 ? 'análise' : 'análises'}
+                  </p>
+                  {historyItems.map((item) => {
+                    const score = item.strategy?.profile_score?.overall;
+                    const scoreColor = score == null ? '' : score >= 75 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400';
+                    const scoreBg = score == null ? '' : score >= 75 ? 'bg-emerald-500/10 border-emerald-500/20' : score >= 50 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-rose-500/10 border-rose-500/20';
+                    const date = new Date(item.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+                    const canLoad = !!(item.profile && item.analysis && item.strategy);
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => canLoad && handleLoadHistoryEntry(item)}
+                        disabled={!canLoad}
+                        className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] text-left transition-all ${canLoad ? 'hover:bg-white/[0.05] hover:border-white/[0.14] cursor-pointer group' : 'opacity-40 cursor-default'}`}
+                      >
+                        <div className="w-11 h-11 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-xl flex-shrink-0">
+                          🦅
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white/85">@{item.username}</p>
+                          {item.strategy?.diagnosis && (
+                            <p className="text-xs text-white/30 mt-0.5 truncate">{item.strategy.diagnosis}</p>
+                          )}
+                          <p className="text-[11px] text-white/20 mt-1">{date}</p>
+                        </div>
+                        <div className="flex items-center gap-2.5 flex-shrink-0">
+                          {item.scripts && item.scripts.length > 0 && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-medium">
+                              {item.scripts.length} roteiros
+                            </span>
+                          )}
+                          {score != null && (
+                            <div className={`flex items-center justify-center w-10 h-10 rounded-xl border text-sm font-black ${scoreColor} ${scoreBg}`}>
+                              {score}
+                            </div>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Footer home */}
+              <div className="mt-8 flex items-center justify-between">
+                <p className="text-[10px] text-white/15 uppercase tracking-widest">Powered by AIOS Core & OpenRouter</p>
+                <button
+                  onClick={onClose}
+                  className="text-xs text-white/25 hover:text-white/50 transition-colors"
+                >
+                  Sair do Maverick
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════
               FASE: ASKING — formulário de input
           ════════════════════════════════════════════════════════ */}
           {phase === 'asking' && (
@@ -1118,9 +1331,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
                     🦅
                   </div>
-                  <h2 className="text-3xl font-extrabold text-white tracking-tight">Análise de Perfil</h2>
+                  <h2 className="text-3xl font-extrabold text-white tracking-tight">Nova Análise</h2>
                   <p className="text-white/50 text-sm max-w-[340px] mx-auto leading-relaxed">
-                    Estratégia e Inteligência para crescer com autoridade no Instagram.
+                    Diagnóstico estratégico + roteiros prontos para publicar.
                   </p>
                 </div>
 
@@ -1162,61 +1375,6 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               <div className="mt-8 text-center text-[11px] text-white/20 uppercase tracking-widest font-medium">
                 Powered by AIOS Core & OpenRouter
               </div>
-
-              {/* ── Histórico de análises passadas ── */}
-              {historyItems.length > 0 && (
-                <div className="w-full max-w-[580px] mt-2">
-                  <button
-                    onClick={() => setShowHistory(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] transition-colors group"
-                  >
-                    <div className="flex items-center gap-2 text-sm text-white/50 group-hover:text-white/70 transition-colors">
-                      <History className="w-4 h-4" />
-                      <span>Análises anteriores</span>
-                      <span className="text-[11px] bg-white/10 rounded-full px-2 py-0.5">{historyItems.length}</span>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 text-white/30 transition-transform duration-200 ${showHistory ? 'rotate-90' : ''}`} />
-                  </button>
-
-                  {showHistory && (
-                    <div className="mt-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-                      <div className="max-h-72 overflow-y-auto">
-                        {historyItems.map((item, i) => {
-                          const score = item.strategy?.profile_score?.overall;
-                          const scoreColor = score == null ? '' : score >= 75 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400';
-                          const date = new Date(item.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-                          const canLoad = !!(item.profile && item.analysis && item.strategy);
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => canLoad && handleLoadHistoryEntry(item)}
-                              disabled={!canLoad}
-                              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${i > 0 ? 'border-t border-white/[0.05]' : ''} ${canLoad ? 'hover:bg-white/[0.05] cursor-pointer' : 'opacity-40 cursor-default'}`}
-                            >
-                              <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-sm flex-shrink-0">
-                                🦅
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white/80 truncate">@{item.username}</p>
-                                <p className="text-[11px] text-white/30">{date}</p>
-                              </div>
-                              {item.scripts && item.scripts.length > 0 && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
-                                  {item.scripts.length} roteiros
-                                </span>
-                              )}
-                              {score != null && (
-                                <span className={`text-sm font-bold flex-shrink-0 ${scoreColor}`}>{score}</span>
-                              )}
-                              <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -1523,10 +1681,55 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           )}
 
           {/* ═══════════════════════════════════════════════════════
-              FASE: DONE — roteiros em cards
+              FASE: DONE — resumo do relatório + roteiros
           ════════════════════════════════════════════════════════ */}
           {phase === 'done' && (
-            <div className="space-y-5">
+            <div className="space-y-6">
+              {/* Compact report summary */}
+              {report && (
+                <div className="rounded-2xl p-5 border border-white/[0.08] bg-white/[0.02]">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-white/90">@{report.profile.username}</h3>
+                      <p className="text-xs text-white/35 mt-0.5">
+                        {report.profile.followers} seguidores · {report.profile.posts_count} posts
+                      </p>
+                    </div>
+                    {report.strategy.profile_score && (() => {
+                      const s = report.strategy.profile_score.overall;
+                      const c = s >= 75 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : s >= 50 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                      return (
+                        <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl border flex-shrink-0 ${c}`}>
+                          <span className="text-xl font-black">{s}</span>
+                          <span className="text-[9px] text-white/30 uppercase tracking-widest">score</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {report.strategy.diagnosis && (
+                    <p className="text-sm text-white/55 leading-relaxed line-clamp-2">{report.strategy.diagnosis}</p>
+                  )}
+                  {report.strategy.engagement_panorama && (
+                    <div className="mt-3 flex items-center gap-3 pt-3 border-t border-white/[0.06]">
+                      <span className="text-xs text-white/30">Engajamento:</span>
+                      <span className="text-sm font-bold text-white/70">{report.strategy.engagement_panorama.profile_rate}</span>
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        report.strategy.engagement_panorama.classification === 'Otimo' ? 'bg-violet-500/20 text-violet-300' :
+                        report.strategy.engagement_panorama.classification === 'Muito Bom' ? 'bg-emerald-500/20 text-emerald-300' :
+                        report.strategy.engagement_panorama.classification === 'Bom' ? 'bg-cyan-500/20 text-cyan-300' :
+                        report.strategy.engagement_panorama.classification === 'Abaixo da Media' ? 'bg-amber-500/20 text-amber-300' :
+                        'bg-rose-500/20 text-rose-300'
+                      }`}>{report.strategy.engagement_panorama.classification}</span>
+                      <span className="text-[11px] text-white/25 ml-auto">{report.strategy.engagement_panorama.tier}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Trend references */}
+              {trendResearch && <TrendReferencesPanel data={trendResearch} />}
+
+              {/* Scripts header */}
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
                 <span className="text-emerald-300 text-sm font-medium">
@@ -1611,12 +1814,20 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               </>
             )}
             {(phase === 'done' || phase === 'error') && (
-              <button
-                onClick={handleReset}
-                className="w-full px-4 py-3 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-xl text-white/60 text-sm transition-all"
-              >
-                Analisar outro perfil
-              </button>
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={handleReset}
+                  className="flex-1 px-4 py-3 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-xl text-white/60 text-sm transition-all"
+                >
+                  Analisar outro perfil
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-3 text-white/30 hover:text-white/60 text-sm transition-colors"
+                >
+                  Sair
+                </button>
+              </div>
             )}
           </div>
         </div>
