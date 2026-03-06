@@ -62,63 +62,61 @@ export class TrendResearcherAgent {
     }
 
     /**
-     * Extrai temas principais do plano estratégico
-     * Depois decompõe em palavras-chave individuais para buscas mais precisas
+     * Extrai EXATAMENTE 3 palavras-chave baseado no ICP identificado
      *
-     * Estratégia: Em vez de extrair keywords longos como
-     * "marketing digital para vendas" (0 resultados),
-     * quebramos em temas curtos: ["marketing", "digital", "vendas"]
-     * Cada um é garantido de retornar posts relevantes
+     * Estratégia CORRETA:
+     * 1. Identifica o ICP (Ideal Customer Profile) do criador
+     * 2. Extrai 3 palavras-chave SIMPLES que relacionam com esse ICP
+     * 3. Cada palavra é buscada SEPARADAMENTE (não juntas!)
+     *
+     * Exemplos:
+     * ICP: Empreendedora feminina → ["emagrecimento", "feminino", "negocios"]
+     * ICP: Criador de conteúdo → ["copywriting", "conteudo", "marketing"]
+     * ICP: Especialista em fitness → ["fitness", "saude", "exercicio"]
      */
     async extractKeywords(plan: string): Promise<string[]> {
-        // Passo 1: Extrai os TEMAS principais (sem ser muito específico)
-        const themesResult = await this.llm.analyzeJson<{ themes: string[] }>(
-            `A partir do plano estratégico abaixo, extraia os TEMAS principais do nicho.
+        const result = await this.llm.analyzeJson<{
+            icp: string;
+            keywords: string[]
+        }>(
+            `A partir do plano estratégico abaixo, faça:
 
-Não queremos frases longas! Queremos os TEMAS (palavras-chave simples) que definem o nicho.
+1. IDENTIFIQUE o ICP (Ideal Customer Profile) - quem é o criador e seu público
+2. EXTRAIA EXATAMENTE 3 palavras-chave simples que relacionam com esse ICP
+
+REGRAS ABSOLUTAS:
+- Máximo 1-2 palavras por keyword (simples e genérico)
+- Que uma pessoa digitaria na barra de pesquisa do Instagram
+- Garantidas de retornar MUITOS posts (não específicas demais)
+- Em português se o nicho for BR
+- Ordenadas por relevância (mais importante primeiro)
 
 EXEMPLOS:
-❌ Ruim (muito específico): "marketing digital para vendas online de produtos"
-✅ Bom (temas simples): marketing, digital, vendas, negocios
 
-❌ Ruim: "tecnicas de emagrecimento feminino com foco em saude"
-✅ Bom: emagrecimento, feminino, saude, fitness
+ICP: Mulher empreendedora que quer emagrecer
+Palavras: ["emagrecimento", "feminino", "negocios"]
 
-CRITÉRIOS:
-- Palavras simples (1-2 palavras máximo)
-- Que alguém digitaria na barra de pesquisa do Instagram
-- Garantidas de retornar posts (não muito específicas)
-- Em português quando for BR
-- Máximo 6 temas
+ICP: Criador de conteúdo iniciante
+Palavras: ["copywriting", "conteudo", "marketing"]
+
+ICP: Personal trainer especializado em fitness feminino
+Palavras: ["fitness", "saude", "mulheres"]
 
 PLANO ESTRATÉGICO:
 ${plan.slice(0, 2500)}`,
-            '{ "themes": ["tema1", "tema2", "tema3"] }',
+            '{ "icp": "descrição do ICP", "keywords": ["palavra1", "palavra2", "palavra3"] }',
         );
 
-        const themes = (themesResult.themes || [])
-            .map(t => t.trim().toLowerCase())
-            .filter(t => t.length > 2 && t.length < 30)
-            .slice(0, 6);
+        const keywords = (result.keywords || [])
+            .map(k => k.trim().toLowerCase().replace(/[^a-záéíóúâêôãõç\\s]/g, ''))
+            .filter(k => k.length > 2 && k.length < 25)
+            .slice(0, 3); // EXATAMENTE 3
 
-        // Passo 2: Para cada tema, decompõe em palavras individuais
-        const keywords = new Set<string>();
+        const icp = result.icp || "Não identificado";
+        process.stdout.write(`[ICP] ${icp}\n`);
+        process.stdout.write(`[KEYWORDS] Extraídos 3 keywords: "${keywords.join('", "')}"\n`);
 
-        for (const theme of themes) {
-            // Adiciona o tema completo
-            keywords.add(theme);
-
-            // Separa em palavras individuais (se tiver múltiplas)
-            const words = theme.split(/\s+/).filter(w => w.length > 2);
-            for (const word of words) {
-                keywords.add(word);
-            }
-        }
-
-        // Log: mostra a estratégia
-        process.stdout.write(`[KEYWORDS] Temas extraídos: ${Array.from(keywords).join(', ')}\n`);
-
-        return Array.from(keywords).slice(0, 8); // até 8 keywords únicos
+        return keywords;
     }
 
     /**
@@ -375,13 +373,24 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
             throw new Error('Não foi possível extrair keywords relevantes do plano');
         }
 
-        process.stdout.write(`[STEP] ${keywords.length} temas extraídos: ${keywords.join(', ')}\n`);
-        process.stdout.write(`[STEP] Buscando posts virais por tema (estratégia: múltiplas buscas simples)...\n`);
+        process.stdout.write(`\n${'='.repeat(80)}\n`);
+        process.stdout.write(`[STEP] INICIANDO 3 BUSCAS SEPARADAS\n`);
+        process.stdout.write(`${'='.repeat(80)}\n`);
 
-        const posts = await this.fetchTopPosts(keywords, 8);
+        for (let i = 0; i < keywords.length; i++) {
+            process.stdout.write(`[BUSCA ${i + 1}/3] Palavra-chave #${i + 1}: "${keywords[i]}"\n`);
+        }
+
+        process.stdout.write(`${'='.repeat(80)}\n\n`);
+
+        const posts = await this.fetchTopPosts(keywords, 15);
 
         if (posts.length === 0) {
-            process.stdout.write(`[ERRO] Nenhum post encontrado! Tente:\n  - Keywords mais simples/genéricos\n  - Tópicos mais populares\n  - Verificar conexão e API token do Apify\n`);
+            process.stdout.write(`\n${'='.repeat(80)}\n`);
+            process.stdout.write(`[ERRO] ❌ NENHUM POST ENCONTRADO!\n`);
+            process.stdout.write(`Palavras buscadas: ${keywords.join(', ')}\n`);
+            process.stdout.write(`Verifique:\n  - Se as palavras estão muito específicas\n  - Conexão e API token do Apify\n`);
+            process.stdout.write(`${'='.repeat(80)}\n`);
             return {
                 keywords_searched: keywords,
                 posts_analyzed: 0,
@@ -392,7 +401,10 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
             };
         }
 
-        process.stdout.write(`[STEP] ${posts.length} posts encontrados — filtrando flopados e mantendo apenas virais...\n`);
+        process.stdout.write(`\n${'='.repeat(80)}\n`);
+        process.stdout.write(`[RESULTADO] ✅ ${posts.length} posts encontrados no total\n`);
+        process.stdout.write(`[PASSO 2] Filtrando para manter apenas posts VIRAIS...\n`);
+        process.stdout.write(`${'='.repeat(80)}\n\n`);
 
         const result = await this.analyzePatterns(posts, keywords);
 
