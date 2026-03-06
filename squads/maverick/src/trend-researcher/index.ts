@@ -92,118 +92,41 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
-     * Derivar hashtags inteligentes a partir de keywords
-     * Estratégia multi-nível para maximizar resultados:
-     * 1. Decompõe keywords em palavras individuais
-     * 2. Cria variações (plural, singular, expandido)
-     * 3. Adiciona hashtags genéricos relacionados
-     */
-    private deriveHashtagsFromKeywords(keywords: string[]): string[] {
-        const hashtags = new Set<string>();
-
-        for (const keyword of keywords) {
-            // Normaliza: remove acentos, lowercase
-            const normalized = keyword
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, ''); // remove acentos
-
-            // Estratégia 1: cada palavra do keyword vira hashtag (melhor reach)
-            const words = normalized.split(/\s+/).filter(Boolean);
-            for (const word of words) {
-                if (word.length > 2) {
-                    hashtags.add(word); // "iniciantes", "copywriting", etc.
-
-                    // Variação: singular/plural
-                    if (word.endsWith('s')) {
-                        const singular = word.slice(0, -1);
-                        if (singular.length > 2) hashtags.add(singular);
-                    }
-                }
-            }
-
-            // Estratégia 2: combinação completa (menos comum mas mais específico)
-            const fullTag = normalized.replace(/\s+/g, '');
-            if (fullTag.length > 3 && fullTag.length < 30) {
-                hashtags.add(fullTag);
-            }
-
-            // Estratégia 3: hashtags expandidos relacionados ao tema
-            const lowerKeyword = normalized;
-
-            // Tópicos de copywriting/marketing
-            if (lowerKeyword.includes('copy') || lowerKeyword.includes('escrita') || lowerKeyword.includes('texto')) {
-                hashtags.add('copywriting');
-                hashtags.add('copywriter');
-                hashtags.add('marketing');
-                hashtags.add('conteudo');
-            }
-
-            // Tópicos de aprendizado
-            if (lowerKeyword.includes('aprend') || lowerKeyword.includes('tutorial') || lowerKeyword.includes('curso')) {
-                hashtags.add('aprenda');
-                hashtags.add('tutorial');
-                hashtags.add('dica');
-            }
-
-            // Tópicos de negócios/vendas
-            if (lowerKeyword.includes('negocio') || lowerKeyword.includes('venda') || lowerKeyword.includes('fatur')) {
-                hashtags.add('vendas');
-                hashtags.add('negocio');
-                hashtags.add('empreendedor');
-            }
-
-            // Tópicos feminino
-            if (lowerKeyword.includes('mulher') || lowerKeyword.includes('feminino') || lowerKeyword.includes('girl')) {
-                hashtags.add('mulheres');
-                hashtags.add('feminino');
-            }
-
-            // Tópicos de fitness/saúde
-            if (lowerKeyword.includes('fit') || lowerKeyword.includes('emagr') || lowerKeyword.includes('saude') || lowerKeyword.includes('dieta')) {
-                hashtags.add('fitness');
-                hashtags.add('saude');
-                hashtags.add('emagrecimento');
-            }
-
-            // Genéricos que funcionam sempre
-            hashtags.add('dica');
-            hashtags.add('conteudo');
-        }
-
-        const result = Array.from(hashtags).slice(0, 15);
-        return result.length > 0 ? result : ['viral', 'conteudo', 'instagram'];
-    }
-
-    /**
-     * Busca posts via Instagram hashtag scraper — encontra conteúdo viral
-     * usando hashtags derivados inteligentemente dos keywords.
-     *
-     * IMPORTANTE: Usamos hashtags porque:
-     * - instagram-search-scraper não retorna resultados confiáveis
-     * - hashtag-scraper é o actor mais estável do Apify
-     * - Derivamos hashtags DOS keywords (não os removemos)
+     * Busca posts virais por tópico/palavra-chave SEM hashtags
+     * Usa instagram-posts-scraper com busca por tópico/categoria
      */
     async fetchTopPosts(keywords: string[], resultsPerKeyword = 8): Promise<any[]> {
         if (keywords.length === 0) return [];
 
-        const hashtags = this.deriveHashtagsFromKeywords(keywords);
-        if (hashtags.length === 0) return [];
+        const allPosts: any[] = [];
 
-        process.stdout.write(`[BUSCA] Hashtags derivados: #${hashtags.join(', #')}\n`);
+        for (const keyword of keywords) {
+            try {
+                process.stdout.write(`[BUSCA] Procurando posts sobre: "${keyword}"\n`);
 
-        const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
-            hashtags,
-            resultsLimit: resultsPerKeyword,
-        });
+                // Estratégia 1: Tenta buscar por URL de tópico do Instagram
+                // Instagram tópicos seguem padrão: instagram.com/explore/tags/TOPICO
+                // Mas podemos buscar por categoria sem # explícito
+                const topicUrl = `https://www.instagram.com/explore/tags/${keyword.replace(/\s+/g, '')}/`;
 
-        const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                const run = await this.client.actor('apify/instagram-posts-scraper').call({
+                    startUrls: [topicUrl],
+                    resultsLimit: resultsPerKeyword,
+                    maxPostsPerPage: resultsPerKeyword,
+                });
 
-        // Filter out error objects
-        const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
-        process.stdout.write(`[BUSCA] ${validPosts.length} posts encontrados via hashtags\n`);
+                const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
 
-        return validPosts;
+                process.stdout.write(`[BUSCA] ${validPosts.length} posts encontrados para "${keyword}"\n`);
+                allPosts.push(...validPosts);
+            } catch (error) {
+                process.stdout.write(`[AVISO] Erro ao buscar "${keyword}": ${(error as Error).message}\n`);
+                // Continua com o próximo keyword
+            }
+        }
+
+        return allPosts;
     }
 
     /**
@@ -371,11 +294,12 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
         }
 
         process.stdout.write(`[STEP] Keywords extraídos: ${keywords.join(', ')}\n`);
+        process.stdout.write(`[STEP] Buscando posts virais por tópico (sem hashtags)...\n`);
 
         const posts = await this.fetchTopPosts(keywords, 8);
 
         if (posts.length === 0) {
-            process.stdout.write(`[ERRO] Nenhum post encontrado! Tente:\n  - Hashtags mais populares\n  - Keywords mais genéricos\n  - Verificar API token do Apify\n`);
+            process.stdout.write(`[ERRO] Nenhum post encontrado! Tente:\n  - Keywords mais simples/genéricos\n  - Tópicos mais populares\n  - Verificar conexão e API token do Apify\n`);
             return {
                 keywords_searched: keywords,
                 posts_analyzed: 0,
