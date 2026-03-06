@@ -167,8 +167,6 @@ export class InstagramScraper {
     } catch (error: any) {
       process.stderr.write(`[PLAYWRIGHT] ❌ Erro fatal: ${error.message}\n`);
       return posts;
-    } finally {
-      await browser.close();
     }
   }
 
