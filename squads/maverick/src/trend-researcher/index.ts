@@ -120,93 +120,46 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
-     * ESTRATÉGIA 1: Tenta buscar direto na barra de pesquisa do Instagram
-     * (Simulando um usuário digitando na busca)
+     * Busca posts por hashtag derivado do keyword
+     * ESTRATÉGIA COMPROVADA: usar instagram-hashtag-scraper
+     *
+     * Para cada keyword, derivamos um hashtag simples:
+     * "marketing" → busca hashtag "marketing"
+     * "emagrecimento" → busca hashtag "emagrecimento"
+     * "fitness" → busca hashtag "fitness"
+     *
+     * Cada busca é SEPARADA e INDEPENDENTE
      */
-    private async fetchPostsFromSearchBar(keywords: string[], resultsPerKeyword: number): Promise<any[]> {
-        const allPosts: any[] = [];
-
-        for (const keyword of keywords) {
-            try {
-                process.stdout.write(`[BUSCA] Simulando busca na barra: "${keyword}"\n`);
-
-                // instagram-search-scraper simula a barra de pesquisa real
-                // Parâmetros corretos para o actor
-                const run = await this.client.actor('apify/instagram-search-scraper').call({
-                    searchQuery: keyword,  // ← Busca por termo (como digitaria na barra)
-                    searchType: 'posts',   // ← Especifica que quer posts (não perfis/hashtags)
-                    resultsLimit: resultsPerKeyword,
-                });
-
-                const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
-                const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
-
-                if (validPosts.length > 0) {
-                    process.stdout.write(`[BUSCA] ✅ ${validPosts.length} posts encontrados (barra de pesquisa) para "${keyword}"\n`);
-                    allPosts.push(...validPosts);
-                }
-            } catch (error) {
-                process.stdout.write(`[AVISO] Barra de pesquisa falhou para "${keyword}": ${(error as Error).message}\n`);
-            }
-        }
-
-        return allPosts;
-    }
-
-    /**
-     * ESTRATÉGIA 2 (FALLBACK): Busca por tópicos do Instagram
-     * Usada se a barra de pesquisa não funcionar
-     */
-    private async fetchPostsFromTopics(keywords: string[], resultsPerKeyword: number): Promise<any[]> {
-        const allPosts: any[] = [];
-
-        for (const keyword of keywords) {
-            try {
-                process.stdout.write(`[BUSCA] Fallback - Procurando no tópico: "${keyword}"\n`);
-
-                const topicUrl = `https://www.instagram.com/explore/tags/${keyword.replace(/\s+/g, '')}/`;
-
-                const run = await this.client.actor('apify/instagram-posts-scraper').call({
-                    startUrls: [topicUrl],
-                    resultsLimit: resultsPerKeyword,
-                    maxPostsPerPage: resultsPerKeyword,
-                });
-
-                const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
-                const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
-
-                if (validPosts.length > 0) {
-                    process.stdout.write(`[BUSCA] ✅ ${validPosts.length} posts encontrados (tópico) para "${keyword}"\n`);
-                    allPosts.push(...validPosts);
-                }
-            } catch (error) {
-                process.stdout.write(`[AVISO] Tópico também falhou para "${keyword}": ${(error as Error).message}\n`);
-            }
-        }
-
-        return allPosts;
-    }
-
-    /**
-     * Busca posts virais com 2 estratégias:
-     * 1. Tenta a barra de pesquisa do Instagram (realista)
-     * 2. Fallback para tópicos se a barra falhar
-     */
-    async fetchTopPosts(keywords: string[], resultsPerKeyword = 8): Promise<any[]> {
+    async fetchTopPosts(keywords: string[], resultsPerKeyword = 15): Promise<any[]> {
         if (keywords.length === 0) return [];
 
-        process.stdout.write(`[BUSCA] Tentando barra de pesquisa do Instagram (Estratégia 1)...\n`);
+        const allPosts: any[] = [];
 
-        // Tenta estratégia 1: barra de pesquisa
-        let posts = await this.fetchPostsFromSearchBar(keywords, resultsPerKeyword);
+        for (let i = 0; i < keywords.length; i++) {
+            const keyword = keywords[i];
+            try {
+                process.stdout.write(`\n[BUSCA INDIVIDUAL ${i + 1}/${keywords.length}]\n`);
+                process.stdout.write(`Buscando hashtag: #${keyword}\n`);
 
-        // Se não funcionou, tenta estratégia 2: tópicos
-        if (posts.length === 0) {
-            process.stdout.write(`[BUSCA] Barra de pesquisa retornou 0 posts. Tentando tópicos (Estratégia 2)...\n`);
-            posts = await this.fetchPostsFromTopics(keywords, resultsPerKeyword);
+                // Usa instagram-hashtag-scraper que é COMPROVADAMENTE FUNCIONAL
+                const run = await this.client.actor('apify/instagram-hashtag-scraper').call({
+                    hashtags: [keyword],  // ← Busca ESTE keyword como hashtag
+                    resultsLimit: resultsPerKeyword,
+                });
+
+                const { items } = await this.client.dataset(run.defaultDatasetId!).listItems();
+                const validPosts = (items || []).filter((p: any) => p.shortCode || p.url);
+
+                process.stdout.write(`[BUSCA ${i + 1}] ✅ ${validPosts.length} posts encontrados para #${keyword}\n`);
+                allPosts.push(...validPosts);
+
+            } catch (error) {
+                process.stdout.write(`[BUSCA ${i + 1}] ❌ Erro para #${keyword}: ${(error as Error).message}\n`);
+                // Continua com o próximo keyword
+            }
         }
 
-        return posts;
+        return allPosts;
     }
 
     /**
