@@ -111,6 +111,64 @@ ${plan.slice(0, 2500)}`,
     }
 
     /**
+     * Calcula um "Viral Score" que identifica posts realmente virais
+     * Critérios:
+     * - Likes + Comments (engajamento total)
+     * - Comment Rate (comments/(likes+comments)) — quanto maior, mais engajamento genuíno
+     * - Views (para Reels, mais importante)
+     */
+    private calculateViralScore(post: any): number {
+        const likes = post.likesCount || 0;
+        const comments = post.commentsCount || 0;
+        const views = post.videoPlayCount || post.videoViewCount || post.videoViews || 0;
+
+        // Base: engagement total (likes + comentários)
+        const engagementBase = likes + comments;
+        if (engagementBase === 0) return 0;
+
+        // Bônus: comment rate (comentários genuínos valem mais)
+        // Se 20% dos engajamentos são comentários = muito viral (1.2x boost)
+        const commentRate = comments / (likes + comments);
+        const commentBonus = 1 + commentRate * 0.5; // +0% a +50% de boost
+
+        // Bônus: views (se for Reels)
+        // 10k views = 1x boost, 100k views = 2x boost (logarítmico)
+        let viewBonus = 1;
+        if (views > 0) {
+            viewBonus = 1 + Math.log10(Math.max(views, 10)) / 5; // log scale
+        }
+
+        const viralScore = engagementBase * commentBonus * viewBonus;
+        return parseFloat(viralScore.toFixed(2));
+    }
+
+    /**
+     * Filtra e ordena posts por viralidade
+     * Remove posts flopados (score muito baixo) e mantém apenas os viral hits
+     */
+    private filterAndSortByVirality(posts: any[]): any[] {
+        // Calcula score para cada post
+        const postsWithScore = posts
+            .filter(p => p.caption && p.caption.length > 20)
+            .map(p => ({
+                ...p,
+                _viralScore: this.calculateViralScore(p),
+            }));
+
+        if (postsWithScore.length === 0) return [];
+
+        // Encontra o score mínimo aceitável (25% do máximo)
+        const maxScore = Math.max(...postsWithScore.map(p => p._viralScore));
+        const minAcceptableScore = maxScore * 0.25;
+
+        // Filtra flopados e ordena por viral score decrescente
+        return postsWithScore
+            .filter(p => p._viralScore >= minAcceptableScore)
+            .sort((a, b) => b._viralScore - a._viralScore)
+            .slice(0, 12);
+    }
+
+    /**
      * Usa o LLM para extrair padrões de hooks, ângulos e formatos dos posts mais virais.
      */
     async analyzePatterns(posts: any[], keywords: string[]): Promise<TrendResearch> {
@@ -125,15 +183,8 @@ ${plan.slice(0, 2500)}`,
             };
         }
 
-        // Ordena por engajamento total (comentários valem 3x — maior intenção)
-        const topPosts = posts
-            .filter(p => p.caption && p.caption.length > 20)
-            .sort((a, b) => {
-                const engA = (a.likesCount || 0) + (a.commentsCount || 0) * 3;
-                const engB = (b.likesCount || 0) + (b.commentsCount || 0) * 3;
-                return engB - engA;
-            })
-            .slice(0, 12);
+        // Filtra e ordena por viralidade (remove flopados, mantém top viral)
+        const topPosts = this.filterAndSortByVirality(posts);
 
         // Monta referências com URLs diretas para os posts
         const referencePosts: TrendReferencePost[] = topPosts.map(p => {
@@ -160,7 +211,8 @@ ${plan.slice(0, 2500)}`,
             const views = p.videoPlayCount || p.videoViewCount;
             const type = p.type === 'Video' ? 'Reels' : (p.images?.length > 1 ? 'Carrossel' : 'Imagem');
             const viewsStr = views ? ` / ${views.toLocaleString('pt-BR')} views` : '';
-            return `[Post ${i + 1}][${type}] ${likes.toLocaleString('pt-BR')} likes / ${comments.toLocaleString('pt-BR')} comentários${viewsStr}\n"${(p.caption || '').slice(0, 280)}"`;
+            const viralScore = p._viralScore || 0;
+            return `[Post ${i + 1}][${type}][Viral Score: ${viralScore}] ${likes.toLocaleString('pt-BR')} likes / ${comments.toLocaleString('pt-BR')} comentários${viewsStr}\n"${(p.caption || '').slice(0, 280)}"`;
         }).join('\n\n');
 
         const result = await this.llm.analyzeJson<Omit<TrendResearch, 'keywords_searched' | 'posts_analyzed'>>(
@@ -198,8 +250,12 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
 
         const posts = await this.fetchTopPosts(keywords, 8);
 
-        process.stdout.write(`[STEP] ${posts.length} posts encontrados — analisando padroes de hooks e angulos...\n`);
+        process.stdout.write(`[STEP] ${posts.length} posts encontrados — filtrando flopados e mantendo apenas virais...\n`);
 
-        return this.analyzePatterns(posts, keywords);
+        const result = await this.analyzePatterns(posts, keywords);
+
+        process.stdout.write(`[STEP] ${result.posts_analyzed} posts virais selecionados — analisando padroes de hooks e angulos...\n`);
+
+        return result;
     }
 }

@@ -85,8 +85,38 @@ Recomendado testar:
 2. `TrendResearcherAgent.research()` com keywords do nicho copywriting
 3. Comparar resultados antes/depois em qualidade de posts encontrados
 
+## Sistema de Viral Score (Atualização Session 10)
+
+**Problema:** Posts flopados estavam sendo retornados junto com virais
+
+**Solução:** Implementado `calculateViralScore()` e `filterAndSortByVirality()` que:
+
+### Cálculo do Viral Score
+```
+Base = Likes + Comentários
+Comment Bonus = 1 + (Comments / Total) * 0.5  (comentários genuínos = mais viral)
+View Bonus = 1 + log₁₀(views) / 5  (escala logarítmica para views)
+
+Viral Score = Base × Comment Bonus × View Bonus
+```
+
+### Filtragem Automática
+1. Calcula score para todos os posts
+2. Define mínimo aceitável = 25% do máximo encontrado
+3. Remove tudo abaixo (flopados)
+4. Ordena decrescente pelos melhores
+5. Retorna até 12 posts virais
+
+### Exemplo
+| Post | Likes | Comments | Views | Score | Status |
+|------|-------|----------|-------|-------|--------|
+| A | 5000 | 800 | 50k | 8.2 | ✅ VIRAL |
+| B | 2000 | 150 | 20k | 3.1 | ✅ VIRAL |
+| C | 500 | 20 | 2k | 0.6 | ❌ FLOPADO |
+
 ## Notas
 
 - O Apify `instagram-search-scraper` mantém a mesma interface de resultado
 - Não há breaking changes em interfaces de saída
 - Pode haver diferença em quantidade de posts (Apify pode ter rate limits)
+- Viral Score é logarítmico: 10x mais views = +2x de boost (não linear)
