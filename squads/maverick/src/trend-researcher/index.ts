@@ -183,6 +183,14 @@ ${plan.slice(0, 2500)}`,
             };
         }
 
+        // Log debug: mostra campos disponíveis no primeiro post
+        if (posts.length > 0) {
+            const firstPost = posts[0];
+            process.stderr.write(`[DEBUG] Estrutura do post retornado pelo Apify:\n`);
+            process.stderr.write(`  Campos principais: ${Object.keys(firstPost).slice(0, 15).join(', ')}\n`);
+            process.stderr.write(`  Tem 'url'? ${!!firstPost.url} | Tem 'shortCode'? ${!!firstPost.shortCode} | Tem 'postUrl'? ${!!firstPost.postUrl} | Tem 'id'? ${!!firstPost.id} | Tem 'code'? ${!!firstPost.code}\n`);
+        }
+
         // Filtra e ordena por viralidade (remove flopados, mantém top viral)
         const topPosts = this.filterAndSortByVirality(posts);
 
@@ -191,10 +199,27 @@ ${plan.slice(0, 2500)}`,
             // Tipo: "Video" → Reels, "Sidecar" → Carrossel, "Image" → Imagem
             const type = p.type === 'Video' ? 'Reels'
                 : (p.type === 'Sidecar' ? 'Carrossel' : 'Imagem');
-            // URL: usar campo url direto (hashtag scraper já fornece o link completo)
-            const url = p.url || (p.shortCode
-                ? `https://www.instagram.com/${type === 'Reels' ? 'reel' : 'p'}/${p.shortCode}/`
-                : '');
+
+            // Tenta múltiplos campos para construir a URL
+            let url = '';
+            if (p.url) {
+                url = p.url;
+            } else if (p.shortCode) {
+                url = `https://www.instagram.com/${type === 'Reels' ? 'reel' : 'p'}/${p.shortCode}/`;
+            } else if (p.postUrl) {
+                url = p.postUrl;
+            } else if (p.id) {
+                // Fallback: tentar usar o ID do post
+                url = `https://www.instagram.com/p/${p.id}/`;
+            } else if (p.code) {
+                url = `https://www.instagram.com/${type === 'Reels' ? 'reel' : 'p'}/${p.code}/`;
+            }
+
+            // Log debug para entender o que está vindo do Apify
+            if (!url && p.caption) {
+                process.stderr.write(`[DEBUG] Post sem URL encontrado: ${(p.caption || '').slice(0, 50)}... | Campos: ${Object.keys(p).join(', ')}\n`);
+            }
+
             return {
                 url,
                 caption_preview: (p.caption || '').slice(0, 120),
@@ -214,6 +239,9 @@ ${plan.slice(0, 2500)}`,
             const viralScore = p._viralScore || 0;
             return `[Post ${i + 1}][${type}][Viral Score: ${viralScore}] ${likes.toLocaleString('pt-BR')} likes / ${comments.toLocaleString('pt-BR')} comentários${viewsStr}\n"${(p.caption || '').slice(0, 280)}"`;
         }).join('\n\n');
+
+        // Log: quantas URLs conseguimos extrair
+        process.stdout.write(`[STEP] ${referencePosts.length}/${topPosts.length} posts com URLs válidas extraídas\n`);
 
         const result = await this.llm.analyzeJson<Omit<TrendResearch, 'keywords_searched' | 'posts_analyzed'>>(
             `Você é um analista sênior de tendências de conteúdo no Instagram. Analise os posts mais virais abaixo e extraia os padrões de hooks, ângulos e formatos que estão dominando este nicho.
