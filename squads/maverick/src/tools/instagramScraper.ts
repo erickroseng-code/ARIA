@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { chromium } from 'playwright';
-import StealthPlugin from 'playwright-extra-plugin-stealth';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 /**
  * Instagram Scraper - DuckDuckGo + Playwright Strategy
