@@ -48,21 +48,58 @@ const run = await this.client.actor('apify/instagram-search-scraper').call({
 - Log agora mostra: `"Pesquisando no Instagram por: copywriting para iniciantes"`
 - Em vez de: `"Pesquisando no Instagram: #copywritingparainiciantes"`
 
-## Actors Usados
+## Atores Usados
 
-| Actor | Uso | Comportamento |
-|-------|-----|---------------|
-| `apify/instagram-search-scraper` | ✅ NOVO (busca por keywords) | Pesquisa diretamente na barra de pesquisa do Instagram com frase exata |
-| `apify/instagram-hashtag-scraper` | ❌ ANTIGO (removido) | Buscava por hashtags sem espaços |
+| Actor | Status | Razão |
+|-------|--------|-------|
+| `apify/instagram-search-scraper` | ❌ DESCONTINUADO (Session 10+) | Não retornava resultados |
+| `apify/instagram-hashtag-scraper` | ✅ ATUAL (ESTÁVEL) | Mais confiável, sempre retorna posts |
 
-## Fluxo Final
+## Estratégia de Hashtags Derivados (Session 10+)
+
+**Problema:** `instagram-search-scraper` não funcionava (0 posts)
+
+**Solução:** Voltar a `instagram-hashtag-scraper` mas com **derivação inteligente** de hashtags
+
+### Algoritmo de Derivação
+
+```
+Keywords: "copywriting para iniciantes"
+         ↓
+   Normaliza (remove acentos, lowercase)
+         ↓
+   Decompõe em palavras: [copywriting, para, iniciantes]
+         ↓
+   Gera múltiplas categorias de hashtags:
+
+   1. Individuais:     #copywriting, #iniciantes
+   2. Variações:       #copywriter (singular de copywriting)
+   3. Tema-específico: #marketing, #aprenda, #tutorial
+   4. Genéricos:       #dica, #conteudo
+         ↓
+   Total: até 15 hashtags únicos
+         ↓
+   Busca via instagram-hashtag-scraper
+```
+
+### Exemplos de Derivação
+
+| Keyword | Hashtags Derivados |
+|---------|------------------|
+| "copywriting para iniciantes" | copywriting, iniciantes, copywriter, marketing, aprenda, tutorial, dica, conteudo |
+| "emagrecimento feminino" | emagrecimento, feminino, fitness, saude, mulheres, dica, conteudo |
+| "marketing digital" | marketing, digital, conteudo, dica |
+
+### Fluxo Final
 
 ```
 Plano Estratégico
       ↓
 [extractKeywords] → Keywords: ["copywriting para iniciantes", ...]
       ↓
-[fetchTopPosts] → instagram-search-scraper com keywords diretos
+[deriveHashtagsFromKeywords] → Hashtags: ["copywriting", "iniciantes", "marketing", ...]
+      ↓
+[fetchTopPosts] → instagram-hashtag-scraper com hashtags derivados
       ↓
 Posts encontrados (conteúdo viral real)
       ↓
