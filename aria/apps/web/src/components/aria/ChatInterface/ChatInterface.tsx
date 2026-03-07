@@ -9,6 +9,7 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { MaverickSession } from "@/components/chat/MaverickSession";
+import { FinanceSession } from "@/components/chat/FinanceSession";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { useChat } from "@/hooks/useChat";
 import { useAriaSpeech } from "@/hooks/useAriaSpeech";
@@ -25,18 +26,26 @@ export function ChatInterface() {
     }
     return false;
   });
+  const [financeOpen, setFinanceOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aria_active_squad') === 'finance';
+    }
+    return false;
+  });
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [revealLength, setRevealLength] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Efeito para persistir aba do Maverick após F5
+  // Efeito para persistir aba do squad ativo após F5
   useEffect(() => {
     if (maverickOpen) {
       localStorage.setItem('aria_active_squad', 'maverick');
+    } else if (financeOpen) {
+      localStorage.setItem('aria_active_squad', 'finance');
     } else {
       localStorage.removeItem('aria_active_squad');
     }
-  }, [maverickOpen]);
+  }, [maverickOpen, financeOpen]);
 
   // Store — for sidebar props
   const { conversations, activeConversationId, streamingConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
@@ -214,14 +223,15 @@ export function ChatInterface() {
   return (
     <HydrationSafeWrapper fallback={<ChatInterfaceLoading />}>
       <div className="h-screen w-full overflow-hidden relative bg-gradient-to-br from-[#003355] via-[#0d061a] to-[#4a0a41]">
-        {/* Fluid background only on welcome screen and when NOT in Maverick mode */}
-        {!hasMessages && !maverickOpen && <LiquidGlassBackground energy={energyLevel} />}
-        {!hasMessages && !maverickOpen && <div className="absolute inset-0 bg-black/20 pointer-events-none" />}
+        {/* Fluid background only on welcome screen and when NOT in a Squad mode */}
+        {!hasMessages && !maverickOpen && !financeOpen && <LiquidGlassBackground energy={energyLevel} />}
+        {!hasMessages && !maverickOpen && !financeOpen && <div className="absolute inset-0 bg-black/20 pointer-events-none" />}
 
         <AriaSidebar
           onSelectIntegration={(cmd) => setPrefill(cmd)}
           onSelectSquad={(squadId) => {
-            if (squadId === 'maverick') setMaverickOpen(true);
+            if (squadId === 'maverick') { setMaverickOpen(true); setFinanceOpen(false); }
+            if (squadId === 'finance') { setFinanceOpen(true); setMaverickOpen(false); }
           }}
           conversations={conversations}
           activeConversationId={activeConversationId}
@@ -235,6 +245,8 @@ export function ChatInterface() {
           {/* ── Modo Squad Maverick: painel inline, largura total do chat ── */}
           {maverickOpen ? (
             <MaverickSession onClose={() => setMaverickOpen(false)} />
+          ) : financeOpen ? (
+            <FinanceSession onClose={() => setFinanceOpen(false)} />
           ) : (
             <>
               <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
@@ -323,7 +335,7 @@ export function ChatInterface() {
         </div>
 
         {/* VoiceOrb fixo no canto inferior direito — visível sempre */}
-        {voiceSupported && !maverickOpen && (
+        {voiceSupported && !maverickOpen && !financeOpen && (
           <div className="fixed bottom-6 right-6 z-50">
             <VoiceOrb
               state={orbState}

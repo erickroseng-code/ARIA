@@ -19,6 +19,7 @@ import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
 import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
 import { workspaceActionRoutes } from './routes/workspace-action.routes';
 import { registerMaverickRoutes } from './modules/maverick/maverick.routes';
+import { registerFinanceRoutes } from './modules/finance/finance.routes';
 import { registerTTSRoutes } from './routes/tts.routes';
 import { registerAuthPlugin } from './plugins/auth.middleware';
 import fastifyMultipart from '@fastify/multipart';
@@ -163,6 +164,7 @@ const startServer = async () => {
   await fastify.register(registerTelegramAuthRoutes, { prefix: '/api/auth/telegram' });
   await fastify.register(workspaceActionRoutes);
   await fastify.register(registerMaverickRoutes, { prefix: '/api/maverick' });
+  await fastify.register(registerFinanceRoutes, { prefix: '/api/finance' });
   await fastify.register(registerTTSRoutes, { prefix: '/api/tts' });
 
   // Global error handler

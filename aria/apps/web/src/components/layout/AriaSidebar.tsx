@@ -8,6 +8,7 @@ import { Conversation, useChatStore } from "@/stores/chatStore";
 const ariaLogo = "/aria-logo.png";
 const erickAvatar = "/erick-avatar.png";
 const maverickLogo = "/squads/maverick.png";
+const financeLogo = "/squads/finance.svg";
 
 interface AriaSidebarProps {
     onSelectIntegration?: (command: string) => void;
@@ -22,6 +23,7 @@ interface AriaSidebarProps {
 
 const squads = [
     { name: "Maverick", logo: maverickLogo, command: "Fazer uma análise de perfil com o Squad Maverick", description: "Estratégia & Visão" },
+    { name: "Finance", logo: financeLogo, command: "finance", description: "Gestão Financeira" },
 ];
 
 const AriaSidebar = ({

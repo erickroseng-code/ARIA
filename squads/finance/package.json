@@ -1,0 +1,9 @@
+{
+  "name": "finance",
+  "version": "1.0.0",
+  "description": "Squad Financeiro — Gestão da vida financeira pessoal via ARIA",
+  "main": "src/index.ts",
+  "type": "commonjs",
+  "keywords": ["finance", "squad", "aria", "budget", "expense-tracking"],
+  "author": ""
+}
