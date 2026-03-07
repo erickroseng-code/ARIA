@@ -418,6 +418,8 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
           profile: a.profile,
           analysis: a.analysis,
           strategy: a.strategy,
+          scripts: a.scripts ?? [],
+          trendResearch: a.trendResearch ?? null,
         })),
       });
     } catch (error) {
@@ -474,6 +476,8 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
           profile: a.profile,
           analysis: a.analysis,
           strategy: a.strategy,
+          scripts: a.scripts ?? [],
+          trendResearch: a.trendResearch ?? null,
         })),
       });
     } catch (error) {

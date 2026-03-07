@@ -7,6 +7,7 @@ import {
   Star, ThumbsDown, Lightbulb, Quote, ChevronRight,
   BarChart2, History, ArrowUpRight, ArrowDownRight, Minus,
   Copy, Check, Zap, Film, LayoutGrid, MessageCircle, ExternalLink, Search, Trash2,
+  Target, MessageSquare, RefreshCw,
 } from 'lucide-react';
 import { useAriaSpeech } from '@/hooks/useAriaSpeech';
 
@@ -1026,6 +1027,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
   const [keywordsLoading, setKeywordsLoading] = useState(false);
   const [selectedMaxAge, setSelectedMaxAge] = useState(45);
+  const selectedMaxAgeRef = useRef(45);
+  // Mantém a ref sempre sincronizada com o estado
+  useEffect(() => { selectedMaxAgeRef.current = selectedMaxAge; }, [selectedMaxAge]);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -1234,7 +1238,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
 
     try {
-      const body: Record<string, unknown> = { plan: rawPlan, keywords, maxAgeDays: selectedMaxAge };
+      const body: Record<string, unknown> = { plan: rawPlan, keywords, maxAgeDays: selectedMaxAgeRef.current };
       if (analysisId) body.analysisId = analysisId;
 
       for await (const event of streamSse('/api/maverick/scripts', body)) {
@@ -1931,11 +1935,21 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               {trendResearch && <TrendReferencesPanel data={trendResearch} />}
 
               {/* Scripts header */}
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-emerald-300 text-sm font-medium">
-                  {parsedScripts ? `${parsedScripts.length} roteiros prontos!` : 'Roteiros gerados!'}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  <span className="text-emerald-300 text-sm font-medium">
+                    {parsedScripts ? `${parsedScripts.length} roteiros prontos!` : 'Roteiros gerados!'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleApprove}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-lg text-white/45 hover:text-white/70 text-xs font-medium transition-all"
+                  title="Buscar novos vídeos e regenerar roteiros"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Gerar novamente
+                </button>
               </div>
 
               {parsedScripts && parsedScripts.length > 0 ? (
