@@ -17,6 +17,6 @@ export async function registerRateLimitPlugin(fastify: FastifyInstance) {
     keyGenerator: (req) => {
       return (req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown') as string;
     },
-    skip: (req) => SKIP_ROUTES.includes(req.url),
+    allowList: (req) => SKIP_ROUTES.includes(req.url),
   });
 }
