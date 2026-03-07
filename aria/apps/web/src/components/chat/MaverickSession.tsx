@@ -1064,6 +1064,34 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps(prev => [...prev, msg]);
   }, []);
 
+  const handleLoadHistoryEntry = useCallback((entry: HistoryListEntry) => {
+    if (!entry.profile || !entry.analysis || !entry.strategy) return;
+    stopSpeech();
+    setIsSpeaking(false);
+    const reconstructed: MaverickReport = {
+      profile: entry.profile,
+      analysis: entry.analysis,
+      strategy: entry.strategy,
+    };
+    setReport(reconstructed);
+    setRawPlan(JSON.stringify(reconstructed));
+    setAnalysisId(entry.id);
+    setUsername(entry.profile.username);
+    setSteps([]);
+    setPreviousAnalysis(null);
+    setShowComparison(false);
+    setShowHistory(false);
+    if (entry.trendResearch) setTrendResearch(entry.trendResearch);
+    else setTrendResearch(null);
+    // Carrega scripts salvos (se houver) — serão exibidos no phase report
+    if (entry.scripts && Array.isArray(entry.scripts) && entry.scripts.length > 0) {
+      setParsedScripts(entry.scripts as ScriptData[]);
+    } else {
+      setParsedScripts(null);
+    }
+    setPhase('report');
+  }, [stopSpeech]);
+
   // Carrega lista de análises e restaura sessão ativa no mount
   useEffect(() => {
     async function initMaverick() {
@@ -1099,7 +1127,6 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     }
   }, [username, phase]);
 
-
   const handleClearHistory = useCallback(async () => {
     if (!confirm('Tem certeza que deseja limpar todo o histórico? Esta ação não pode ser desfeita.')) return;
     setClearingHistory(true);
@@ -1112,34 +1139,6 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       setClearingHistory(false);
     }
   }, []);
-
-  const handleLoadHistoryEntry = useCallback((entry: HistoryListEntry) => {
-    if (!entry.profile || !entry.analysis || !entry.strategy) return;
-    stopSpeech();
-    setIsSpeaking(false);
-    const reconstructed: MaverickReport = {
-      profile: entry.profile,
-      analysis: entry.analysis,
-      strategy: entry.strategy,
-    };
-    setReport(reconstructed);
-    setRawPlan(JSON.stringify(reconstructed));
-    setAnalysisId(entry.id);
-    setUsername(entry.profile.username);
-    setSteps([]);
-    setPreviousAnalysis(null);
-    setShowComparison(false);
-    setShowHistory(false);
-    if (entry.trendResearch) setTrendResearch(entry.trendResearch);
-    else setTrendResearch(null);
-    // Carrega scripts salvos (se houver) — serão exibidos no phase report
-    if (entry.scripts && Array.isArray(entry.scripts) && entry.scripts.length > 0) {
-      setParsedScripts(entry.scripts as ScriptData[]);
-    } else {
-      setParsedScripts(null);
-    }
-    setPhase('report');
-  }, [stopSpeech]);
 
   const fetchPreviousAnalysis = useCallback(async (user: string) => {
     try {
