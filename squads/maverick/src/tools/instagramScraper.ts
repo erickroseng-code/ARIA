@@ -125,40 +125,95 @@ export class InstagramScraper {
 
   private async humanScroll(page: Page, times = 3): Promise<void> {
     for (let i = 0; i < times; i++) {
-      await page.mouse.wheel(0, 300 + Math.random() * 200);
+      await page.mouse.wheel(0, 400 + Math.random() * 200);
       await this.randomDelay(600, 1200);
     }
+  }
+
+  /**
+   * Deep scroll: rola a página progressivamente até coletar `quota` URLs
+   * de posts recentes (ou até esgotar `maxScrolls` tentativas).
+   *
+   * Por que é necessário:
+   * - Instagram divide /explore/tags/ em "Top Posts" (topo, sempre antigos)
+   *   e "Recent" (abaixo, novos). A seção Recent só carrega via lazy-load
+   *   conforme o usuário rola para baixo.
+   * - Com scroll insuficiente, o scraper fica preso nos Top Posts (1-2 anos).
+   */
+  private async deepScrollAndCollect(
+    page: Page,
+    quota: number,
+    maxScrolls = 30
+  ): Promise<string[]> {
+    const seen = new Set<string>();
+    const urls: string[] = [];
+    let staleCount = 0;
+
+    process.stdout.write(`[DEEP SCROLL] Iniciando (quota: ${quota} posts)...\n`);
+
+    for (let i = 0; i < maxScrolls && urls.length < quota; i++) {
+      // Coleta todos os handles visíveis agora
+      const handles: ElementHandle[] = await page.$$('main a[href*="/reel/"], main a[href*="/p/"]');
+      let newFound = 0;
+
+      for (const h of handles) {
+        const href: string = await h.evaluate((el: HTMLAnchorElement) => el.href);
+        if (href && !seen.has(href)) {
+          seen.add(href);
+          urls.push(href);
+          newFound++;
+        }
+      }
+
+      process.stdout.write(`  scroll #${i + 1}: ${handles.length} handles | +${newFound} novos | total: ${urls.length}\n`);
+
+      if (newFound === 0) {
+        staleCount++;
+        if (staleCount >= 3) {
+          process.stdout.write(`[DEEP SCROLL] Sem novos posts após 3 scrolls consecutivos. Parando.\n`);
+          break;
+        }
+      } else {
+        staleCount = 0;
+      }
+
+      // Scroll mais agressivo: vai ao final da página para acionar lazy-load
+      await page.evaluate(() => window.scrollBy(0, 800 + Math.random() * 300));
+      await this.randomDelay(900, 1500);
+    }
+
+    process.stdout.write(`[DEEP SCROLL] Concluído: ${urls.length} URLs coletadas\n\n`);
+    return urls;
   }
 
   // ── Coleta via Hover no Grid ──────────────────────────────────────────────
 
   /**
-   * Melhoria 2: Hover + pré-filtro de viralidade no grid.
-   * Faz hover em cada thumbnail → lê o texto do overlay (views/curtidas) →
-   * descarta posts abaixo de minViews antes de visitar cada post.
+   * Hover: recebe lista de URLs do deepScrollAndCollect e faz hover em cada una
+   * para ler métricas do overlay. Legado — prefer collectLinksWithClick.
    */
   private async collectLinksWithHover(
     page: Page,
+    candidateUrls: string[],
     minViews: number,
     maxLinks: number
   ): Promise<Array<{ url: string; gridViews?: number; gridLikes?: number }>> {
-    const handles: ElementHandle[] = await page.$$('main a[href*="/reel/"], main a[href*="/p/"]');
-    const toProcess = handles.slice(0, maxLinks * 3);
-
-    process.stdout.write(`[HOVER] ${toProcess.length} thumbnails encontrados. Iniciando hovers...\n`);
+    process.stdout.write(`[HOVER] ${candidateUrls.length} candidatos. Iniciando hovers...\n`);
 
     const approved: Array<{ url: string; gridViews?: number; gridLikes?: number }> = [];
     let hoverCount = 0;
 
-    for (const handle of toProcess) {
+    for (const url of candidateUrls) {
       if (approved.length >= maxLinks) break;
+      if (!url.includes('/reel/') && !url.includes('/p/')) continue;
 
       try {
+        // Localiza o handle da URL no DOM atual
+        const handle = await page.$(`a[href="${url}"], a[href^="${url.split('?')[0]}"]`);
+        if (!handle) continue;
+
         await handle.scrollIntoViewIfNeeded();
         await this.randomDelay(150, 350);
-
-        const url: string = await handle.evaluate((el: HTMLAnchorElement) => el.href);
-        if (!url || (!url.includes('/reel/') && !url.includes('/p/'))) continue;
 
         const box = await handle.boundingBox();
         if (!box) continue;
@@ -177,10 +232,8 @@ export class InstagramScraper {
         });
 
         const { views: gridViews, likes: gridLikes } = this.parseMetricsFromHoverText(overlayText);
-
         const hasViews = gridViews !== undefined;
         const passesFilter = minViews === 0 || !hasViews || (gridViews ?? 0) >= minViews;
-
         const viewsLabel = hasViews ? `${(gridViews!).toLocaleString('pt-BR')} views` : 'sem views no overlay';
 
         if (passesFilter) {
@@ -189,12 +242,10 @@ export class InstagramScraper {
         } else {
           process.stdout.write(`  [PRÉ-FILTRO] descartado (${viewsLabel}) → ${url.slice(-40)}\n`);
         }
-      } catch {
-        // handle pode ter sido removido do DOM durante o scroll
-      }
+      } catch { /* handle stale */ }
     }
 
-    process.stdout.write(`[HOVER] ${hoverCount} hovers | ${approved.length} aprovados no pré-filtro\n\n`);
+    process.stdout.write(`[HOVER] ${hoverCount} hovers | ${approved.length} aprovados\n\n`);
     return approved;
   }
 
@@ -202,37 +253,38 @@ export class InstagramScraper {
 
   /**
    * Estratégia "Click, Read and Esc":
-   *  1. Clica no thumbnail → abre modal sobre o grid (sem navegar)
-   *  2. Aguarda ~1s para o modal renderizar
-   *  3. Lê o aria-label do botão de curtida e contador de views
-   *  4. Aperta Escape → volta para o grid
-   *
-   * Mais preciso que hover: usa números reais do DOM do modal.
-   * Funciona para imagens (curtidas) e reels (views + curtidas).
+   *  Recebe lista de URLs do deepScrollAndCollect.
+   *  Para cada URL: clica no thumbnail → lê aria-label do modal → Esc.
    */
   private async collectLinksWithClick(
     page: Page,
+    candidateUrls: string[],
     minViews: number,
     maxLinks: number
   ): Promise<Array<{ url: string; gridViews?: number; gridLikes?: number }>> {
-    const handles: ElementHandle[] = await page.$$('main a[href*="/reel/"], main a[href*="/p/"]');
-    const toProcess = handles.slice(0, maxLinks * 3);
-
-    process.stdout.write(`[CLICK] ${toProcess.length} thumbnails encontrados. Iniciando click+esc...\n`);
+    process.stdout.write(`[CLICK] ${candidateUrls.length} candidatos. Iniciando click+esc...\n`);
 
     const approved: Array<{ url: string; gridViews?: number; gridLikes?: number }> = [];
 
-    for (const handle of toProcess) {
+    for (const url of candidateUrls) {
       if (approved.length >= maxLinks) break;
+      if (!url.includes('/reel/') && !url.includes('/p/')) continue;
 
       try {
+        // Localiza o handle pelo href no DOM (pode estar fora da viewport)
+        const cleanUrl = url.split('?')[0];
+        const handle = await page.$(`a[href="${url}"], a[href^="${cleanUrl}"]`);
+        if (!handle) {
+          process.stdout.write(`  [SKIP] handle não encontrado no DOM: ${url.slice(-40)}\n`);
+          // Tenta navegar direto ao post — fallback quando o handle sumiu do DOM
+          approved.push({ url });
+          continue;
+        }
+
         await handle.scrollIntoViewIfNeeded();
         await this.randomDelay(200, 400);
 
-        const url: string = await handle.evaluate((el: HTMLAnchorElement) => el.href);
-        if (!url || (!url.includes('/reel/') && !url.includes('/p/'))) continue;
-
-        // Clica para abrir o modal (Instagram abre em overlay, não navega para nova página)
+        // Clica para abrir o modal
         await handle.click();
         await this.randomDelay(900, 1300);
 
@@ -250,7 +302,6 @@ export class InstagramScraper {
           };
         });
 
-        // Fecha o modal
         await page.keyboard.press('Escape');
         await this.randomDelay(300, 500);
 
@@ -259,10 +310,8 @@ export class InstagramScraper {
         const gridLikes = parsedLikes.likes ?? parsedLikes.views;
         const gridViews = parsedViews.views;
 
-        // Sem views (imagem) → passa; com views → filtra pelo threshold
         const hasViews = gridViews !== undefined;
         const passesFilter = minViews === 0 || !hasViews || (gridViews ?? 0) >= minViews;
-
         const label = hasViews
           ? `${(gridViews!).toLocaleString('pt-BR')} views`
           : gridLikes ? `${gridLikes.toLocaleString('pt-BR')} curtidas` : 'n/d';
@@ -274,7 +323,8 @@ export class InstagramScraper {
           process.stdout.write(`  [PRÉ-FILTRO] descartado (${label}) → ${url.slice(-40)}\n`);
         }
       } catch {
-        // handle removido ou modal não abriu
+        // handle stale → inclui sem métricas do grid para tentar no extractPostData
+        approved.push({ url });
       }
     }
 
@@ -609,12 +659,14 @@ export class InstagramScraper {
           await page.waitForSelector('main a[href*="/reel/"], main a[href*="/p/"]', { timeout: 15_000 })
             .catch(() => { });
 
-          await this.humanScroll(page, 4);
+          // Deep scroll: vai além do Top Posts e descobre posts recentes
+          const quota = maxPostsPerKeyword * 4; // coleta mais do que precisa para ter opções
+          const candidateUrls = await this.deepScrollAndCollect(page, quota);
 
-          // Roteamento por estratégia
+          // Roteamento por estratégia — passa as URLs já descobertas
           const approved = strategy === 'click'
-            ? await this.collectLinksWithClick(page, minViews, maxPostsPerKeyword)
-            : await this.collectLinksWithHover(page, minViews, maxPostsPerKeyword);
+            ? await this.collectLinksWithClick(page, candidateUrls, minViews, maxPostsPerKeyword)
+            : await this.collectLinksWithHover(page, candidateUrls, minViews, maxPostsPerKeyword);
 
           process.stdout.write(`[BUSCA] ${approved.length} posts aprovados → extraindo detalhes...\n`);
 
@@ -689,13 +741,16 @@ export class InstagramScraper {
       await page.waitForSelector('main a[href*="/reel/"], main a[href*="/p/"]', { timeout: 15_000 })
         .catch(() => process.stderr.write(`[IG] Grid demorou para carregar\n`));
 
-      process.stdout.write(`[PASSO 2] Carregando posts...\n`);
-      await this.humanScroll(page, 4);
+      process.stdout.write(`[PASSO 2] Carregando posts via deep scroll (seção Recent)...\n`);
+
+      // Deep scroll: vai além do Top Posts e descobre posts recentes
+      const quota = maxPosts * 4;
+      const candidateUrls = await this.deepScrollAndCollect(page, quota);
 
       process.stdout.write(`[PASSO 3] ${strategy === 'click' ? 'Click+Esc no modal para métricas precisas...' : 'Hover nos thumbnails...'}\n`);
       const approved = strategy === 'click'
-        ? await this.collectLinksWithClick(page, minViews, maxPosts)
-        : await this.collectLinksWithHover(page, minViews, maxPosts);
+        ? await this.collectLinksWithClick(page, candidateUrls, minViews, maxPosts)
+        : await this.collectLinksWithHover(page, candidateUrls, minViews, maxPosts);
 
       process.stdout.write(`[PASSO 4] ${approved.length} aprovados. Extraindo detalhes...\n\n`);
 
