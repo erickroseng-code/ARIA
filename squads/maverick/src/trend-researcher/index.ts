@@ -23,8 +23,8 @@ export interface TrendInsight {
 export interface TrendReferencePost {
     url: string;                // link direto para o post no Instagram
     caption_preview: string;    // primeiros 120 chars do caption
-    likes: number;
-    comments: number;
+    likes?: number;
+    comments?: number;
     views?: number;
     type: string;               // "Reels" | "Carrossel" | "Imagem"
 }
@@ -56,6 +56,7 @@ export class TrendResearcherAgent {
     private llm: LLMService;
     private scraper: InstagramScraper;
     private analyzer: PatternAnalyzer;
+    private currentICP: string = '';
 
     constructor() {
         this.llm = new LLMService('deepseek');
@@ -64,61 +65,109 @@ export class TrendResearcherAgent {
     }
 
     /**
-     * Extrai EXATAMENTE 3 palavras-chave baseado no ICP identificado
+     * Extrai 3 hashtags específicas do nicho do ICP.
      *
-     * Estratégia CORRETA:
-     * 1. Identifica o ICP (Ideal Customer Profile) do criador
-     * 2. Extrai 3 palavras-chave SIMPLES que relacionam com esse ICP
-     * 3. Cada palavra é buscada SEPARADAMENTE (não juntas!)
-     *
-     * Exemplos:
-     * ICP: Empreendedora feminina → ["emagrecimento", "feminino", "negocios"]
-     * ICP: Criador de conteúdo → ["copywriting", "conteudo", "marketing"]
-     * ICP: Especialista em fitness → ["fitness", "saude", "exercicio"]
+     * Estratégia:
+     * 1. Identifica o ICP e o tema central que o criador ensina/vende
+     * 2. Extrai hashtags reais do Instagram que criadores virais DESSE NICHO usam
+     * 3. Mix: 1 ampla + 2 específicas do nicho
      */
     async extractKeywords(plan: string): Promise<string[]> {
         const result = await this.llm.analyzeJson<{
             icp: string;
+            tema_central: string;
             keywords: string[]
         }>(
-            `A partir do plano estratégico abaixo, faça:
+            `Analise o plano estratégico abaixo e identifique as 3 MELHORES TERMOS DE BUSCA para encontrar vídeos virais no Instagram relacionados ao nicho do criador.
 
-1. IDENTIFIQUE o ICP (Ideal Customer Profile) - quem é o criador e seu público
-2. EXTRAIA EXATAMENTE 3 palavras-chave simples que relacionam com esse ICP
+PASSO 1 — Identifique:
+- ICP (quem é o criador e seu público-alvo)
+- Tema central (o que ele ensina/vende/transforma)
 
-REGRAS ABSOLUTAS:
-- Máximo 1-2 palavras por keyword (simples e genérico)
-- Que uma pessoa digitaria na barra de pesquisa do Instagram
-- Garantidas de retornar MUITOS posts (não específicas demais)
-- Em português se o nicho for BR
-- Ordenadas por relevância (mais importante primeiro)
+PASSO 2 — Selecione EXATAMENTE 3 termos de busca:
+- São palavras que o PÚBLICO-ALVO digitaria no Instagram para encontrar conteúdo sobre o problema/desejo dele
+- Podem ter 1 a 4 palavras, com espaços, acentos e caracteres normais
+- Mix: 1 termo AMPLO do tema + 2 termos ESPECÍFICOS do nicho/dor/transformação
+- Devem trazer vídeos ALINHADOS ao nicho do criador
 
-EXEMPLOS:
+REGRAS:
+- NÃO use termos genéricos como: "conteúdo", "dicas", "brasil", "instagram", "viral"
+- FOQUE no que o público pesquisa quando sente a dor ou deseja a transformação
+- NÃO use hashtags (sem #, sem palavras coladas)
 
-ICP: Mulher empreendedora que quer emagrecer
-Palavras: ["emagrecimento", "feminino", "negocios"]
+EXEMPLOS CORRETOS:
 
-ICP: Criador de conteúdo iniciante
-Palavras: ["copywriting", "conteudo", "marketing"]
+ICP: Coach financeiro, ensina a sair das dívidas para assalariados
+Tema: educação financeira para endividados
+Keywords: ["educação financeira", "como sair das dívidas", "independência financeira"]
 
-ICP: Personal trainer especializado em fitness feminino
-Palavras: ["fitness", "saude", "mulheres"]
+ICP: Nutricionista, emagrecimento feminino sem dieta restritiva
+Tema: emagrecimento sustentável para mulheres
+Keywords: ["emagrecer sem dieta", "emagrecimento feminino", "como perder peso"]
+
+ICP: Copywriter, ensina copywriting para infoprodutores iniciantes
+Tema: copywriting e vendas online
+Keywords: ["copywriting para iniciantes", "como escrever para vender", "vendas online"]
+
+ICP: Personal trainer, hipertrofia para homens acima de 30
+Tema: ganho de massa muscular
+Keywords: ["ganhar massa muscular", "hipertrofia masculina", "treino para ganhar músculo"]
 
 PLANO ESTRATÉGICO:
 ${plan.slice(0, 2500)}`,
-            '{ "icp": "descrição do ICP", "keywords": ["palavra1", "palavra2", "palavra3"] }',
+            '{ "icp": "descrição completa do ICP", "tema_central": "o que o criador ensina/vende", "keywords": ["termo de busca 1", "termo de busca 2", "termo de busca 3"] }',
         );
 
+        // Sanitiza: apenas trim e lowercase — mantém acentos e espaços (busca normal)
         const keywords = (result.keywords || [])
-            .map(k => k.trim().toLowerCase().replace(/[^a-záéíóúâêôãõç\\s]/g, ''))
-            .filter(k => k.length > 2 && k.length < 25)
-            .slice(0, 3); // EXATAMENTE 3
+            .map(k => k.trim().toLowerCase().replace(/^#+/, '').trim())
+            .filter(k => k.length > 2 && k.length < 60)
+            .slice(0, 3);
 
-        const icp = result.icp || "Não identificado";
-        process.stdout.write(`[ICP] ${icp}\n`);
-        process.stdout.write(`[KEYWORDS] Extraídos 3 keywords: "${keywords.join('", "')}"\n`);
+        this.currentICP = result.icp || '';
+        const tema = result.tema_central || '';
+
+        process.stdout.write(`[ICP] ${this.currentICP}\n`);
+        process.stdout.write(`[TEMA] ${tema}\n`);
+        process.stdout.write(`[KEYWORDS] "${keywords.join('", "')}"\n`);
 
         return keywords;
+    }
+
+    /**
+     * Filtra posts irrelevantes para o ICP usando verificação de caption.
+     * Remove posts claramente fora do nicho antes de passar para o LLM.
+     */
+    private filterByICPRelevance(posts: any[], hashtags: string[]): any[] {
+        if (!this.currentICP || posts.length === 0) return posts;
+
+        // Termos do nicho: cada keyword já são palavras normais com espaço
+        // Expande em palavras individuais (3+ letras) para melhor cobertura
+        const nicheTerms = hashtags.flatMap(kw => {
+            const normalized = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            const words = normalized.split(/\s+/).filter(w => w.length >= 3);
+            return [normalized, ...words];
+        });
+
+        const before = posts.length;
+        const filtered = posts.filter(p => {
+            const text = ((p.caption || '') + ' ' + (p.caption_preview || '')).toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+            // Inclui se o caption menciona algum termo do nicho
+            const hasNicheTerm = nicheTerms.some(term => text.includes(term));
+
+            // Inclui também se não tem caption (não conseguiu extrair — não descartar)
+            const hasNoCaption = !p.caption || p.caption.length < 10;
+
+            return hasNicheTerm || hasNoCaption;
+        });
+
+        if (filtered.length < before) {
+            process.stdout.write(`[ICP FILTER] ${before - filtered.length} posts fora do nicho removidos. Restam: ${filtered.length}\n`);
+        }
+
+        return filtered.length > 0 ? filtered : posts; // se filtrou demais, retorna todos
     }
 
     /**
@@ -139,8 +188,10 @@ ${plan.slice(0, 2500)}`,
             const response = await axios.post(
                 'https://google.serper.dev/search',
                 {
-                    q: `site:instagram.com/reels ${keyword}`,
+                    q: `site:instagram.com/reels ${keyword} brasil`,
                     gl: 'br',
+                    hl: 'pt-br',
+                    lr: 'lang_pt',
                     num: 20,
                 },
                 {
@@ -158,6 +209,7 @@ ${plan.slice(0, 2500)}`,
                     title: result.title || '',
                     snippet: result.snippet || '',
                     position: result.position || (index + 1),
+                    views: this.parseViewsFromText(result.snippet || result.title || ''),
                 }));
 
             process.stdout.write(`[GOOGLE] Encontrados ${results.length} Reels para "${keyword}"\n`);
@@ -177,45 +229,38 @@ ${plan.slice(0, 2500)}`,
      */
     async fetchTopPostsViaInstagramScraper(
         keywords: string[],
-        minViews = 100_000
+        maxAgeDays = 45,
     ): Promise<any[]> {
-        const allPosts: any[] = [];
+        // Coleta sem threshold — ranking relativo feito depois por filterAndSortByVirality
+        // minViews=0 para não descartar nenhum post antes de ter o panorama completo
+        const viralPosts = await this.scraper.scrapeMultipleHashtags(keywords, 0, 15, maxAgeDays);
 
-        for (const keyword of keywords) {
-            try {
-                // Scraper: busca + extrai + filtra
-                const viralPosts = await this.scraper.scrapeViralReels(keyword, minViews);
-
-                if (viralPosts.length === 0) {
-                    process.stdout.write(`[SCRAPER] Nenhum post viral encontrado para "${keyword}"\n`);
-                    continue;
-                }
-
-                // Análise de padrões
-                const patterns = await this.analyzer.analyzeVirtualPosts(viralPosts);
-
-                // Converter para formato compatível
-                const formatted = patterns.map(p => ({
-                    url: p.url,
-                    type: 'Video',
-                    caption: p.analysis.hook,
-                    caption_preview: p.analysis.hook,
-                    likesCount: p.engagement.likes,
-                    commentsCount: p.engagement.comments,
-                    videoPlayCount: p.views,
-                    shortCode: p.url.split('/').pop() || `reel-${p.url.slice(-10)}`,
-                    _viralScore: p.viral_score,
-                    analysis: p.analysis,
-                }));
-
-                allPosts.push(...formatted);
-
-            } catch (error: any) {
-                process.stderr.write(`[SCRAPER] Erro para "${keyword}": ${error.message}\n`);
-            }
+        if (viralPosts.length === 0) {
+            process.stdout.write(`[SCRAPER] Nenhum post viral encontrado\n`);
+            return [];
         }
 
-        return allPosts;
+        process.stdout.write(`[SCRAPER] Analisando padrões de ${viralPosts.length} posts virais...\n`);
+
+        // Análise de padrões via LLM
+        const patterns = await this.analyzer.analyzeVirtualPosts(viralPosts);
+
+        // Converter para formato compatível com o restante do pipeline
+        const formatted = patterns.map(p => ({
+            url: p.url,
+            type: 'Video',
+            caption: p.analysis.hook,
+            caption_preview: p.analysis.hook,
+            likesCount: p.engagement.likes || undefined,
+            commentsCount: p.engagement.comments || undefined,
+            videoPlayCount: p.views,
+            shortCode: p.url.split('/').pop() || `reel-${p.url.slice(-10)}`,
+            _viralScore: p.viral_score,
+            analysis: p.analysis,
+        }));
+
+        process.stdout.write(`[SCRAPER] ${formatted.length} posts com análise de padrões prontos\n`);
+        return formatted;
     }
 
     /**
@@ -232,53 +277,50 @@ ${plan.slice(0, 2500)}`,
      * - ZERO dependência de Apify (economia total)
      * - Resultado: URLs + metadata PURO do Google
      */
-    async fetchTopPosts(keywords: string[], resultsPerKeyword = 15): Promise<any[]> {
-        // PRIMÁRIO: Instagram Scraper (DuckDuckGo + Playwright + LLM)
+    async fetchTopPosts(keywords: string[], maxAgeDays = 45): Promise<any[]> {
+        // ÚNICO MÉTODO: Instagram Scraper (Playwright)
+        // Sem threshold de views aqui — deixa o filterAndSortByVirality ranquear relativamente
         try {
-            process.stdout.write(`\n[FETCH] Tentando Instagram Scraper...\n`);
-            const scraperPosts = await this.fetchTopPostsViaInstagramScraper(keywords, 100_000);
+            process.stdout.write(`\n[FETCH] Iniciando Instagram Scraper (max ${maxAgeDays}d)...\n`);
+            const scraperPosts = await this.fetchTopPostsViaInstagramScraper(keywords, maxAgeDays);
 
-            if (scraperPosts.length > 0) {
-                process.stdout.write(`[FETCH] ✅ ${scraperPosts.length} posts encontrados via Scraper\n`);
-                return scraperPosts;
-            }
+            process.stdout.write(`[FETCH] ✅ ${scraperPosts.length} posts coletados via Scraper\n`);
+            return scraperPosts;
         } catch (error: any) {
             process.stderr.write(`[FETCH] ⚠️ Scraper falhou: ${error.message}\n`);
-        }
-
-        // FALLBACK: Google Search
-        process.stdout.write(`\n[GOOGLE SEARCH] Buscando Reels viralizados por palavra-chave...\n`);
-        const allResults: any[] = [];
-
-        for (let i = 0; i < keywords.length; i++) {
-            const keyword = keywords[i];
-            const results = await this.searchReelsOnGoogle(keyword);
-            allResults.push(...results);
-        }
-
-        if (allResults.length === 0) {
-            process.stdout.write(`[AVISO] Nenhum Reel encontrado.\n`);
             return [];
         }
-
-        // Converter resultados Google em posts
-        const posts: any[] = allResults
-            .slice(0, resultsPerKeyword * 3)
-            .map((result, index) => ({
-                url: result.url,
-                type: 'Video',
-                likesCount: Math.max(1000, 10000 - (result.position * 200)),
-                commentsCount: Math.max(100, 1000 - (result.position * 30)),
-                videoPlayCount: Math.max(5000, 100000 - (result.position * 2000)),
-                caption: result.title || result.snippet || '',
-                caption_preview: result.snippet || result.title || '',
-                shortCode: result.url.split('/').pop() || `reel-${index}`,
-            }));
-
-        process.stdout.write(`[RESULTADO] ${posts.length} Reels encontrados (Google Search fallback)\n`);
-        return posts;
     }
 
+
+    /**
+     * Extrai contagem de views real do texto do snippet do Google
+     * Ex: "850K visualizações", "1,2M views", "50 mil visualizações"
+     */
+    private parseViewsFromText(text: string): number | undefined {
+        // Padrões em português e inglês
+        const patterns: Array<[RegExp, (m: RegExpMatchArray) => number]> = [
+            // "1.2M visualizações" ou "1,2M views"
+            [/(\d+[.,]\d+)\s*[Mm]\s*(?:visualiza[çc][ãa]o?s?|views?)/i, m => parseFloat(m[1].replace(',', '.')) * 1_000_000],
+            // "850K visualizações" ou "850k views"
+            [/(\d+[.,]?\d*)\s*[Kk]\s*(?:visualiza[çc][ãa]o?s?|views?)/i, m => parseFloat(m[1].replace(',', '.')) * 1_000],
+            // "1M visualizações"
+            [/(\d+)\s*[Mm]\s*(?:visualiza[çc][ãa]o?s?|views?)/i, m => parseInt(m[1]) * 1_000_000],
+            // "50 mil visualizações"
+            [/(\d+[.,]?\d*)\s*mil\s*(?:visualiza[çc][ãa]o?s?|views?)?/i, m => parseFloat(m[1].replace(',', '.')) * 1_000],
+            // "150000 visualizações"
+            [/(\d{6,})\s*(?:visualiza[çc][ãa]o?s?|views?)/i, m => parseInt(m[1])],
+        ];
+
+        for (const [regex, calc] of patterns) {
+            const match = text.match(regex);
+            if (match) {
+                const views = calc(match);
+                if (views > 0) return Math.round(views);
+            }
+        }
+        return undefined;
+    }
 
     /**
      * Calcula um "Viral Score" que identifica posts realmente virais
@@ -317,9 +359,9 @@ ${plan.slice(0, 2500)}`,
      * Remove posts flopados (score muito baixo) e mantém apenas os viral hits
      */
     private filterAndSortByVirality(posts: any[]): any[] {
-        // Calcula score para cada post
+        // Calcula score para cada post (mantém todos que têm URL — caption pode ser vazia)
         const postsWithScore = posts
-            .filter(p => p.caption && p.caption.length > 20)
+            .filter(p => p.url)
             .map(p => ({
                 ...p,
                 _viralScore: this.calculateViralScore(p),
@@ -327,18 +369,41 @@ ${plan.slice(0, 2500)}`,
 
         if (postsWithScore.length === 0) return [];
 
-        // Encontra o score mínimo aceitável (15% do máximo — era 25%, agora menos agressivo)
-        const maxScore = Math.max(...postsWithScore.map(p => p._viralScore));
-        const minAcceptableScore = maxScore * 0.15;
+        const MIN_VIEWS = 100_000;
+        const MIN_LIKES_FALLBACK = 5_000; // proxy quando não há views
 
-        // Filtra flopados (apenas posts REALMENTE ruins) e ordena por viral score
-        const filtered = postsWithScore
-            .filter(p => p._viralScore >= minAcceptableScore)
-            .sort((a, b) => b._viralScore - a._viralScore)
-            .slice(0, 12);
+        // 1ª camada: posts com views confirmadas >= 100k
+        const confirmed = postsWithScore
+            .filter(p => {
+                const views = p.videoPlayCount || p.views || 0;
+                return views >= MIN_VIEWS;
+            })
+            .sort((a, b) => b._viralScore - a._viralScore);
 
-        process.stdout.write(`[VIRALITY FILTER] Mantidos ${filtered.length}/${postsWithScore.length} posts (threshold: 15% do máximo)\n`);
-        return filtered;
+        if (confirmed.length >= 3) {
+            process.stdout.write(`[VIRALITY FILTER] ${confirmed.length} posts com 100k+ views confirmadas\n`);
+            return confirmed.slice(0, 12);
+        }
+
+        // 2ª camada: sem views extraídas, mas com curtidas expressivas (>= 5k)
+        const byLikes = postsWithScore
+            .filter(p => {
+                const views = p.videoPlayCount || p.views || 0;
+                const likes = p.likesCount || p.likes || 0;
+                if (views >= MIN_VIEWS) return true;
+                if (views === 0 && likes >= MIN_LIKES_FALLBACK) return true;
+                return false;
+            })
+            .sort((a, b) => b._viralScore - a._viralScore);
+
+        if (byLikes.length >= 1) {
+            process.stdout.write(`[VIRALITY FILTER] ${byLikes.length} posts aceitos por curtidas (views não extraídas)\n`);
+            return byLikes.slice(0, 12);
+        }
+
+        // 3ª camada: extração completamente falhou — usa os primeiros da busca (Instagram rankeia por relevância)
+        process.stdout.write(`[VIRALITY FILTER] Extração de métricas falhou — usando ordem algorítmica do Instagram (top 8)\n`);
+        return postsWithScore.slice(0, 8);
     }
 
     /**
@@ -393,7 +458,10 @@ ${plan.slice(0, 2500)}`,
         }
 
         // Filtra e ordena por viralidade (remove flopados, mantém top viral)
-        const topPosts = this.filterAndSortByVirality(posts);
+        const viralPosts = this.filterAndSortByVirality(posts);
+
+        // Filtra por relevância ao ICP (remove posts fora do nicho)
+        const topPosts = this.filterByICPRelevance(viralPosts, keywords);
 
         // ✅ SE JÁ HÁ ANÁLISE (novo scraper), usar conversão direta
         const hasAnalysis = topPosts.some(p => p.analysis);
@@ -422,8 +490,8 @@ ${plan.slice(0, 2500)}`,
             const referencePosts = topPosts.map(p => ({
                 url: p.url || '',
                 caption_preview: p.caption || p.analysis?.hook || '',
-                likes: p.likesCount || 0,
-                comments: p.commentsCount || 0,
+                likes: p.likesCount || undefined,
+                comments: p.commentsCount || undefined,
                 views: p.videoPlayCount,
                 type: p.type || 'Video',
             })).filter(r => r.url);
@@ -470,8 +538,8 @@ ${plan.slice(0, 2500)}`,
             return {
                 url,
                 caption_preview: (p.caption || '').slice(0, 120),
-                likes: p.likesCount || 0,
-                comments: p.commentsCount || 0,
+                likes: p.likesCount || undefined,
+                comments: p.commentsCount || undefined,
                 views: p.videoPlayCount || p.videoViewCount || p.videoViews || undefined,
                 type,
             };
@@ -514,9 +582,13 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
 
     /**
      * Pipeline completo: extrai keywords → busca no Instagram → analisa padrões
+     * @param plan - Plano estratégico do perfil
+     * @param preselectedKeywords - Keywords já confirmadas pelo usuário (pula extração LLM)
      */
-    async research(plan: string): Promise<TrendResearch> {
-        const keywords = await this.extractKeywords(plan);
+    async research(plan: string, preselectedKeywords?: string[], maxAgeDays = 45): Promise<TrendResearch> {
+        const keywords = preselectedKeywords && preselectedKeywords.length > 0
+            ? preselectedKeywords
+            : await this.extractKeywords(plan);
         if (keywords.length === 0) {
             throw new Error('Não foi possível extrair keywords relevantes do plano');
         }
@@ -531,7 +603,7 @@ OBJETIVO: Identificar o que esses conteúdos têm em comum — padrão de abertu
 
         process.stdout.write(`${'='.repeat(80)}\n\n`);
 
-        const posts = await this.fetchTopPosts(keywords, 30);  // ← Aumentado para 30 (era 15) para ter mais posts virais após filtro
+        const posts = await this.fetchTopPosts(keywords, maxAgeDays);
 
         if (posts.length === 0) {
             process.stdout.write(`\n${'='.repeat(80)}\n`);

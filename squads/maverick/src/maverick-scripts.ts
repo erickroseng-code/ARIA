@@ -17,6 +17,27 @@ async function runScripts() {
 
     const plan = fs.readFileSync(planFile, 'utf-8');
 
+    // Keywords pré-confirmadas pelo usuário (opcional — 3º argumento é caminho de arquivo JSON)
+    const keywordsFile = process.argv[3];
+    let preselectedKeywords: string[] | undefined;
+    if (keywordsFile && fs.existsSync(keywordsFile)) {
+        try {
+            preselectedKeywords = JSON.parse(fs.readFileSync(keywordsFile, 'utf-8'));
+        } catch { /* ignora erro de parse, usa extração normal */ }
+    }
+
+    // Período de busca (opcional — 4º argumento é caminho de arquivo JSON com { maxAgeDays })
+    const maxAgeDaysFile = process.argv[4];
+    let maxAgeDays = 45; // padrão
+    if (maxAgeDaysFile && fs.existsSync(maxAgeDaysFile)) {
+        try {
+            const parsed = JSON.parse(fs.readFileSync(maxAgeDaysFile, 'utf-8'));
+            if (typeof parsed.maxAgeDays === 'number' && parsed.maxAgeDays > 0) {
+                maxAgeDays = parsed.maxAgeDays;
+            }
+        } catch { /* usa padrão */ }
+    }
+
     // Redireciona console.log para stdout com prefixo [LOG]
     console.log = (...args: any[]) => {
         process.stdout.write(`[LOG] ${args.join(' ')}\n`);
@@ -30,12 +51,20 @@ async function runScripts() {
         //    Opcional: se falhar, o Copywriter continua apenas com a metodologia
         let trendResearch: TrendResearch | null = null;
         try {
-            process.stdout.write('[STEP] Pesquisando tendencias e conteudo viral no nicho...\n');
+            process.stdout.write(`[STEP] Pesquisando tendencias e conteudo viral no nicho (últimos ${maxAgeDays} dias)...\n`);
             const researcher = new TrendResearcherAgent();
-            trendResearch = await researcher.research(plan);
+            trendResearch = await researcher.research(plan, preselectedKeywords, maxAgeDays);
             const found = trendResearch.posts_analyzed;
             const terms = trendResearch.keywords_searched.join(', ');
             process.stdout.write(`[STEP] Analise de tendencias concluida: ${found} posts virais para "${terms}"\n`);
+
+            // Alerta de poucos resultados — emite [LOW_RESULTS] para a rota SSE capturar
+            if (found < 4) {
+                const DATE_LADDER = [45, 60, 90, 120];
+                const nextAge = DATE_LADDER.find(d => d > maxAgeDays) ?? 120;
+                process.stdout.write(`[LOW_RESULTS] ${found}:${nextAge}\n`);
+            }
+
             // Emite os dados completos (incluindo URLs de referência) para a rota capturar
             process.stdout.write('[TREND_DATA_START]\n');
             process.stdout.write(JSON.stringify(trendResearch));

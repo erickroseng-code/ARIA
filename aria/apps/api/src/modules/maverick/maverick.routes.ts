@@ -45,6 +45,7 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     const stubHandler = (_req: FastifyRequest, reply: FastifyReply) =>
       reply.status(503).send({ error: 'Maverick não disponível — DATABASE_URL não configurado' });
     fastify.post('/plan', stubHandler);
+    fastify.post('/keywords', stubHandler);
     fastify.post('/scripts', stubHandler);
     fastify.get('/history', stubHandler);
     fastify.get('/history/:username', stubHandler);
@@ -161,12 +162,98 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /api/maverick/scripts — Copywriter com SSE streaming
-  fastify.post('/scripts', async (
-    req: FastifyRequest<{ Body: { plan: string; analysisId?: string } }>,
+  // POST /api/maverick/keywords — Sugere 3 termos de busca baseados no plano (chamada direta ao LLM)
+  fastify.post('/keywords', async (
+    req: FastifyRequest<{ Body: { plan: string } }>,
     reply: FastifyReply,
   ) => {
-    const { plan, analysisId } = req.body;
+    const { plan } = req.body;
+    if (!plan) return reply.status(400).send({ error: 'plan é obrigatório' });
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return reply.status(500).send({ error: 'OPENROUTER_API_KEY não configurada' });
+
+    const prompt = `Analise o plano estratégico abaixo e identifique os 3 MELHORES TERMOS DE BUSCA para encontrar vídeos virais no Instagram relacionados ao nicho do criador.
+
+PASSO 1 — Identifique:
+- ICP (quem é o criador e seu público-alvo)
+- Tema central (o que ele ensina/vende/transforma)
+
+PASSO 2 — Selecione EXATAMENTE 3 termos de busca:
+- São palavras que o PÚBLICO-ALVO digitaria no Instagram para encontrar conteúdo sobre o problema/desejo dele
+- Podem ter 1 a 4 palavras, com espaços, acentos e caracteres normais
+- Mix: 1 termo AMPLO do tema + 2 termos ESPECÍFICOS do nicho/dor/transformação
+
+REGRAS:
+- NÃO use termos genéricos como: "conteúdo", "dicas", "brasil", "instagram", "viral"
+- NÃO use hashtags (sem #, sem palavras coladas tipo "perderpeso")
+- FOQUE no que o público pesquisa quando sente a dor ou deseja a transformação
+
+EXEMPLOS CORRETOS:
+ICP: Coach financeiro → Keywords: ["educação financeira", "como sair das dívidas", "independência financeira"]
+ICP: Nutricionista emagrecimento → Keywords: ["emagrecer sem dieta", "emagrecimento feminino", "como perder peso"]
+ICP: Personal trainer hipertrofia → Keywords: ["ganhar massa muscular", "hipertrofia masculina", "treino para ganhar músculo"]
+
+PLANO ESTRATÉGICO:
+${plan.slice(0, 3000)}
+
+Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://aios-maverick.local',
+          'X-Title': 'Maverick Squad',
+        },
+        body: JSON.stringify({
+          model: 'deepseek/deepseek-v3.2',
+          temperature: 0,
+          messages: [
+            { role: 'system', content: 'Você é uma API JSON estrita. Nunca retorne nada além de JSON.' },
+            { role: 'user', content: prompt },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error('[keywords] OpenRouter error:', err);
+        return reply.status(500).send({ error: 'Falha ao chamar LLM' });
+      }
+
+      const data = await response.json() as any;
+      const raw: string = data.choices?.[0]?.message?.content || '';
+
+      // Extrai JSON da resposta
+      let keywords: string[] = [];
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        keywords = Array.isArray(parsed.keywords) ? parsed.keywords : [];
+      }
+
+      // Sanitiza: só trim e lowercase, mantém acentos e espaços
+      keywords = keywords
+        .map((k: string) => k.trim().toLowerCase().replace(/^#+/, '').trim())
+        .filter((k: string) => k.length > 2 && k.length < 60)
+        .slice(0, 3);
+
+      return reply.send({ keywords });
+    } catch (err: any) {
+      console.error('[keywords] erro:', err);
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // POST /api/maverick/scripts — Copywriter com SSE streaming
+  fastify.post('/scripts', async (
+    req: FastifyRequest<{ Body: { plan: string; analysisId?: string; keywords?: string[]; maxAgeDays?: number } }>,
+    reply: FastifyReply,
+  ) => {
+    const { plan, analysisId, keywords, maxAgeDays = 45 } = req.body;
 
     if (!plan) {
       return reply.status(400).send({ error: 'plan é obrigatório' });
@@ -182,7 +269,22 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     sendEvent(raw, 'step', { message: '⏳ O time do Maverick está trabalhando na análise...' });
 
-    const child = spawn('npx', ['ts-node', MAVERICK_SCRIPTS_SCRIPT, tempFile], {
+    // Escreve keywords em arquivo temp para evitar problemas de escaping no Windows
+    let keywordsFile: string | undefined;
+    if (keywords && keywords.length > 0) {
+      keywordsFile = path.join(os.tmpdir(), `maverick-kw-${Date.now()}.json`);
+      fs.writeFileSync(keywordsFile, JSON.stringify(keywords), 'utf-8');
+    }
+
+    // Escreve maxAgeDays em arquivo temp
+    const maxAgeDaysFile = path.join(os.tmpdir(), `maverick-age-${Date.now()}.json`);
+    fs.writeFileSync(maxAgeDaysFile, JSON.stringify({ maxAgeDays }), 'utf-8');
+
+    const scriptArgs = ['ts-node', MAVERICK_SCRIPTS_SCRIPT, tempFile];
+    if (keywordsFile) scriptArgs.push(keywordsFile);
+    scriptArgs.push(maxAgeDaysFile);
+
+    const child = spawn('npx', scriptArgs, {
       cwd: MAVERICK_ROOT,
       env: { ...process.env },
       shell: process.platform === 'win32',
@@ -203,6 +305,18 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
         // Mensagens de progresso emitidas pelo processo filho
         if (line.startsWith('[STEP]')) {
           sendEvent(raw, 'step', { message: line.replace('[STEP]', '').trim() });
+          continue;
+        }
+        // Alerta de poucos resultados — sugere ampliar o período
+        if (line.startsWith('[LOW_RESULTS]')) {
+          const parts = line.replace('[LOW_RESULTS]', '').trim().split(':');
+          const count = parseInt(parts[0] ?? '0');
+          const nextAge = parseInt(parts[1] ?? '90');
+          sendEvent(raw, 'low_results', {
+            count,
+            suggestedMaxAge: nextAge,
+            message: `⚠️ Apenas ${count} vídeo(s) viral(is) encontrado(s). Tente ampliar para ${nextAge} dias.`,
+          });
           continue;
         }
         // Captura bloco de trend research (com URLs de referência)
@@ -266,6 +380,8 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     child.on('close', (code) => {
       try { fs.unlinkSync(tempFile); } catch { /* ignora */ }
+      if (keywordsFile) try { fs.unlinkSync(keywordsFile); } catch { /* ignora */ }
+      try { fs.unlinkSync(maxAgeDaysFile); } catch { /* ignora */ }
       if (code === 0) {
         sendEvent(raw, 'done', {});
       } else if (!scriptsBuffer) {
@@ -276,6 +392,8 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     child.on('error', (err) => {
       try { fs.unlinkSync(tempFile); } catch { /* ignora */ }
+      if (keywordsFile) try { fs.unlinkSync(keywordsFile); } catch { /* ignora */ }
+      try { fs.unlinkSync(maxAgeDaysFile); } catch { /* ignora */ }
       sendEvent(raw, 'error', { message: err.message });
       raw.end();
     });

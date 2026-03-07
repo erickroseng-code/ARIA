@@ -72,8 +72,8 @@ interface SuggestedICP {
 interface TrendReferencePost {
   url: string;
   caption_preview: string;
-  likes: number;
-  comments: number;
+  likes?: number;
+  comments?: number;
   views?: number;
   type: string;
 }
@@ -130,7 +130,7 @@ interface HistoryListEntry {
   trendResearch?: TrendResearchData;
 }
 
-type Phase = 'home' | 'asking' | 'icp-form' | 'running-plan' | 'report' | 'running-scripts' | 'done' | 'error';
+type Phase = 'home' | 'asking' | 'icp-form' | 'running-plan' | 'report' | 'keyword-confirm' | 'running-scripts' | 'done' | 'error';
 
 interface MaverickSessionProps {
   onClose: () => void;
@@ -352,24 +352,24 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 // Category-level config (by format field: "Reels" | "Carrossel")
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; gradient: string; badge: string }> = {
-  'Reels':     { icon: Film,       gradient: 'from-purple-600/15 to-violet-500/5',  badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' },
-  'Carrossel': { icon: LayoutGrid, gradient: 'from-cyan-600/15 to-blue-500/5',      badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' },
+  'Reels': { icon: Film, gradient: 'from-purple-600/15 to-violet-500/5', badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' },
+  'Carrossel': { icon: LayoutGrid, gradient: 'from-cyan-600/15 to-blue-500/5', badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' },
 };
 
 // Format-type emoji icons
 const FORMAT_TYPE_EMOJI: Record<string, string> = {
-  reels_react:           '😲',
-  reels_caixinha:        '❓',
+  reels_react: '😲',
+  reels_caixinha: '❓',
   reels_terceira_pessoa: '🎥',
   reels_primeira_pessoa: '🤳',
-  reels_talking_head:    '🎙️',
-  reels_tutorial:        '📋',
-  reels_broll_texto:     '✨',
-  reels_trend_meme:      '🔥',
-  carrossel_educativo:   '📚',
-  carrossel_narrativo:   '📖',
-  carrossel_antes_depois:'⚡',
-  carrossel_opinion:     '💬',
+  reels_talking_head: '🎙️',
+  reels_tutorial: '📋',
+  reels_broll_texto: '✨',
+  reels_trend_meme: '🔥',
+  carrossel_educativo: '📚',
+  carrossel_narrativo: '📖',
+  carrossel_antes_depois: '⚡',
+  carrossel_opinion: '💬',
 };
 
 // ── Script Preview Card (compact, grid-friendly) ─────────────────────────────
@@ -398,11 +398,10 @@ function ScriptPreviewCard({ script, index, onClick }: {
               {script.framework}
             </span>
             {script.funnel_stage && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
                 script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
-                'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-              }`}>
+                  'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                }`}>
                 {script.funnel_stage}
               </span>
             )}
@@ -469,11 +468,10 @@ function ScriptModal({ script, index, onClose }: {
                 {script.framework}
               </span>
               {script.funnel_stage && (
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                  script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
                   script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
-                  'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                }`}>
+                    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                  }`}>
                   {script.funnel_stage} · {script.funnel_goal}
                 </span>
               )}
@@ -541,11 +539,10 @@ function ScriptModal({ script, index, onClose }: {
                 const isDirective = /^\[.+\]/.test(line.trim());
                 const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
                 return (
-                  <p key={i} className={`leading-relaxed ${
-                    isDirective ? 'text-white/30 italic text-sm' :
+                  <p key={i} className={`leading-relaxed ${isDirective ? 'text-white/30 italic text-sm' :
                     isSlideHeader ? 'text-white/55 text-sm font-bold uppercase tracking-wider pt-2' :
-                    'text-base text-white/82'
-                  }`}>
+                      'text-base text-white/82'
+                    }`}>
                     {line}
                   </p>
                 );
@@ -594,11 +591,11 @@ function ScriptModal({ script, index, onClose }: {
 // ── Engagement Panorama Card ──────────────────────────────────────────────────
 
 const PANORAMA_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
-  'Otimo':           { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-300', badge: 'bg-violet-500/20 text-violet-200' },
-  'Muito Bom':       { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', badge: 'bg-emerald-500/20 text-emerald-200' },
-  'Bom':             { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', badge: 'bg-cyan-500/20 text-cyan-200' },
+  'Otimo': { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-300', badge: 'bg-violet-500/20 text-violet-200' },
+  'Muito Bom': { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', badge: 'bg-emerald-500/20 text-emerald-200' },
+  'Bom': { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', badge: 'bg-cyan-500/20 text-cyan-200' },
   'Abaixo da Media': { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', badge: 'bg-amber-500/20 text-amber-200' },
-  'Ruim':            { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', badge: 'bg-rose-500/20 text-rose-200' },
+  'Ruim': { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', badge: 'bg-rose-500/20 text-rose-200' },
 };
 
 const SCALE_ITEMS = [
@@ -794,11 +791,10 @@ function TrendReferencesPanel({ data }: { data: TrendResearchData }) {
                       <Film className="w-3 h-3" />{post.views.toLocaleString('pt-BR')}
                     </span>
                   )}
-                  <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    post.type === 'Video' || post.type === 'Reel'
-                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/20'
-                      : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
-                  }`}>
+                  <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${post.type === 'Video' || post.type === 'Reel'
+                    ? 'bg-purple-500/15 text-purple-300 border border-purple-500/20'
+                    : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+                    }`}>
                     {post.type === 'Video' || post.type === 'Reel' ? '🎬 Reels' : '🖼 Post'}
                   </span>
                 </div>
@@ -900,6 +896,120 @@ function buildBriefing(report: MaverickReport): string {
   return `Análise do perfil @${report.profile.username} concluída. ${scoreText}${posText}${brecText}${diagnostico}`;
 }
 
+// ── Keyword Confirm Modal ─────────────────────────────────────────────────────
+
+function KeywordConfirmModal({
+  keywords,
+  loading,
+  maxAgeDays,
+  onChangeMaxAge,
+  onConfirm,
+  onReject,
+  onEdit,
+}: {
+  keywords: string[];
+  loading: boolean;
+  maxAgeDays: number;
+  onChangeMaxAge: (days: number) => void;
+  onConfirm: () => void;
+  onReject: () => void;
+  onEdit: (index: number, value: string) => void;
+}) {
+  const hasAllKeywords = keywords.length === 3 && keywords.every(k => k.trim().length > 0);
+
+  const DATE_OPTIONS = [30, 45, 60, 90, 120] as const;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#18181b] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+            <Search className="w-4 h-4 text-emerald-400" />
+          </div>
+          <h3 className="text-white font-semibold text-sm">Confirme as buscas no Instagram</h3>
+        </div>
+
+        {/* Explicação */}
+        <div className="ml-11 mb-5">
+          <p className="text-white/50 text-xs leading-relaxed">
+            O Maverick vai abrir o Instagram e pesquisar esses termos para encontrar os vídeos mais virais do seu nicho. Os roteiros serão criados com base nesses resultados.
+          </p>
+          <p className="text-white/30 text-xs mt-1.5">
+            Edite se os termos não representam bem o seu público.
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-white/40">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Analisando o ICP para sugerir as melhores buscas...</span>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2 mb-5">
+              {keywords.map((kw, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-white/25 text-xs w-4 text-right flex-shrink-0">{i + 1}.</span>
+                  <input
+                    type="text"
+                    value={kw}
+                    onChange={e => onEdit(i, e.target.value)}
+                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.08] transition-all"
+                    placeholder="ex: como emagrecer rápido"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Seletor de período */}
+            <div className="mb-5">
+              <p className="text-white/35 text-[11px] font-semibold uppercase tracking-wider mb-2">Período de busca</p>
+              <div className="flex gap-1.5">
+                {DATE_OPTIONS.map(days => (
+                  <button
+                    key={days}
+                    onClick={() => onChangeMaxAge(days)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border ${maxAgeDays === days
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-white/[0.04] border-white/[0.08] text-white/35 hover:bg-white/[0.08] hover:text-white/60'
+                      }`}
+                  >
+                    {days}d
+                  </button>
+                ))}
+              </div>
+              <p className="text-white/20 text-[10px] mt-1.5">
+                Posts publicados nos últimos {maxAgeDays} dias. Aumente se encontrar poucos resultados.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={onReject}
+                className="px-4 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-xl text-white/50 text-sm transition-all"
+                title="Gerar novas sugestões"
+              >
+                Refazer
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={!hasAllKeywords}
+                className={`flex-1 px-4 py-2.5 border rounded-xl text-sm font-semibold transition-all ${hasAllKeywords ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/30 text-emerald-300' : 'bg-white/[0.03] border-white/[0.06] text-white/25 cursor-not-allowed'}`}
+              >
+                Buscar e Gerar Roteiros
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [phase, setPhase] = useState<Phase>('home');
   const [username, setUsername] = useState('');
@@ -921,6 +1031,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [historyItems, setHistoryItems] = useState<HistoryListEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
+  const [keywordsLoading, setKeywordsLoading] = useState(false);
+  const [selectedMaxAge, setSelectedMaxAge] = useState(45);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -1094,7 +1207,32 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     }
   }, [username, addStep, fetchPreviousAnalysis]);
 
+  // Abre o modal de confirmação de keywords antes de gerar roteiros
   const handleApprove = useCallback(async () => {
+    setPhase('keyword-confirm');
+    setKeywordsLoading(true);
+    setSuggestedKeywords([]);
+
+    try {
+      const res = await fetch(`${API_URL}/api/maverick/keywords`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: rawPlan }),
+      });
+      const data = await res.json();
+      const kws = Array.isArray(data.keywords) && data.keywords.length > 0
+        ? data.keywords
+        : ['', '', ''];
+      setSuggestedKeywords(kws);
+    } catch {
+      setSuggestedKeywords(['', '', '']);
+    } finally {
+      setKeywordsLoading(false);
+    }
+  }, [rawPlan]);
+
+  // Gera roteiros com keywords confirmadas
+  const handleConfirmKeywords = useCallback(async (keywords: string[]) => {
     setPhase('running-scripts');
     setStreamingScripts('');
     setScripts('');
@@ -1104,7 +1242,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
 
     try {
-      for await (const event of streamSse('/api/maverick/scripts', { plan: rawPlan, ...(analysisId ? { analysisId } : {}) } as Record<string, unknown>)) {
+      const body: Record<string, unknown> = { plan: rawPlan, keywords, maxAgeDays: selectedMaxAge };
+      if (analysisId) body.analysisId = analysisId;
+
+      for await (const event of streamSse('/api/maverick/scripts', body)) {
         if (abortRef.current) break;
 
         switch (event.type) {
@@ -1129,6 +1270,14 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
             setPhase('done');
             break;
           }
+          case 'low_results': {
+            // Sugestão automática de ampliar período
+            const suggested = event.suggestedMaxAge as number;
+            const nextOption = [45, 60, 90, 120].find(d => d > selectedMaxAge) ?? 120;
+            const newAge = suggested ?? nextOption;
+            addStep(`⚠️ Poucos vídeos encontrados para ${selectedMaxAge}d. Sugerido: ampliar para ${newAge}d`);
+            break;
+          }
           case 'error':
             setErrorMsg(event.message as string);
             setPhase('error');
@@ -1141,7 +1290,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
         setPhase('error');
       }
     }
-  }, [rawPlan, addStep]);
+  }, [rawPlan, analysisId, addStep, selectedMaxAge]);
 
   const handleReset = useCallback(() => {
     abortRef.current = true;
@@ -1162,12 +1311,14 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setPreviousAnalysis(null);
     setShowComparison(false);
     setShowHistory(false);
+    setSuggestedKeywords([]);
+    setKeywordsLoading(false);
     setIcp({ product: '', price_range: '', main_objection: '', ideal_customer: '', transformation: '' });
     // Recarrega o histórico ao voltar para home
     fetch(`${API_URL}/api/maverick/history?limit=20`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setHistoryItems(data.analyses ?? []); })
-      .catch(() => {});
+      .catch(() => { });
   }, [stopSpeech]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1181,6 +1332,40 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+
+      {/* ── Keyword Confirm Modal ── */}
+      {phase === 'keyword-confirm' && (
+        <KeywordConfirmModal
+          keywords={suggestedKeywords}
+          loading={keywordsLoading}
+          maxAgeDays={selectedMaxAge}
+          onChangeMaxAge={setSelectedMaxAge}
+          onConfirm={() => handleConfirmKeywords(suggestedKeywords)}
+          onReject={async () => {
+            setKeywordsLoading(true);
+            setSuggestedKeywords([]);
+            try {
+              const res = await fetch(`${API_URL}/api/maverick/keywords`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: rawPlan }),
+              });
+              const data = await res.json();
+              const kws = Array.isArray(data.keywords) && data.keywords.length > 0
+                ? data.keywords
+                : ['', '', ''];
+              setSuggestedKeywords(kws);
+            } catch {
+              setSuggestedKeywords(['', '', '']);
+            } finally {
+              setKeywordsLoading(false);
+            }
+          }}
+          onEdit={(index, value) => {
+            setSuggestedKeywords(prev => prev.map((kw, i) => i === index ? value : kw));
+          }}
+        />
+      )}
 
       {/* ── Header ── */}
       <header className="flex items-center gap-3 px-6 h-14 border-b border-white/[0.06] flex-shrink-0">
@@ -1738,13 +1923,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     <div className="mt-3 flex items-center gap-3 pt-3 border-t border-white/[0.06]">
                       <span className="text-xs text-white/30">Engajamento:</span>
                       <span className="text-sm font-bold text-white/70">{report.strategy.engagement_panorama.profile_rate}</span>
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        report.strategy.engagement_panorama.classification === 'Otimo' ? 'bg-violet-500/20 text-violet-300' :
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${report.strategy.engagement_panorama.classification === 'Otimo' ? 'bg-violet-500/20 text-violet-300' :
                         report.strategy.engagement_panorama.classification === 'Muito Bom' ? 'bg-emerald-500/20 text-emerald-300' :
-                        report.strategy.engagement_panorama.classification === 'Bom' ? 'bg-cyan-500/20 text-cyan-300' :
-                        report.strategy.engagement_panorama.classification === 'Abaixo da Media' ? 'bg-amber-500/20 text-amber-300' :
-                        'bg-rose-500/20 text-rose-300'
-                      }`}>{report.strategy.engagement_panorama.classification}</span>
+                          report.strategy.engagement_panorama.classification === 'Bom' ? 'bg-cyan-500/20 text-cyan-300' :
+                            report.strategy.engagement_panorama.classification === 'Abaixo da Media' ? 'bg-amber-500/20 text-amber-300' :
+                              'bg-rose-500/20 text-rose-300'
+                        }`}>{report.strategy.engagement_panorama.classification}</span>
                       <span className="text-[11px] text-white/25 ml-auto">{report.strategy.engagement_panorama.tier}</span>
                     </div>
                   )}

@@ -275,8 +275,8 @@ export class InstagramScraper {
         const cleanUrl = url.split('?')[0];
         const handle = await page.$(`a[href="${url}"], a[href^="${cleanUrl}"]`);
         if (!handle) {
-          process.stdout.write(`  [SKIP] handle não encontrado no DOM: ${url.slice(-40)}\n`);
-          // Tenta navegar direto ao post — fallback quando o handle sumiu do DOM
+          // Handle virtualizado (Instagram removeu do DOM ao scrollar)
+          // → inclui direto: extractPostData vai buscar tudo da página do post
           approved.push({ url });
           continue;
         }
