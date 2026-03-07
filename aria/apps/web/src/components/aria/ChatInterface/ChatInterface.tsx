@@ -19,10 +19,24 @@ import { useChatStore } from "@/stores/chatStore";
 export function ChatInterface() {
   const [prefill, setPrefill] = useState("");
   const [energy, setEnergy] = useState(0);
-  const [maverickOpen, setMaverickOpen] = useState(false);
+  const [maverickOpen, setMaverickOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aria_active_squad') === 'maverick';
+    }
+    return false;
+  });
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [revealLength, setRevealLength] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Efeito para persistir aba do Maverick após F5
+  useEffect(() => {
+    if (maverickOpen) {
+      localStorage.setItem('aria_active_squad', 'maverick');
+    } else {
+      localStorage.removeItem('aria_active_squad');
+    }
+  }, [maverickOpen]);
 
   // Store — for sidebar props
   const { conversations, activeConversationId, streamingConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
@@ -135,7 +149,7 @@ export function ChatInterface() {
     }
 
     enqueue(chunk);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStreamingContent]);
 
   // Detecta quando uma nova mensagem da ARIA é commitada
@@ -187,7 +201,7 @@ export function ChatInterface() {
         resumeListening();
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   const energyLevel = energy;

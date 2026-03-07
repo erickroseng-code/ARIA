@@ -1064,18 +1064,40 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps(prev => [...prev, msg]);
   }, []);
 
-  // Carrega lista de análises passadas no mount
+  // Carrega lista de análises e restaura sessão ativa no mount
   useEffect(() => {
-    async function loadHistory() {
+    async function initMaverick() {
       try {
         const res = await fetch(`${API_URL}/api/maverick/history?limit=20`);
         if (!res.ok) return;
         const data = await res.json();
         setHistoryItems(data.analyses ?? []);
+
+        // Restaura análise aberta antes do F5
+        const activeUser = localStorage.getItem('maverick_active_user');
+        if (activeUser) {
+          const fetchFull = await fetch(`${API_URL}/api/maverick/history/${activeUser}`);
+          if (fetchFull.ok) {
+            const fullData = await fetchFull.json();
+            const fullAnalyses = fullData.analyses ?? [];
+            if (fullAnalyses.length > 0) {
+              handleLoadHistoryEntry(fullAnalyses[0]);
+            }
+          }
+        }
       } catch { /* ignora */ }
     }
-    loadHistory();
-  }, []);
+    initMaverick();
+  }, [handleLoadHistoryEntry]);
+
+  // Salva no localStorage a análise atual para resistir ao refresh (F5)
+  useEffect(() => {
+    if (username && (phase === 'report' || phase === 'done')) {
+      localStorage.setItem('maverick_active_user', username);
+    } else if (phase === 'home') {
+      localStorage.removeItem('maverick_active_user');
+    }
+  }, [username, phase]);
 
 
   const handleClearHistory = useCallback(async () => {
