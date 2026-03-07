@@ -22,8 +22,8 @@ interface AriaSidebarProps {
 }
 
 const squads = [
-    { name: "Maverick", logo: maverickLogo, command: "Fazer uma análise de perfil com o Squad Maverick", description: "Estratégia & Visão" },
-    { name: "Finance", logo: financeLogo, command: "finance", description: "Gestão Financeira" },
+    { id: "maverick", name: "Maverick", logo: maverickLogo, command: "Fazer uma análise de perfil com o Squad Maverick", description: "Estratégia & Visão" },
+    { id: "finance", name: "Buffet", logo: financeLogo, command: "finance", description: "Gestão Financeira" },
 ];
 
 const AriaSidebar = ({
@@ -136,8 +136,8 @@ const AriaSidebar = ({
                         <div className="space-y-0.5">
                             {squads.map((squad) => (
                                 <button
-                                    key={squad.name}
-                                    onClick={() => onSelectSquad?.(squad.name.toLowerCase())}
+                                    key={squad.id}
+                                    onClick={() => onSelectSquad?.(squad.id)}
                                     title={squad.name}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[16px] text-white/80 hover:bg-white/10 hover:text-white hover:translate-x-1 hover:shadow-[0_0_12px_rgba(255,255,255,0.1)] active:scale-[0.97] transition-all duration-200"
                                 >
