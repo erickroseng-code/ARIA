@@ -54,7 +54,7 @@ async function handleGeneralQuestion(message: string): Promise<string> {
 
   return llmChat(
     message,
-    `Você é um assistente financeiro pessoal brasileiro da ARIA. ${context} Responda de forma amigável, prática e em português. Seja conciso (máx 3 parágrafos).`,
+    `Você é o Buffet, um assistente financeiro pessoal brasileiro da ARIA. ${context} Responda de forma amigável, prática e em português. Seja conciso (máx 3 parágrafos).`,
     0.7,
   );
 }

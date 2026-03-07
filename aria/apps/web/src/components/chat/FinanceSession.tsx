@@ -43,11 +43,10 @@ function AlertBadge({ alerts }: { alerts: BudgetAlert[] }) {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-          hasCritical
+        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${hasCritical
             ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
             : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-        }`}
+          }`}
       >
         <Bell className="w-3 h-3" />
         {alerts.length}
@@ -61,9 +60,8 @@ function AlertBadge({ alerts }: { alerts: BudgetAlert[] }) {
           {alerts.map((a, i) => (
             <div
               key={i}
-              className={`text-xs p-2 rounded-lg ${
-                a.level === 'critical' ? 'bg-red-500/10 border border-red-500/20' : 'bg-yellow-500/10 border border-yellow-500/20'
-              }`}
+              className={`text-xs p-2 rounded-lg ${a.level === 'critical' ? 'bg-red-500/10 border border-red-500/20' : 'bg-yellow-500/10 border border-yellow-500/20'
+                }`}
             >
               <div className="flex items-center gap-1 mb-0.5">
                 <AlertTriangle className={`w-3 h-3 ${a.level === 'critical' ? 'text-red-400' : 'text-yellow-400'}`} />
@@ -86,11 +84,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   return (
     <div className={`flex ${isAssistant ? 'justify-start' : 'justify-end'} mb-3`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-          isAssistant
+        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isAssistant
             ? 'bg-white/5 border border-white/10 text-white/90'
             : 'bg-emerald-600/80 text-white'
-        }`}
+          }`}
       >
         {msg.content}
         {isAssistant && msg.alerts && msg.alerts.length > 0 && (
@@ -98,9 +95,8 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             {msg.alerts.map((a, i) => (
               <div
                 key={i}
-                className={`text-xs p-1.5 rounded-lg ${
-                  a.level === 'critical' ? 'bg-red-500/15 text-red-300' : 'bg-yellow-500/15 text-yellow-300'
-                }`}
+                className={`text-xs p-1.5 rounded-lg ${a.level === 'critical' ? 'bg-red-500/15 text-red-300' : 'bg-yellow-500/15 text-yellow-300'
+                  }`}
               >
                 <AlertTriangle className="w-3 h-3 inline mr-1" />
                 {a.message}
@@ -296,7 +292,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-tight">Finance Squad</p>
             <p className="text-xs text-white/40 leading-tight truncate">
-              {phase === 'onboarding' ? `Diagnóstico • Passo ${onboardingStep + 1}/6` : 'Assistente Financeiro Pessoal'}
+              {phase === 'onboarding' ? `Diagnóstico • Passo ${onboardingStep + 1}/6` : 'Buffet (Seu Assistente Pessoal)'}
             </p>
           </div>
         </div>
@@ -337,9 +333,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  i < onboardingStep ? 'bg-emerald-500' : i === onboardingStep ? 'bg-emerald-500/50' : 'bg-white/10'
-                }`}
+                className={`h-1 flex-1 rounded-full transition-colors ${i < onboardingStep ? 'bg-emerald-500' : i === onboardingStep ? 'bg-emerald-500/50' : 'bg-white/10'
+                  }`}
               />
             ))}
           </div>

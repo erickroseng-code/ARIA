@@ -215,5 +215,5 @@ function formatDiagnosisReply(diagnosis: DiagnosisResult, spreadsheetUrl: string
 
 export function getFirstOnboardingMessage(): string {
   const s = ONBOARDING_STEPS[0];
-  return `Olá! Vou ser seu assistente financeiro pessoal. 🎯\n\nAntes de começarmos, preciso entender sua situação para criar um plano personalizado.\n\n**(1/${ONBOARDING_STEPS.length})** ${s.question}${s.hint ? `\n\n_${s.hint}_` : ''}`;
+  return `Olá! Sou o Buffet, seu assistente financeiro pessoal. 🎯\n\nAntes de começarmos, preciso entender sua situação para criar um plano personalizado.\n\n**(1/${ONBOARDING_STEPS.length})** ${s.question}${s.hint ? `\n\n_${s.hint}_` : ''}`;
 }
