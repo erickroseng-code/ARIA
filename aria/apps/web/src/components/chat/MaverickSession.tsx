@@ -1110,14 +1110,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setShowHistory(false);
     if (entry.trendResearch) setTrendResearch(entry.trendResearch);
     else setTrendResearch(null);
-    // Se já tem roteiros salvos, vai direto para done (mostra relatório + roteiros juntos)
+    // Carrega scripts salvos (se houver) — serão exibidos no phase report
     if (entry.scripts && Array.isArray(entry.scripts) && entry.scripts.length > 0) {
       setParsedScripts(entry.scripts as ScriptData[]);
-      setRawPlan(JSON.stringify({ profile: entry.profile, analysis: entry.analysis, strategy: entry.strategy }));
-      setPhase('done');
     } else {
-      setPhase('report');
+      setParsedScripts(null);
     }
+    setPhase('report');
   }, [stopSpeech]);
 
   const fetchPreviousAnalysis = useCallback(async (user: string) => {
@@ -1837,6 +1836,45 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                       previous={previousAnalysis}
                       previousDate={previousAnalysis.createdAt}
                     />
+                  )}
+
+                  {/* ── Roteiros salvos (carregados do histórico) ── */}
+                  {parsedScripts && parsedScripts.length > 0 && (
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5 text-emerald-400" />
+                          <span className="text-emerald-300 text-sm font-medium">
+                            {parsedScripts.length} roteiros gerados
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleApprove}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-lg text-white/45 hover:text-white/70 text-xs font-medium transition-all"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Gerar novamente
+                        </button>
+                      </div>
+                      {trendResearch && <TrendReferencesPanel data={trendResearch} />}
+                      <div className="grid grid-cols-2 gap-4">
+                        {parsedScripts.map((script, i) => (
+                          <ScriptPreviewCard
+                            key={i}
+                            script={script}
+                            index={i}
+                            onClick={() => setSelectedScript({ script, index: i })}
+                          />
+                        ))}
+                      </div>
+                      {selectedScript && (
+                        <ScriptModal
+                          script={selectedScript.script}
+                          index={selectedScript.index}
+                          onClose={() => setSelectedScript(null)}
+                        />
+                      )}
+                    </div>
                   )}
                 </>
               ) : (
