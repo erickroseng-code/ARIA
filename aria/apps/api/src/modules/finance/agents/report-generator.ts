@@ -1,11 +1,12 @@
-import OpenAI from 'openai';
+import { llmChat } from './llm-client';
 import { SheetsService } from '@aria/integrations';
 import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { checkBudgetAlerts, type BudgetAlert } from './budget-planner';
 
+
 export interface ReportData {
-  month: string;         // YYYY-MM
+  month: string;
   monthLabel: string;
   totalIncome: number;
   totalExpenses: number;
@@ -15,16 +16,6 @@ export interface ReportData {
   alerts: BudgetAlert[];
   aiAnalysis: string;
   topRecommendations: string[];
-}
-
-function getLLM() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada');
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    defaultHeaders: { 'HTTP-Referer': 'https://aios-finance.local', 'X-Title': 'Finance Squad' },
-  });
 }
 
 /**
@@ -115,7 +106,6 @@ async function generateAiAnalysis(
   byCategory: ReportData['byCategory'],
   alerts: BudgetAlert[],
 ): Promise<{ aiAnalysis: string; topRecommendations: string[] }> {
-  const openai = getLLM();
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const prompt = `Analise o mês ${month}:
@@ -134,16 +124,11 @@ REC2: <recomendação 2>
 REC3: <recomendação 3>`;
 
   try {
-    const res = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3.2',
-      temperature: 0.5,
-      messages: [
-        { role: 'system', content: 'Você é um consultor financeiro pessoal brasileiro. Seja direto e prático.' },
-        { role: 'user', content: prompt },
-      ],
-    });
-
-    const text = res.choices[0]?.message?.content ?? '';
+    const text = await llmChat(
+      prompt,
+      'Você é um consultor financeiro pessoal brasileiro. Seja direto e prático.',
+      0.5,
+    );
     const analysisMatch = text.match(/ANÁLISE:\s*([\s\S]+?)(?=REC1:|$)/);
     const rec1 = text.match(/REC1:\s*(.+)/)?.[1]?.trim() ?? '';
     const rec2 = text.match(/REC2:\s*(.+)/)?.[1]?.trim() ?? '';

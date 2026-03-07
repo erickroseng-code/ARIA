@@ -1,9 +1,10 @@
-import OpenAI from 'openai';
+import { llmChat } from './llm-client';
 import { getOnboardingState, getSpreadsheetId } from '../finance.service';
 import { processOnboardingMessage, getFirstOnboardingMessage } from './onboarding';
 import { recordTransaction, queryBalance, queryTransactions } from './expense-controller';
 import { setBudget, getBudgetSummary, checkBudgetAlerts } from './budget-planner';
 import { generateReportData } from './report-generator';
+
 
 export type FinanceIntent =
   | 'record_transaction'
@@ -17,55 +18,27 @@ export type FinanceIntent =
   | 'goal_update'
   | 'general_question';
 
-function getLLM() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada');
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    defaultHeaders: { 'HTTP-Referer': 'https://aios-finance.local', 'X-Title': 'Finance Squad' },
-  });
-}
-
 async function detectIntent(message: string): Promise<FinanceIntent> {
   // Heurísticas rápidas antes de chamar LLM
   const lower = message.toLowerCase();
 
-  // Registro de transação (despesa ou receita)
   if (/gastei|paguei|comprei|fui ao|fui n[ao]|almocei|jantei|tomei|uber|ifood|mercado|supermercado|luz|água|aluguel|parcela|boleto/.test(lower)) return 'record_transaction';
   if (/recebi|salário|freela|entrou|depósito/.test(lower)) return 'record_transaction';
-
-  // Consulta de saldo / balanço
   if (/saldo|quanto gastei|quanto tenho|balanço|resumo do mês|quanto sobrou|receitas|despesas do mês/.test(lower)) return 'query_balance';
-
-  // Listagem de transações
   if (/transaç|extrato|histórico|lista/.test(lower)) return 'query_transactions';
-
-  // Orçamento
   if (/orçamento de|budget de|limite para|definir limite|meu orçamento/.test(lower)) return 'set_budget';
   if (/ver orçamento|como está meu orçamento|situação do orçamento/.test(lower)) return 'query_budget';
-
-  // Relatório
   if (/relatório|report|gerar relatório|pdf/.test(lower)) return 'generate_report';
-
-  // Dívidas
   if (/dívida|parcela|empréstimo|cartão|financiamento/.test(lower)) return 'debt_query';
 
-  // Fallback LLM
+  // Fallback LLM (Groq — rápido e gratuito)
   try {
-    const openai = getLLM();
-    const res = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3.2',
-      temperature: 0,
-      messages: [
-        {
-          role: 'system',
-          content: `Classifique a intenção em uma destas categorias: record_transaction, query_balance, query_transactions, set_budget, query_budget, generate_report, debt_query, goal_update, general_question. Responda APENAS com a categoria.`,
-        },
-        { role: 'user', content: message },
-      ],
-    });
-    const intent = res.choices[0]?.message?.content?.trim() as FinanceIntent;
+    const result = await llmChat(
+      message,
+      `Classifique a intenção em uma destas categorias: record_transaction, query_balance, query_transactions, set_budget, query_budget, generate_report, debt_query, goal_update, general_question. Responda APENAS com a categoria, sem mais nada.`,
+      0,
+    );
+    const intent = result.trim() as FinanceIntent;
     const valid: FinanceIntent[] = ['record_transaction', 'query_balance', 'query_transactions', 'set_budget', 'query_budget', 'generate_report', 'debt_query', 'goal_update', 'general_question'];
     return valid.includes(intent) ? intent : 'general_question';
   } catch {
@@ -75,25 +48,15 @@ async function detectIntent(message: string): Promise<FinanceIntent> {
 
 async function handleGeneralQuestion(message: string): Promise<string> {
   const spreadsheetId = getSpreadsheetId();
-  const openai = getLLM();
-
   const context = spreadsheetId
     ? 'O usuário tem planilha financeira configurada na ARIA.'
     : 'O usuário ainda não configurou a planilha financeira.';
 
-  const res = await openai.chat.completions.create({
-    model: 'deepseek/deepseek-v3.2',
-    temperature: 0.7,
-    messages: [
-      {
-        role: 'system',
-        content: `Você é um assistente financeiro pessoal brasileiro da ARIA. ${context} Responda de forma amigável, prática e em português. Seja conciso (máx 3 parágrafos).`,
-      },
-      { role: 'user', content: message },
-    ],
-  });
-
-  return res.choices[0]?.message?.content ?? 'Desculpe, não consegui processar sua pergunta.';
+  return llmChat(
+    message,
+    `Você é um assistente financeiro pessoal brasileiro da ARIA. ${context} Responda de forma amigável, prática e em português. Seja conciso (máx 3 parágrafos).`,
+    0.7,
+  );
 }
 
 export interface OrchestratorResponse {

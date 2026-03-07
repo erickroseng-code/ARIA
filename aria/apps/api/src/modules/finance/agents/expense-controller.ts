@@ -1,26 +1,17 @@
-import OpenAI from 'openai';
+import { llmChat } from './llm-client';
 import { SheetsService } from '@aria/integrations';
 import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { checkBudgetAlerts } from './budget-planner';
 
+
 interface TransactionExtraction {
-  date: string;       // YYYY-MM-DD
+  date: string;
   type: 'receita' | 'despesa';
   category: string;
   description: string;
   amount: number;
   tags: string;
-}
-
-function getLLM() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada');
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    defaultHeaders: { 'HTTP-Referer': 'https://aios-finance.local', 'X-Title': 'Finance Squad' },
-  });
 }
 
 function extractJson<T>(raw: string): T {
@@ -46,9 +37,8 @@ export async function recordTransaction(userMessage: string): Promise<{
     };
   }
 
-  const openai = getLLM();
   const today = new Date().toISOString().split('T')[0];
-  const currentMonth = today.substring(0, 7); // YYYY-MM
+  const currentMonth = today.substring(0, 7);
 
   const systemPrompt = `Você é uma API JSON para extração de transações financeiras. Responda APENAS com JSON.`;
   const userPrompt = `Extraia os dados da transação desta mensagem: "${userMessage}"
@@ -67,16 +57,8 @@ JSON:
   "tags": "<tags separadas por vírgula ou vazio>"
 }`;
 
-  const res = await openai.chat.completions.create({
-    model: 'deepseek/deepseek-v3.2',
-    temperature: 0,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-  });
-
-  const tx = extractJson<TransactionExtraction>(res.choices[0]?.message?.content ?? '');
+  const raw = await llmChat(userPrompt, systemPrompt, 0);
+  const tx = extractJson<TransactionExtraction>(raw);
 
   // Registrar na aba Transações
   const service = new SheetsService();

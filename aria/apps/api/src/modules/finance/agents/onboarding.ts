@@ -1,15 +1,14 @@
-import OpenAI from 'openai';
 import { SheetsService } from '@aria/integrations';
 import {
   getOnboardingState,
   saveOnboardingState,
   setupSpreadsheet,
   getSpreadsheetId,
-  type OnboardingState,
 } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
+import { llmChat } from './llm-client';
 
-// Definição das perguntas de onboarding (espelho de squads/finance/src/index.ts)
+// Definição das perguntas de onboarding
 const ONBOARDING_STEPS = [
   { step: 1, question: 'Qual é sua renda mensal líquida fixa? (salário, pró-labore ou renda principal após impostos)', field: 'monthlyFixedIncome', hint: 'Ex: R$ 5.000' },
   { step: 2, question: 'Você tem renda variável? (freelance, comissões, aluguéis...) Se sim, qual a média mensal? Se não, pode dizer "não tenho".', field: 'monthlyVariableIncome', hint: 'Ex: R$ 1.500 ou "não tenho"' },
@@ -19,35 +18,12 @@ const ONBOARDING_STEPS = [
   { step: 6, question: 'Quanto você consegue poupar por mês atualmente? (Mesmo que seja pouco ou zero, seja honesto!)', field: 'monthlySavingsCapacity', hint: 'Ex: R$500, R$0 ou "fico no negativo"' },
 ];
 
-function getLLM() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada');
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    defaultHeaders: { 'HTTP-Referer': 'https://aios-finance.local', 'X-Title': 'Finance Squad' },
-  });
-}
-
 function extractJson<T>(raw: string): T {
   const text = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   try { return JSON.parse(text) as T; } catch { /* continue */ }
   const obj = text.match(/\{[\s\S]*\}/);
   if (obj) { try { return JSON.parse(obj[0]) as T; } catch { /* continue */ } }
   throw new Error('Não foi possível extrair JSON da resposta LLM');
-}
-
-async function llmChat(prompt: string, system: string, temperature = 0.3): Promise<string> {
-  const openai = getLLM();
-  const res = await openai.chat.completions.create({
-    model: 'deepseek/deepseek-v3.2',
-    temperature,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: prompt },
-    ],
-  });
-  return res.choices[0]?.message?.content ?? '';
 }
 
 interface DiagnosisResult {
