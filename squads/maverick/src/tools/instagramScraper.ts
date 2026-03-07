@@ -371,18 +371,30 @@ export class InstagramScraper {
         }
       }
 
-      // Fallback caption via DOM
+      // Fallback caption via DOM — evita pegar comentários
       if (!caption) {
         caption = await page.evaluate(() => {
+          // 1. h1 sempre é o caption principal no Instagram
           const h1 = document.querySelector('h1');
-          if (h1?.textContent?.trim()) return h1.textContent.trim();
+          if (h1?.textContent && h1.textContent.trim().length >= 30) {
+            return h1.textContent.trim();
+          }
+
+          // 2. Spans dentro da section de descrição do post
+          const descSection = document.querySelector(
+            'div[role="dialog"] ul li:first-child span, article header ~ div span'
+          );
+          if (descSection?.textContent && descSection.textContent.trim().length >= 30) {
+            return descSection.textContent.trim();
+          }
+
+          // 3. Fallback: spans longos (≥60 chars) sem links — descarta textos curtos tipo comentários
           const spans = Array.from(document.querySelectorAll('span')).filter(
-            s => s.innerText?.length > 20 && !s.querySelector('a')
+            (s: any) => s.innerText?.length >= 60 && !s.querySelector('a') && !/^\d/.test(s.innerText)
           );
           return spans[0]?.textContent?.trim() ?? '';
         });
       }
-
       const viewsLabel = views !== undefined ? `${views.toLocaleString('pt-BR')} views` : 'n/d';
       process.stdout.write(`    views: ${viewsLabel} | likes: ${(likes ?? 0).toLocaleString('pt-BR')} | ${ageDays ?? '?'}d atrás\n`);
 
@@ -403,39 +415,76 @@ export class InstagramScraper {
 
   // ── Filtro de Viralidade ──────────────────────────────────────────────────
 
+  // ── Detecção de idioma PT-BR ─────────────────────────────────────────────
+
+  /**
+   * Retorna true se o texto contém ao menos uma palavra-raiz do PT-BR.
+   * Usada para filtrar posts em espanhol / inglês coletados via hashtags globais.
+   */
+  private isPortuguese(text: string): boolean {
+    if (!text || text.length < 15) return true; // texto curto: não descartar
+
+    const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Marcadores positivos: palavras exclusivamente PT-BR
+    const ptMarkers = [
+      'voce', 'nao', 'que', 'uma', 'para', 'com', 'por', 'isso', 'mas', 'tem',
+      'seu', 'sua', 'nos', 'ele', 'ela', 'esse', 'essa', 'aqui', 'bem', 'muito',
+      'quando', 'como', 'onde', 'porque', 'entao', 'ja', 'ate', 'cada', 'ainda',
+      'sempre', 'nunca', 'agora', 'depois', 'antes', 'sobre', 'entre',
+      // Termos financeiros PT-BR
+      'dinheiro', 'divida', 'poupanca', 'renda', 'financas', 'investimento',
+      'salario', 'emprego', 'trabalho', 'empresa', 'mercado', 'economia',
+    ];
+
+    // Marcadores negativos: palavras exclusivamente ES (espanhol)
+    const esOnlyMarkers = [
+      'eres', 'estas', 'estoy', 'tienes', 'tiene', 'ellos', 'ellas',
+      'también', 'tambien', 'pero', 'porque', 'nosotros', 'vosotros',
+      'siempre', 'nunca', 'ahora', 'entonces', 'cuando', 'donde',
+      'muy', 'mucho', 'mucha', 'muchos', 'muchas',
+    ];
+
+    const hasES = esOnlyMarkers.some(w => lower.includes(w));
+    const hasPT = ptMarkers.some(w => lower.includes(w));
+
+    if (hasES && !hasPT) return false; // claramente espanhol
+    return true; // PT-BR ou neutro → mantém
+  }
+
   /**
    * Melhoria 3: Funil de Viralidade
-   * Filtra posts por views e calcula score.
+   * Filtra posts por views, idioma PT-BR e calcula score.
    * Se menos de 3 posts atingirem o threshold, usa um fallback leniente.
    */
   filterByVirality(posts: RawPost[], minViews = 100_000): ViralPost[] {
-    const withViews = posts.filter(p => p.views !== undefined && p.views > 0);
-    const withLikes = posts.filter(p => p.views === undefined && (p.likes ?? 0) > 0);
+    // Filtro de idioma: remove posts claramente em espanhol
+    const ptPosts = posts.filter(p => this.isPortuguese(p.caption ?? ''));
+    const removedLang = posts.length - ptPosts.length;
+    if (removedLang > 0) {
+      process.stdout.write(`[LANG FILTER] ${removedLang} post(s) em outro idioma removidos\n`);
+    }
+
+    const withViews = ptPosts.filter(p => p.views !== undefined && p.views > 0);
+    const withLikes = ptPosts.filter(p => p.views === undefined && (p.likes ?? 0) > 0);
 
     if (withViews.length === 0 && withLikes.length === 0) {
       process.stdout.write('[FILTER] Sem métricas confiáveis — usando ordem do Instagram\n');
-      return posts.map(p => ({ ...p, viral_score: 0 }));
+      return ptPosts.map(p => ({ ...p, viral_score: 0 }));
     }
 
     // Filtro strict: somente posts que atingem minViews
     const strict = withViews.filter(p => (p.views ?? 0) >= minViews);
-
     process.stdout.write(`[FILTER] Threshold ${minViews.toLocaleString('pt-BR')}: ${strict.length} posts aceitos\n`);
 
     // Fallback leniente se menos de 3 aprovados
     const lenient = withViews.filter(p => (p.views ?? 0) >= minViews * 0.2);
     const filtered = strict.length >= 3 ? strict : lenient;
 
+    // Ordenação: puramente por viral_score desc (sem mixar idade como desempate)
     const sorted = [...filtered, ...withLikes]
       .map(p => ({ ...p, viral_score: this.calculateViralScore(p) }))
-      .sort((a, b) => {
-        if (a.ageDays !== undefined && b.ageDays !== undefined) {
-          const scoreDiff = b.viral_score - a.viral_score;
-          if (Math.abs(scoreDiff) > 1) return scoreDiff;
-          return (a.ageDays ?? 999) - (b.ageDays ?? 999);
-        }
-        return b.viral_score - a.viral_score;
-      });
+      .sort((a, b) => b.viral_score - a.viral_score);
 
     process.stdout.write(`[TOP VIEWS] ${sorted.length} posts com ${minViews.toLocaleString('pt-BR')}+ views\n\n`);
     return sorted;
