@@ -431,13 +431,25 @@ function ScriptPreviewCard({ script, index, onClick }: {
 
 // ── Script Modal (popup com roteiro completo) ─────────────────────────────────
 
+function cleanScriptText(text: string | null | undefined): string {
+  if (!text) return '';
+  // Remove blocos entre colchetes como [Visual: ...], [Tom: ...], [0-3s], etc.
+  return text.replace(/\[.*?\]/g, '').replace(/\n+/g, '\n\n').trim();
+}
+
 function ScriptModal({ script, index, onClose }: {
   script: ScriptData; index: number; onClose: () => void;
 }) {
   const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
   const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
-  const bodyLines = script.body?.split('\n').filter(Boolean) ?? [];
-  const fullText = `HOOK:\n${script.hook}\n\nROTEIRO:\n${script.body}\n\nCTA:\n${script.cta}`;
+
+  // Limpando os textos para remover a direção e deixar apenas a fala/texto
+  const cleanHook = cleanScriptText(script.hook);
+  const cleanBody = cleanScriptText(script.body);
+  const cleanCta = cleanScriptText(script.cta);
+
+  const bodyLines = cleanBody.split('\n').filter(Boolean);
+  const fullText = `HOOK:\n${cleanHook}\n\nROTEIRO:\n${cleanBody}\n\nCTA:\n${cleanCta}`;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -518,31 +530,30 @@ function ScriptModal({ script, index, onClose }: {
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" />
+                <Zap className="w-5 h-5 text-amber-400" />
                 <span className="text-sm font-bold text-amber-400 uppercase tracking-widest">Hook</span>
               </div>
-              <CopyButton text={script.hook} label="Copiar hook" />
+              <CopyButton text={cleanHook} label="Copiar hook" />
             </div>
-            <div className="rounded-xl px-5 py-4 bg-amber-500/[0.08] border border-amber-500/20">
-              <p className="text-base text-white/90 leading-relaxed font-medium">{script.hook}</p>
+            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-white/[0.08] shadow-inner">
+              <p className="text-lg text-white font-medium leading-relaxed">{cleanHook}</p>
             </div>
           </div>
 
-          {/* Body */}
+          {/* Desenvolvimento */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
-              <span className="text-sm font-bold text-white/35 uppercase tracking-widest">Roteiro</span>
-              <CopyButton text={script.body} label="Copiar roteiro" />
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-white/50" />
+                <span className="text-sm font-bold text-white/50 uppercase tracking-widest">Desenvolvimento</span>
+              </div>
+              <CopyButton text={cleanBody} label="Copiar desenvolvimento" />
             </div>
-            <div className="rounded-xl px-5 py-4 bg-white/[0.03] border border-white/[0.06] space-y-2.5">
+            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-white/[0.08] shadow-inner space-y-4">
               {bodyLines.map((line, i) => {
-                const isDirective = /^\[.+\]/.test(line.trim());
                 const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
                 return (
-                  <p key={i} className={`leading-relaxed ${isDirective ? 'text-white/30 italic text-sm' :
-                    isSlideHeader ? 'text-white/55 text-sm font-bold uppercase tracking-wider pt-2' :
-                      'text-base text-white/82'
-                    }`}>
+                  <p key={i} className={`leading-relaxed ${isSlideHeader ? 'text-white/60 text-sm font-bold uppercase tracking-wider pt-2' : 'text-lg text-white font-medium'}`}>
                     {line}
                   </p>
                 );
@@ -550,36 +561,17 @@ function ScriptModal({ script, index, onClose }: {
             </div>
           </div>
 
-          {/* Visual cues */}
-          {script.visual_cues?.length > 0 && (
-            <div>
-              <p className="text-sm font-bold text-white/25 uppercase tracking-widest mb-2.5">Direção Visual</p>
-              <div className="flex flex-wrap gap-2">
-                {script.visual_cues.map((cue, i) => (
-                  <span key={i} className="text-sm px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-white/45">
-                    {cue}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Filming tip */}
-          {script.filming_tip && (
-            <div className="flex items-start gap-3 rounded-xl px-5 py-4 bg-white/[0.02] border border-white/[0.05]">
-              <Film className="w-4 h-4 text-white/25 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-white/50 leading-relaxed">{script.filming_tip}</p>
-            </div>
-          )}
-
           {/* CTA */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
-              <span className="text-sm font-bold text-emerald-500/70 uppercase tracking-widest">CTA</span>
-              <CopyButton text={script.cta} label="Copiar CTA" />
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-emerald-400" />
+                <span className="text-sm font-bold text-emerald-400 uppercase tracking-widest">CTA</span>
+              </div>
+              <CopyButton text={cleanCta} label="Copiar CTA" />
             </div>
-            <div className="rounded-xl px-5 py-4 bg-emerald-500/[0.08] border border-emerald-500/20">
-              <p className="text-base text-emerald-300 font-semibold leading-relaxed">{script.cta}</p>
+            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-emerald-500/20 shadow-inner">
+              <p className="text-lg text-emerald-50 font-semibold leading-relaxed">{cleanCta}</p>
             </div>
           </div>
         </div>
