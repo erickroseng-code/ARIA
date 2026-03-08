@@ -59,6 +59,18 @@ const config: Config = {
         glass: 'hsl(var(--glass))',
         'glass-border': 'hsl(var(--glass-border))',
       },
+      fontFamily: {
+        sans: [
+          'SF Pro Display',
+          'SF Pro Text',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',

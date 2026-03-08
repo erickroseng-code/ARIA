@@ -141,7 +141,7 @@ export function useAriaSpeech() {
           onEnergyPulseRef.current?.(0);
           if (energyTimerRef.current) clearInterval(energyTimerRef.current);
           options?.onCharIndex?.(text.length);
-          audioCtx.close().catch(() => {});
+          audioCtx.close().catch(() => { });
           resolve();
         };
 
@@ -210,7 +210,7 @@ export function useAriaSpeech() {
           if (!queueRunningRef.current && !isSpeakingRef.current) break; // parado externamente
           const chunkText = chunks[i];
           const chunkLen = chunkText.length;
-          const chunkOptions: SpeakOptions = options?.onCharIndex ? {
+          const chunkOptions: SpeakOptions | undefined = options?.onCharIndex ? {
             onCharIndex: (ci) => options.onCharIndex!(charOffset + ci),
           } : undefined;
           await _playAudio(chunkText, chunkOptions);
@@ -278,7 +278,7 @@ export function useAriaSpeech() {
           onEnergyPulseRef.current?.(0);
           if (energyTimerRef.current) clearInterval(energyTimerRef.current);
           options?.onCharIndex?.(text.length);
-          audioCtx.close().catch(() => {});
+          audioCtx.close().catch(() => { });
           resolve();
         };
 

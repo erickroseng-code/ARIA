@@ -51,9 +51,12 @@ export async function createWorkspaceClient(): Promise<OAuth2Client> {
 
     const auth = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
-    // Auto-setup credentials
-    if (refreshToken) auth.setCredentials({ refresh_token: refreshToken });
-    if (accessToken) auth.setCredentials({ access_token: accessToken });
+    // Passa ambos os tokens em uma única chamada — duas chamadas sequenciais sobrescreveriam uma a outra.
+    // O OAuth2Client usa o access_token se válido, e renova automaticamente via refresh_token quando expira.
+    auth.setCredentials({
+        ...(refreshToken ? { refresh_token: refreshToken } : {}),
+        ...(accessToken ? { access_token: accessToken } : {}),
+    });
 
     return auth;
 }

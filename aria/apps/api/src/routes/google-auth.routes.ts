@@ -181,35 +181,72 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
 
     /**
      * GET /api/auth/google/status
-     * Returns the current status of the Google integration in the native database.
-     * Falls back to GOOGLE_REFRESH_TOKEN in .env so the integration never "falls" on restart.
+     * Verifica o status REAL da integração tentando renovar o access token via Google.
+     * Token existente no banco mas revogado retorna connected: false corretamente.
      */
     fastify.get('/status', async (_req, reply) => {
         try {
+            // Resolver o refresh token (banco primeiro, depois .env)
             const stmt = db.prepare('SELECT refreshToken, isValid, updatedAt FROM integrations WHERE provider = ?');
             const integration = stmt.get('google') as any;
 
+            let refreshToken: string | undefined;
+            let source: 'db' | 'env' = 'db';
+
             if (integration?.refreshToken && integration.isValid === 1) {
-                return reply.send({
-                    connected: true,
-                    isValid: true,
-                    updatedAt: integration.updatedAt,
-                    source: 'db',
-                });
+                refreshToken = integration.refreshToken;
+            } else {
+                refreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+                source = 'env';
             }
 
-            // Fallback: use GOOGLE_REFRESH_TOKEN from .env (token is permanent and env persists)
-            const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
-            if (envRefreshToken) {
-                return reply.send({ connected: true, isValid: true, source: 'env' });
+            if (!refreshToken) {
+                return reply.send({ connected: false, reason: 'Nenhum token configurado' });
             }
 
-            return reply.send({ connected: false, isValid: false });
-        } catch (error) {
-            return reply.status(500).send({
-                success: false,
-                error: error instanceof Error ? error.message : String(error)
+            const clientId = process.env.GOOGLE_CLIENT_ID;
+            const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+            if (!clientId || !clientSecret) {
+                return reply.send({ connected: false, reason: 'GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET não configurados' });
+            }
+
+            // Verificação real: tentar renovar o access token via Google OAuth
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    refresh_token: refreshToken,
+                    grant_type: 'refresh_token',
+                }),
             });
+
+            if (tokenRes.ok) {
+                // Token válido — garantir isValid = 1 no banco
+                if (integration) {
+                    db.prepare('UPDATE integrations SET isValid = 1, updatedAt = CURRENT_TIMESTAMP WHERE provider = ?').run('google');
+                }
+                return reply.send({ connected: true, isValid: true, source, updatedAt: integration?.updatedAt });
+            }
+
+            // Token rejeitado pelo Google — marcar como inválido no banco
+            const errData = await tokenRes.json().catch(() => ({})) as any;
+            if (integration) {
+                db.prepare('UPDATE integrations SET isValid = 0, updatedAt = CURRENT_TIMESTAMP WHERE provider = ?').run('google');
+            }
+            fastify.log.warn(`[Google] Token inválido em /status: ${errData?.error} — ${errData?.error_description}`);
+
+            return reply.send({
+                connected: false,
+                reason: errData?.error === 'invalid_grant'
+                    ? 'Token revogado ou expirado — reconecte em /api/auth/google/url'
+                    : (errData?.error ?? 'Token rejeitado pelo Google'),
+            });
+        } catch (error) {
+            fastify.log.error('[Google] Erro de rede ao verificar token:', error);
+            return reply.status(500).send({ connected: false, reason: 'Erro ao verificar token com o Google' });
         }
     });
 

@@ -184,10 +184,10 @@ function MetricCard({ icon: Icon, label, value, color }: {
   icon: React.ElementType; label: string; value: string; color: string;
 }) {
   return (
-    <div className={`flex flex-col gap-3 rounded-2xl p-6 border ${color} bg-white/[0.03]`}>
+    <div className={`flex flex-col gap-3 rounded-2xl p-6 border ${color} bg-[#161618] shadow-sm`}>
       <div className="flex items-center gap-2">
         <Icon className="w-5 h-5 opacity-60" />
-        <span className="text-sm text-white/50 uppercase tracking-wider font-semibold">{label}</span>
+        <span className="text-[10px] text-white/50 uppercase tracking-widest font-bold">{label}</span>
       </div>
       <span className="text-4xl font-bold text-white leading-none">{value}</span>
     </div>
@@ -199,17 +199,17 @@ function ListCard({ icon: Icon, title, items, color, emptyMsg }: {
   color: { border: string; accent: string; dot: string }; emptyMsg: string;
 }) {
   return (
-    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+    <div className={`rounded-2xl p-6 border ${color.border} bg-[#161618] flex flex-col gap-5 shadow-sm`}>
       <div className={`flex items-center gap-2.5 ${color.accent}`}>
         <Icon className="w-5 h-5" />
-        <span className="text-base font-bold">{title}</span>
+        <span className="text-sm font-bold uppercase tracking-wider">{title}</span>
       </div>
       {items.length === 0 ? (
         <p className="text-white/30 text-base italic">{emptyMsg}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item, i) => (
-            <li key={i} className="flex items-start gap-3 text-base text-white/78 leading-relaxed">
+            <li key={i} className="flex items-start gap-3 text-sm text-white/70 leading-relaxed">
               <span className={`mt-2.5 w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
               {item}
             </li>
@@ -226,17 +226,17 @@ function PostCard({ icon: Icon, title, posts, color }: {
   color: { border: string; accent: string; badge: string };
 }) {
   return (
-    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+    <div className={`rounded-2xl p-6 border ${color.border} bg-[#161618] flex flex-col gap-5 shadow-sm`}>
       <div className={`flex items-center gap-2.5 ${color.accent}`}>
         <Icon className="w-5 h-5" />
-        <span className="text-base font-bold">{title}</span>
+        <span className="text-sm font-bold uppercase tracking-wider">{title}</span>
       </div>
       {posts.length === 0 ? (
         <p className="text-white/30 text-base italic">Sem dados suficientes</p>
       ) : (
         <div className="space-y-3">
           {posts.map((post, i) => (
-            <div key={i} className={`rounded-xl p-4 border ${color.badge} bg-white/[0.02]`}>
+            <div key={i} className={`rounded-xl p-4 border ${color.badge} bg-[#0B0B0C] shadow-inner`}>
               <p className="text-white/80 text-sm font-mono leading-relaxed mb-2 truncate">
                 "{post.caption_preview}..."
               </p>
@@ -298,7 +298,7 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
   ];
 
   return (
-    <div className="rounded-2xl p-6 border border-white/[0.08] bg-white/[0.03]">
+    <div className="rounded-2xl p-6 border border-white/5 bg-[#161618] shadow-sm">
       <div className="flex items-center gap-2.5 mb-6">
         <BarChart2 className="w-5 h-5 text-white/40" />
         <span className="text-base font-bold text-white/70">Score do Perfil</span>
@@ -306,7 +306,7 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
 
       <div className="flex items-center gap-8 mb-2">
         {/* Nota geral em destaque */}
-        <div className="flex flex-col items-center justify-center w-28 h-28 rounded-2xl border border-white/[0.08] bg-white/[0.04] flex-shrink-0">
+        <div className="flex flex-col items-center justify-center w-28 h-28 rounded-2xl border border-white/5 bg-[#0B0B0C] shadow-inner flex-shrink-0">
           <span className={`text-5xl font-black ${color}`}>{overall}</span>
           <span className="text-xs text-white/30 uppercase tracking-widest mt-1">/ 100</span>
         </div>
@@ -384,7 +384,7 @@ function ScriptPreviewCard({ script, index, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${cat.gradient} hover:border-white/[0.18] hover:scale-[1.01] transition-all duration-200 group`}
+      className={`w-full text-left rounded-2xl border border-white/5 overflow-hidden bg-gradient-to-br ${cat.gradient} hover:border-white/10 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 group`}
     >
       {/* Header */}
       <div className="flex items-start gap-3 px-4 pt-4 pb-3 border-b border-white/[0.06]">
@@ -467,7 +467,7 @@ function ScriptModal({ script, index, onClose }: {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={handleBackdrop}
     >
-      <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.12] overflow-hidden bg-[#0d0d12] bg-gradient-to-br ${cat.gradient}`}>
+      <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/10 shadow-2xl overflow-hidden bg-[#0d0d12] bg-gradient-to-br ${cat.gradient}`}>
         {/* Modal header */}
         <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-white/[0.08] flex-shrink-0">
           <span className="text-xl font-black text-white/15 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
@@ -508,13 +508,13 @@ function ScriptModal({ script, index, onClose }: {
             <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-2">
               {script.why_format && (
                 <div className="flex items-start gap-3">
-                  <span className="text-[11px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Formato</span>
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Formato</span>
                   <p className="text-sm text-white/50 italic leading-relaxed">{script.why_format}</p>
                 </div>
               )}
               {script.why_framework && (
                 <div className="flex items-start gap-3">
-                  <span className="text-[11px] font-bold text-white/25 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Copy</span>
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex-shrink-0 mt-0.5 w-14">Copy</span>
                   <p className="text-sm text-white/45 italic leading-relaxed">{script.why_framework}</p>
                 </div>
               )}
@@ -532,11 +532,11 @@ function ScriptModal({ script, index, onClose }: {
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-400" />
-                <span className="text-sm font-bold text-amber-400 uppercase tracking-widest">Hook</span>
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Hook</span>
               </div>
               <CopyButton text={cleanHook} label="Copiar hook" />
             </div>
-            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-white/[0.08] shadow-inner">
+            <div className="rounded-xl px-6 py-5 bg-[#0B0B0C] shadow-inner border border-white/5">
               <p className="text-lg text-white font-medium leading-relaxed">{cleanHook}</p>
             </div>
           </div>
@@ -546,11 +546,11 @@ function ScriptModal({ script, index, onClose }: {
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-white/50" />
-                <span className="text-sm font-bold text-white/50 uppercase tracking-widest">Desenvolvimento</span>
+                <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Desenvolvimento</span>
               </div>
               <CopyButton text={cleanBody} label="Copiar desenvolvimento" />
             </div>
-            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-white/[0.08] shadow-inner space-y-4">
+            <div className="rounded-xl px-6 py-5 bg-[#0B0B0C] shadow-inner border border-white/5 space-y-4">
               {bodyLines.map((line, i) => {
                 const isSlideHeader = /^(Slide|SLIDE|##)\s/.test(line.trim());
                 return (
@@ -567,11 +567,11 @@ function ScriptModal({ script, index, onClose }: {
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-emerald-400" />
-                <span className="text-sm font-bold text-emerald-400 uppercase tracking-widest">CTA</span>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">CTA</span>
               </div>
               <CopyButton text={cleanCta} label="Copiar CTA" />
             </div>
-            <div className="rounded-xl px-6 py-5 bg-[#17171A] border border-emerald-500/20 shadow-inner">
+            <div className="rounded-xl px-6 py-5 bg-[#0B0B0C] shadow-inner border border-emerald-500/20">
               <p className="text-lg text-emerald-50 font-semibold leading-relaxed">{cleanCta}</p>
             </div>
           </div>
@@ -652,8 +652,8 @@ function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) 
       </div>
 
       {/* Benchmark reference */}
-      <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06] mb-3">
-        <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Referência para {panorama.tier}</p>
+      <div className="rounded-xl p-3 bg-[#161618] shadow-sm border border-white/5 mb-3">
+        <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Referência para {panorama.tier}</p>
         <p className="text-xs text-white/60 font-mono">{panorama.tier_benchmark}</p>
       </div>
 
@@ -671,8 +671,8 @@ function ScoreDelta({ current, previous, label }: { current: number; previous: n
   const color = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-white/40';
 
   return (
-    <div className="flex flex-col gap-1 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-      <span className="text-[10px] text-white/30 uppercase tracking-wider">{label}</span>
+    <div className="flex flex-col gap-1 p-3 rounded-xl bg-[#161618] shadow-sm border border-white/5">
+      <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{label}</span>
       <div className="flex items-baseline gap-2">
         <span className="text-xl font-bold text-white">{current}</span>
         <div className={`flex items-center gap-0.5 text-xs font-semibold ${color}`}>
@@ -701,29 +701,29 @@ function SuggestedICPCard({ sicp }: { sicp: SuggestedICP }) {
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Público provável</p>
+          <div className="rounded-xl p-4 bg-[#161618] border border-white/5 shadow-sm">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Público provável</p>
             <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_audience}</p>
           </div>
-          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Produto / Oferta</p>
+          <div className="rounded-xl p-4 bg-[#161618] border border-white/5 shadow-sm">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Produto / Oferta</p>
             <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_product}</p>
           </div>
         </div>
 
         <div className={`rounded-xl p-4 border ${isInferred ? 'bg-violet-500/[0.08] border-violet-500/20' : 'bg-indigo-500/[0.08] border-indigo-500/20'}`}>
-          <p className="text-[10px] text-white/35 uppercase tracking-wider mb-1.5 font-semibold">Posicionamento recomendado</p>
+          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Posicionamento recomendado</p>
           <p className="text-sm text-white/85 leading-relaxed font-medium">{sicp.recommended_positioning}</p>
         </div>
 
-        <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Dor principal a enderecar</p>
+        <div className="rounded-xl p-4 bg-[#161618] shadow-sm border border-white/5">
+          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Dor principal a enderecar</p>
           <p className="text-sm text-white/65 leading-relaxed">{sicp.main_pain_addressed}</p>
         </div>
 
         {sicp.icp_next_steps?.length > 0 && (
           <div>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2.5 font-semibold">Proximos passos de posicionamento</p>
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2.5">Proximos passos de posicionamento</p>
             <ul className="space-y-2">
               {sicp.icp_next_steps.map((step, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm text-white/65 leading-relaxed">
@@ -768,7 +768,7 @@ function TrendReferencesPanel({ data }: { data: TrendResearchData }) {
           )}
           <div className="grid grid-cols-2 gap-3">
             {data.reference_posts.map((post, i) => (
-              <div key={i} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex flex-col gap-3">
+              <div key={i} className="rounded-xl border border-white/5 shadow-sm bg-[#161618] p-4 flex flex-col gap-3">
                 <p className="text-xs text-white/55 leading-relaxed line-clamp-3">
                   &ldquo;{post.caption_preview}&rdquo;
                 </p>
@@ -831,7 +831,7 @@ function ComparisonPanel({ current, previous, previousDate }: {
   });
 
   return (
-    <div className="rounded-2xl p-6 border border-indigo-500/20 bg-white/[0.03]">
+    <div className="rounded-2xl p-6 border border-indigo-500/20 bg-[#161618] shadow-sm">
       <div className="flex items-center gap-2 mb-5">
         <History className="w-4 h-4 text-indigo-400" />
         <span className="text-sm font-semibold text-indigo-300">Evolução vs. análise de {dateStr}</span>
@@ -860,8 +860,8 @@ function ComparisonPanel({ current, previous, previousDate }: {
 
       {/* Diagnóstico anterior */}
       {previous.strategy.diagnosis && (
-        <div className="mt-4 rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Diagnóstico anterior</p>
+        <div className="mt-4 rounded-xl p-4 bg-[#0B0B0C] shadow-inner border border-white/5">
+          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Diagnóstico anterior</p>
           <p className="text-xs text-white/45 leading-relaxed italic">{previous.strategy.diagnosis}</p>
         </div>
       )}
@@ -914,7 +914,7 @@ function KeywordConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#18181b] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-[#161618]/90 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-1">
@@ -949,7 +949,7 @@ function KeywordConfirmModal({
                     type="text"
                     value={kw}
                     onChange={e => onEdit(i, e.target.value)}
-                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.08] transition-all"
+                    className="flex-1 bg-[#0B0B0C] shadow-inner border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500/50 focus:bg-[#161618] transition-all"
                     placeholder="ex: como emagrecer rápido"
                   />
                 </div>
@@ -958,7 +958,7 @@ function KeywordConfirmModal({
 
             {/* Seletor de período */}
             <div className="mb-5">
-              <p className="text-white/35 text-[11px] font-semibold uppercase tracking-wider mb-2">Período de busca</p>
+              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-2">Período de busca</p>
               <div className="flex gap-1.5">
                 {DATE_OPTIONS.map(days => (
                   <button
@@ -1347,7 +1347,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-background text-white">
 
       {/* ── Keyword Confirm Modal ── */}
       {phase === 'keyword-confirm' && (
@@ -1384,7 +1384,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       )}
 
       {/* ── Header ── */}
-      <header className="flex items-center gap-3 px-6 h-14 border-b border-white/[0.06] flex-shrink-0">
+      <header className="flex items-center gap-3 px-6 h-14 border-b border-white/5 bg-background/80 backdrop-blur-3xl flex-shrink-0 relative z-20">
         <button
           onClick={() => {
             if (phase === 'home') {
@@ -1420,7 +1420,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           </button>
         )}
         {(phase === 'report' || phase === 'running-scripts' || phase === 'done') && (
-          <span className="text-[11px] text-white/30 uppercase tracking-wider font-medium ml-2">
+          <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold ml-2">
             {phase === 'report' ? 'Relatório' : phase === 'running-scripts' ? 'Gerando roteiros...' : 'Roteiros prontos'}
           </span>
         )}
@@ -1547,14 +1547,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           ════════════════════════════════════════════════════════ */}
           {phase === 'asking' && (
             <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
-              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden group">
-                {/* Discrete background glow */}
-                <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[80px] pointer-events-none group-hover:bg-purple-500/20 transition-colors duration-700" />
-                <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[80px] pointer-events-none group-hover:bg-blue-500/20 transition-colors duration-700" />
+              <div className="bg-[#0D0D0F] border border-white/5 shadow-2xl rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden group">
+                {/* Corpo do formulário sem glow colorido */}
 
                 {/* Headline */}
                 <div className="text-center space-y-3 relative z-10">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+                  <div className="w-16 h-16 rounded-2xl bg-[#0B0B0C] shadow-inner border border-white/5 flex items-center justify-center text-3xl mx-auto mb-4">
                     🦅
                   </div>
                   <h2 className="text-3xl font-extrabold text-white tracking-tight">Nova Análise</h2>
@@ -1609,8 +1607,8 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           ════════════════════════════════════════════════════════ */}
           {phase === 'icp-form' && (
             <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
-              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-7 relative overflow-hidden">
-                <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 blur-[60px] pointer-events-none" />
+              <div className="bg-[#0D0D0F] border border-white/5 shadow-2xl rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-7 relative overflow-hidden">
+                {/* Corpo sem glow lateral */}
 
                 <div className="text-center space-y-2">
                   <div className="text-2xl mb-2">🎯</div>

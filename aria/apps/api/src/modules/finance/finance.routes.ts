@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { processFinanceMessage, getFirstOnboardingMessage } from './agents/orchestrator';
+import { processStructuredOnboarding } from './agents/onboarding';
 import { generateReportData } from './agents/report-generator';
 import { generateReportPdf } from './agents/pdf-generator';
 import { checkBudgetAlerts } from './agents/budget-planner';
@@ -25,6 +26,25 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       console.error('[Finance] /setup error:', err);
       return reply.status(500).send({ error: err.message ?? 'Erro ao criar planilha.' });
+    }
+  });
+
+  // POST /api/finance/onboarding/structured — Novo onboarding via wizard estruturado
+  fastify.post('/onboarding/structured', async (
+    req: FastifyRequest<{ Body: Record<string, unknown> }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const result = await processStructuredOnboarding(req.body as any);
+      return reply.send({
+        reply: result.reply,
+        completed: result.completed,
+        spreadsheetUrl: result.spreadsheetUrl,
+        action: 'onboarding_complete',
+      });
+    } catch (err: any) {
+      console.error('[Finance] /onboarding/structured error:', err);
+      return reply.status(500).send({ error: err.message ?? 'Erro ao processar onboarding.' });
     }
   });
 

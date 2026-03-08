@@ -2,20 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import LiquidGlassBackground from "./LiquidGlassBackground";
 import AriaSidebar from "@/components/layout/AriaSidebar";
-import AriaWelcome from "@/components/chat/AriaWelcome";
+import { ExecutiveDashboard } from "@/components/chat/ExecutiveDashboard";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { MaverickSession } from "@/components/chat/MaverickSession";
 import { FinanceSession } from "@/components/chat/FinanceSession";
+import { TrafficSession } from "@/components/chat/TrafficSession";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { useChat } from "@/hooks/useChat";
 import { useAriaSpeech } from "@/hooks/useAriaSpeech";
 import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { HydrationSafeWrapper } from "./HydrationSafeWrapper";
 import { useChatStore } from "@/stores/chatStore";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export function ChatInterface() {
   const [prefill, setPrefill] = useState("");
@@ -32,6 +33,19 @@ export function ChatInterface() {
     }
     return false;
   });
+  const [trafficOpen, setTrafficOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aria_active_squad') === 'traffic';
+    }
+    return false;
+  });
+  const [showDashboard, setShowDashboard] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const active = localStorage.getItem('aria_active_squad');
+      return !active;
+    }
+    return true;
+  });
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [revealLength, setRevealLength] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,10 +56,12 @@ export function ChatInterface() {
       localStorage.setItem('aria_active_squad', 'maverick');
     } else if (financeOpen) {
       localStorage.setItem('aria_active_squad', 'finance');
+    } else if (trafficOpen) {
+      localStorage.setItem('aria_active_squad', 'traffic');
     } else {
       localStorage.removeItem('aria_active_squad');
     }
-  }, [maverickOpen, financeOpen]);
+  }, [maverickOpen, financeOpen, trafficOpen]);
 
   // Store — for sidebar props
   const { conversations, activeConversationId, streamingConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
@@ -80,6 +96,7 @@ export function ChatInterface() {
       setRevealLength(0);
       enqueuedCharsRef.current = 0;
       streamSpeakStartedRef.current = false;
+      setShowDashboard(false);
       clearQueue();
       sendMessage(text);
     }, [sendMessage, clearQueue]),
@@ -89,9 +106,8 @@ export function ChatInterface() {
     }, [clearQueue]),
   });
 
-  // On mount: abre nova conversa — NÃO auto-inicia voz (Chrome bloqueia sem gesto)
+  // On mount: não cria nova conversa cegamente, apenas usa a store persistida.
   useEffect(() => {
-    startNewConversation();
     // eslint-disable react-hooks/exhaustive-deps
   }, []);
 
@@ -112,6 +128,7 @@ export function ChatInterface() {
     setRevealLength(0);
     enqueuedCharsRef.current = 0;
     streamSpeakStartedRef.current = false;
+    setShowDashboard(false);
     clearQueue();
     sendMessage(content);
   }, [sendMessage, clearQueue]);
@@ -124,13 +141,6 @@ export function ChatInterface() {
   const handleQuickCommand = useCallback((cmd: string) => {
     setPrefill(cmd);
   }, []);
-
-  // New conversation handler
-  const handleNewConversation = useCallback(() => {
-    startNewConversation();
-    setSpeakingMessageId(null);
-    setRevealLength(0);
-  }, [startNewConversation]);
 
   // Chunked TTS: enfileira sentenças completas conforme o LLM vai gerando
   useEffect(() => {
@@ -220,152 +230,159 @@ export function ChatInterface() {
   // Estado do orbe: se ARIA está falando, mostra 'processing' no orbe; caso contrário, estado do voice mode
   const orbState = isSpeaking ? 'processing' : voiceState;
 
+  // Derive active squad id for sidebar highlight
+  const activeSquad = maverickOpen ? 'maverick' : financeOpen ? 'finance' : trafficOpen ? 'traffic' : null;
+
+  const handleSelectSquad = useCallback((squadId: string | null) => {
+    if (squadId === 'maverick') { setMaverickOpen(true); setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(false); }
+    else if (squadId === 'finance') { setFinanceOpen(true); setMaverickOpen(false); setTrafficOpen(false); setShowDashboard(false); }
+    else if (squadId === 'traffic') { setTrafficOpen(true); setMaverickOpen(false); setFinanceOpen(false); setShowDashboard(false); }
+    else { setMaverickOpen(false); setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(true); }
+  }, []);
+
   return (
     <HydrationSafeWrapper fallback={<ChatInterfaceLoading />}>
-      <div className="h-screen w-full overflow-hidden relative bg-gradient-to-br from-[#003355] via-[#0d061a] to-[#4a0a41]">
-        {/* Fluid background only on welcome screen and when NOT in a Squad mode */}
-        {!hasMessages && !maverickOpen && !financeOpen && <LiquidGlassBackground energy={energyLevel} />}
-        {!hasMessages && !maverickOpen && !financeOpen && <div className="absolute inset-0 bg-black/20 pointer-events-none" />}
+      <ToastProvider>
+        <div className="h-screen w-full overflow-hidden relative bg-background text-white">
+          {/* Deep Black Matte Layout */}
 
-        <AriaSidebar
-          onSelectIntegration={(cmd) => setPrefill(cmd)}
-          onSelectSquad={(squadId) => {
-            if (squadId === 'maverick') { setMaverickOpen(true); setFinanceOpen(false); }
-            if (squadId === 'finance') { setFinanceOpen(true); setMaverickOpen(false); }
-          }}
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          streamingConversationId={streamingConversationId}
-          onNewConversation={handleNewConversation}
-          onSwitchConversation={switchConversation}
-          onDeleteConversation={deleteConversation}
-        />
+          <AriaSidebar
+            onSelectIntegration={(cmd) => { setPrefill(cmd); }}
+            onSelectSquad={handleSelectSquad}
+            activeConversationId={activeConversationId}
+            activeSquad={activeSquad}
+          />
 
-        <div className="h-full flex flex-col relative z-10 lg:pl-64">
-          {/* ── Modo Squad Maverick: painel inline, largura total do chat ── */}
-          {maverickOpen ? (
-            <MaverickSession onClose={() => setMaverickOpen(false)} />
-          ) : financeOpen ? (
-            <FinanceSession onClose={() => setFinanceOpen(false)} />
-          ) : (
-            <>
-              <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
-                <div className="flex items-center gap-2" />
-                <div className="flex-1" />
-                <div className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "w-2 h-2 rounded-full transition-colors duration-300 shadow-[0_0_8px_rgba(255,255,255,0.4)]",
-                      isSpeaking ? "bg-cyan-400 animate-pulse" : "bg-white/80"
-                    )}
-                  />
-                  <span className="text-xs text-white/80 font-medium drop-shadow-sm">
-                    {isSpeaking ? "Falando" : "Online"}
-                  </span>
-                </div>
-              </header>
-
-              {messages.length === 0 && !isActiveConversationStreaming ? (
-                <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0 lg:pr-64">
-                  <div className="bg-white/[0.01] backdrop-blur-xl border border-white/[0.06] shadow-[0_16px_40px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[28px] px-8 py-10 w-full max-w-[560px] flex flex-col gap-6">
-                    <AriaWelcome onSelect={handleQuickCommand} />
-                    <ChatInput
-                      onSend={handleSend}
-                      disabled={isStreaming || isSpeaking}
-                      prefill={prefill}
-                      onPrefillConsumed={handlePrefillConsumed}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="flex-1 overflow-y-auto scrollbar-hidden px-4"
-                    style={{
-                      maskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)',
-                      WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)'
-                    }}
-                  >
-                    <div className="max-w-3xl mx-auto pt-8 pb-36 space-y-0">
-                      {messages.map((msg, idx) => (
-                        <ChatMessage
-                          key={msg.id}
-                          message={{
-                            id: msg.id,
-                            role: msg.role === 'assistant' ? 'aria' : 'user',
-                            content: msg.content,
-                            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-                          }}
-                          revealLength={msg.id === speakingMessageId ? revealLength : undefined}
-                          onRegenerate={
-                            !isStreaming &&
-                              msg.role === 'assistant' &&
-                              idx === messages.length - 1
-                              ? regenerateResponse
-                              : undefined
-                          }
-                        />
-                      ))}
-                      {isActiveConversationStreaming && activeStreamingContent && (
-                        <ChatMessage
-                          message={{
-                            id: "streaming",
-                            role: "aria",
-                            content: activeStreamingContent,
-                            timestamp: new Date(Date.now()),
-                          }}
-                        />
+          <div className="h-full flex flex-col relative z-10 lg:pl-64">
+            {/* ── Modo Squad Maverick: painel inline, largura total do chat ── */}
+            {maverickOpen ? (
+              <MaverickSession onClose={() => setMaverickOpen(false)} />
+            ) : financeOpen ? (
+              <FinanceSession onClose={() => setFinanceOpen(false)} />
+            ) : trafficOpen ? (
+              <TrafficSession onClose={() => setTrafficOpen(false)} />
+            ) : (
+              <>
+                <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-2" />
+                  <div className="flex-1" />
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "w-2 h-2 rounded-full transition-colors duration-300 shadow-[0_0_8px_rgba(255,255,255,0.4)]",
+                        isSpeaking ? "bg-cyan-400 animate-pulse" : "bg-white/80"
                       )}
-                      {isActiveConversationStreaming && !activeStreamingContent && <TypingIndicator />}
-                      <div ref={messagesEndRef} />
+                    />
+                    <span className="text-xs text-white/80 font-medium drop-shadow-sm">
+                      {isSpeaking ? "Falando" : "Online"}
+                    </span>
+                  </div>
+                </header>
+
+                {showDashboard ? (
+                  <div className="flex-1 flex flex-col min-h-0 lg:pr-64">
+                    <ExecutiveDashboard onSelectSquad={handleSelectSquad} />
+                    <div className="shrink-0 px-4 pb-8 flex justify-center">
+                      <div className="w-full max-w-3xl z-20">
+                        <ChatInput
+                          onSend={handleSend}
+                          disabled={isStreaming || isSpeaking}
+                          prefill={prefill}
+                          onPrefillConsumed={handlePrefillConsumed}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="bg-transparent">
-                    <ChatInput
-                      onSend={handleSend}
-                      disabled={isStreaming || isSpeaking}
-                      prefill={prefill}
-                      onPrefillConsumed={handlePrefillConsumed}
-                    />
-                  </div>
-                </>
-              )}
-            </>
+                ) : (
+                  <>
+                    <div
+                      className="flex-1 overflow-y-auto scrollbar-hidden px-4"
+                      style={{
+                        maskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent)'
+                      }}
+                    >
+                      <div className="max-w-3xl mx-auto pt-8 pb-36 space-y-0">
+                        {messages.map((msg, idx) => (
+                          <ChatMessage
+                            key={msg.id}
+                            message={{
+                              id: msg.id,
+                              role: msg.role === 'assistant' ? 'aria' : 'user',
+                              content: msg.content,
+                              timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                            }}
+                            revealLength={msg.id === speakingMessageId ? revealLength : undefined}
+                            onRegenerate={
+                              !isStreaming &&
+                                msg.role === 'assistant' &&
+                                idx === messages.length - 1
+                                ? regenerateResponse
+                                : undefined
+                            }
+                          />
+                        ))}
+                        {isActiveConversationStreaming && activeStreamingContent && (
+                          <ChatMessage
+                            message={{
+                              id: "streaming",
+                              role: "aria",
+                              content: activeStreamingContent,
+                              timestamp: new Date(Date.now()),
+                            }}
+                          />
+                        )}
+                        {isActiveConversationStreaming && !activeStreamingContent && <TypingIndicator />}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    </div>
+                    <div className="bg-transparent">
+                      <ChatInput
+                        onSend={handleSend}
+                        disabled={isStreaming || isSpeaking}
+                        prefill={prefill}
+                        onPrefillConsumed={handlePrefillConsumed}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* VoiceOrb fixo no canto inferior direito — visível sempre */}
+          {voiceSupported && !maverickOpen && !financeOpen && !trafficOpen && (
+            <div className="fixed bottom-6 right-6 z-50">
+              <VoiceOrb
+                state={orbState}
+                energy={energyLevel}
+                lastTranscript={lastTranscript}
+                isActive={voiceState !== 'idle'}
+                onToggle={() => {
+                  if (voiceState === 'idle' || voiceState === 'error') {
+                    // Clique em idle/error: ativa direto para cmd_listening
+                    activateDirectly();
+                  } else if (voiceState === 'wake_listening') {
+                    // Clique enquanto aguardando wake word: ativa imediatamente
+                    activateDirectly();
+                  } else {
+                    // Clique durante cmd_listening/processing: desliga
+                    stopListening();
+                  }
+                }}
+              />
+            </div>
           )}
         </div>
-
-        {/* VoiceOrb fixo no canto inferior direito — visível sempre */}
-        {voiceSupported && !maverickOpen && !financeOpen && (
-          <div className="fixed bottom-6 right-6 z-50">
-            <VoiceOrb
-              state={orbState}
-              energy={energyLevel}
-              lastTranscript={lastTranscript}
-              isActive={voiceState !== 'idle'}
-              onToggle={() => {
-                if (voiceState === 'idle' || voiceState === 'error') {
-                  // Clique em idle/error: ativa direto para cmd_listening
-                  activateDirectly();
-                } else if (voiceState === 'wake_listening') {
-                  // Clique enquanto aguardando wake word: ativa imediatamente
-                  activateDirectly();
-                } else {
-                  // Clique durante cmd_listening/processing: desliga
-                  stopListening();
-                }
-              }}
-            />
-          </div>
-        )}
-      </div>
+      </ToastProvider>
     </HydrationSafeWrapper>
   );
 }
 
 function ChatInterfaceLoading() {
   return (
-    <div className="h-screen w-full overflow-hidden relative bg-gradient-to-br from-[#004466] via-[#110825] to-[#5a0c50]">
-      <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+    <div className="h-screen w-full overflow-hidden relative bg-background">
+      <div className="absolute inset-0 bg-black/40 pointer-events-none" />
       <div className="h-full w-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 rounded-lg bg-primary/20 animate-pulse" />

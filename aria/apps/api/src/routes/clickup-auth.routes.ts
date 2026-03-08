@@ -142,27 +142,58 @@ export async function registerClickUpAuthRoutes(fastify: FastifyInstance): Promi
 
     /**
      * GET /api/auth/clickup/status
-     * Returns current ClickUp connection status.
+     * Verifica o status REAL da integração chamando a API do ClickUp.
+     * Token existente mas inválido retorna connected: false corretamente.
      */
     fastify.get('/status', async (_req, reply) => {
         try {
-            // First check if we have a DB-persisted OAuth token
+            // Resolver o token (banco OAuth primeiro, depois PAT do .env)
             const stmt = db.prepare('SELECT accessToken, isValid, updatedAt FROM integrations WHERE provider = ?');
             const integration = stmt.get('clickup') as any;
 
+            let token: string | undefined;
+            let source: 'oauth' | 'pat' = 'oauth';
+
             if (integration?.accessToken && integration.isValid) {
-                return reply.send({ connected: true, isValid: true, source: 'oauth', updatedAt: integration.updatedAt });
+                token = integration.accessToken;
+            } else {
+                const { legacyToken } = getClickUpConfig();
+                if (legacyToken) {
+                    token = legacyToken;
+                    source = 'pat';
+                }
             }
 
-            // Fallback: check legacy Personal Access Token from .env
-            const { legacyToken } = getClickUpConfig();
-            if (legacyToken) {
-                return reply.send({ connected: true, isValid: true, source: 'pat' });
+            if (!token) {
+                return reply.send({ connected: false, reason: 'Nenhum token configurado' });
             }
 
-            return reply.send({ connected: false, isValid: false });
+            // Verificação real: chamar API do ClickUp
+            const userRes = await fetch('https://api.clickup.com/api/v2/user', {
+                headers: { Authorization: token },
+            });
+
+            if (userRes.ok) {
+                const data = await userRes.json() as any;
+                return reply.send({
+                    connected: true,
+                    isValid: true,
+                    source,
+                    updatedAt: integration?.updatedAt,
+                    username: data?.user?.username ?? null,
+                });
+            }
+
+            // Token rejeitado — marcar como inválido no banco se veio de lá
+            if (integration) {
+                db.prepare('UPDATE integrations SET isValid = 0, updatedAt = CURRENT_TIMESTAMP WHERE provider = ?').run('clickup');
+            }
+            fastify.log.warn(`[ClickUp] Token inválido em /status: HTTP ${userRes.status}`);
+
+            return reply.send({ connected: false, reason: 'Token inválido ou expirado — reconecte' });
         } catch (error) {
-            return reply.status(500).send({ error: error instanceof Error ? error.message : String(error) });
+            fastify.log.error('[ClickUp] Erro de rede ao verificar token:', error);
+            return reply.status(500).send({ connected: false, reason: 'Erro ao verificar token com o ClickUp' });
         }
     });
 
