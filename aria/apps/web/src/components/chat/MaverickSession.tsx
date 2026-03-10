@@ -52,6 +52,28 @@ interface ICPData {
   transformation: string;
 }
 
+// ── Carousel types (local — não importa do backend) ───────────────────────────
+interface CarouselSlide {
+  position: number;
+  type: 'cover' | 'content' | 'cta';
+  title: string;
+  body: string;
+  visual_hint: string;
+}
+interface CarouselStructure {
+  title: string;
+  format: string;
+  total_slides: number;
+  slides: CarouselSlide[];
+}
+interface CarouselState {
+  loading: boolean;
+  carousel: CarouselStructure | null;
+  htmlExport: string | null;
+  figmaUrl: string | null;
+  error: string | null;
+}
+
 interface EngagementPanorama {
   profile_rate: string;
   classification: string;
@@ -1030,6 +1052,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const selectedMaxAgeRef = useRef(45);
   // Mantém a ref sempre sincronizada com o estado
   useEffect(() => { selectedMaxAgeRef.current = selectedMaxAge; }, [selectedMaxAge]);
+  const [carouselState, setCarouselState] = useState<CarouselState>({
+    loading: false, carousel: null, htmlExport: null, figmaUrl: null, error: null,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -1126,6 +1151,14 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       localStorage.removeItem('maverick_active_user');
     }
   }, [username, phase]);
+
+  // Auto-gera carrossel quando scripts chegam (primeiro script)
+  useEffect(() => {
+    if (parsedScripts && parsedScripts.length > 0 && !carouselState.carousel && !carouselState.loading) {
+      generateCarousel(parsedScripts[0]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedScripts]);
 
   const handleClearHistory = useCallback(async () => {
     if (!confirm('Tem certeza que deseja limpar todo o histórico? Esta ação não pode ser desfeita.')) return;
@@ -1246,6 +1279,40 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       setKeywordsLoading(false);
     }
   }, [rawPlan]);
+
+  // Gera estrutura de carrossel para o primeiro script
+  const generateCarousel = useCallback(async (script: ScriptData) => {
+    setCarouselState(s => ({ ...s, loading: true, error: null }));
+    try {
+      const res = await fetch(`${API_URL}/api/maverick/carousel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script }),
+      });
+      if (!res.ok) throw new Error('Falha ao gerar carrossel');
+      const data = await res.json();
+      setCarouselState({
+        loading: false,
+        carousel: data.carousel ?? null,
+        htmlExport: data.htmlExport ?? null,
+        figmaUrl: data.figmaUrl ?? null,
+        error: null,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+      setCarouselState(s => ({ ...s, loading: false, error: msg }));
+    }
+  }, []);
+
+  function downloadHtml(html: string) {
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `maverick-carousel-${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Gera roteiros com keywords confirmadas
   const handleConfirmKeywords = useCallback(async (keywords: string[]) => {
@@ -1895,6 +1962,67 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                           onClose={() => setSelectedScript(null)}
                         />
                       )}
+
+                      {/* ── Seção de Carrossel (phase report) ── */}
+                      {(carouselState.loading || carouselState.carousel) && (
+                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-6 space-y-4 mt-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🎨</span>
+                            <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
+                            {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                          </div>
+                          {carouselState.loading && (
+                            <p className="text-white/40 text-sm">Gerando estrutura do carrossel...</p>
+                          )}
+                          {carouselState.carousel && (
+                            <>
+                              <div className="flex gap-3 overflow-x-auto pb-2">
+                                {carouselState.carousel.slides.map(slide => (
+                                  <div
+                                    key={slide.position}
+                                    className="min-w-[200px] max-w-[220px] flex-shrink-0 rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-2"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] text-white/30 font-mono">
+                                        {slide.position}/{carouselState.carousel!.total_slides}
+                                      </span>
+                                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                        slide.type === 'cover' ? 'bg-rose-500/20 text-rose-300' :
+                                        slide.type === 'cta' ? 'bg-amber-500/20 text-amber-300' :
+                                        'bg-blue-500/20 text-blue-300'
+                                      }`}>{slide.type}</span>
+                                    </div>
+                                    <h4 className="text-white/85 text-xs font-bold leading-tight line-clamp-2">{slide.title}</h4>
+                                    <p className="text-white/50 text-xs leading-relaxed line-clamp-3">{slide.body}</p>
+                                    <p className="text-purple-400/70 text-[11px] leading-tight">🎨 {slide.visual_hint}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                {carouselState.htmlExport && (
+                                  <button
+                                    onClick={() => downloadHtml(carouselState.htmlExport!)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-all"
+                                  >
+                                    ⬇️ Exportar HTML
+                                  </button>
+                                )}
+                                {carouselState.figmaUrl && (
+                                  <a
+                                    href={carouselState.figmaUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-lg text-white/50 hover:text-white/80 text-xs font-medium transition-all"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Abrir no Figma
+                                  </a>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -2037,6 +2165,67 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   <pre className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap font-sans">
                     {scripts || streamingScripts}
                   </pre>
+                </div>
+              )}
+
+              {/* ── Seção de Carrossel ── */}
+              {(carouselState.loading || carouselState.carousel) && (
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎨</span>
+                    <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
+                    {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                  </div>
+                  {carouselState.loading && (
+                    <p className="text-white/40 text-sm">Gerando estrutura do carrossel...</p>
+                  )}
+                  {carouselState.carousel && (
+                    <>
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {carouselState.carousel.slides.map(slide => (
+                          <div
+                            key={slide.position}
+                            className="min-w-[200px] max-w-[220px] flex-shrink-0 rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-white/30 font-mono">
+                                {slide.position}/{carouselState.carousel!.total_slides}
+                              </span>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                slide.type === 'cover' ? 'bg-rose-500/20 text-rose-300' :
+                                slide.type === 'cta' ? 'bg-amber-500/20 text-amber-300' :
+                                'bg-blue-500/20 text-blue-300'
+                              }`}>{slide.type}</span>
+                            </div>
+                            <h4 className="text-white/85 text-xs font-bold leading-tight line-clamp-2">{slide.title}</h4>
+                            <p className="text-white/50 text-xs leading-relaxed line-clamp-3">{slide.body}</p>
+                            <p className="text-purple-400/70 text-[11px] leading-tight">🎨 {slide.visual_hint}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        {carouselState.htmlExport && (
+                          <button
+                            onClick={() => downloadHtml(carouselState.htmlExport!)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-all"
+                          >
+                            ⬇️ Exportar HTML
+                          </button>
+                        )}
+                        {carouselState.figmaUrl && (
+                          <a
+                            href={carouselState.figmaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-lg text-white/50 hover:text-white/80 text-xs font-medium transition-all"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Abrir no Figma
+                          </a>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

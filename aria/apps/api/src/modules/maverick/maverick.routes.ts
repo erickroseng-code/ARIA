@@ -7,6 +7,8 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
 import { MetricsService } from './metrics.service';
+import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
+import { generateCarouselHtml } from './carousel-designer/html-export';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
 const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
@@ -485,6 +487,30 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     }
   });
 
+  // POST /api/maverick/carousel — Gera estrutura de carrossel a partir de um script
+  fastify.post('/carousel', async (
+    req: FastifyRequest<{ Body: { script: ScriptInput; exportToFigma?: boolean } }>,
+    reply: FastifyReply,
+  ) => {
+    if (process.env.MAVERICK_CAROUSEL_ENABLED === 'false') {
+      return reply.status(503).send({ error: 'Carousel feature not enabled' });
+    }
+
+    const { script, exportToFigma = false } = req.body;
+    if (!script) return reply.status(400).send({ error: 'script é obrigatório' });
+
+    const carousel = generateCarouselStructure(script);
+    const htmlExport = generateCarouselHtml(carousel);
+
+    let figmaUrl: string | undefined;
+
+    if (exportToFigma && process.env.FIGMA_API_TOKEN && process.env.FIGMA_FILE_KEY) {
+      figmaUrl = await tryFigmaExport();
+    }
+
+    return reply.send({ carousel, htmlExport, figmaUrl });
+  });
+
   // GET /api/maverick/stats — Estatísticas do histórico
   fastify.get('/stats', async (
     req: FastifyRequest,
@@ -559,4 +585,23 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.status(500).send({ error: 'Erro ao recuperar métricas do dashboard' });
     }
   });
+}
+
+// Figma REST API v1 is read-only — cannot create frames programmatically.
+// Returns the file URL so the designer can open it and apply the HTML export via plugin.
+async function tryFigmaExport(): Promise<string | undefined> {
+  try {
+    const token = process.env.FIGMA_API_TOKEN!;
+    const fileKey = process.env.FIGMA_FILE_KEY!;
+
+    const res = await fetch(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 'X-Figma-Token': token },
+    });
+
+    if (!res.ok) return undefined;
+
+    return `https://www.figma.com/file/${fileKey}`;
+  } catch {
+    return undefined;
+  }
 }
