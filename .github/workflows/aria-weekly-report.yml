@@ -1,0 +1,31 @@
+# Required GitHub Secrets (configure em Settings > Secrets > Actions):
+# ARIA_API_URL     — URL pública da Aria no Render (ex: https://aria-api.onrender.com)
+# SCHEDULER_SECRET — mesmo valor de SCHEDULER_SECRET no .env da Aria
+
+name: Aria — Weekly Report
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'  # toda segunda-feira às 09:00 BRT (12:00 UTC)
+  workflow_dispatch:        # disparo manual pelo GitHub UI
+
+jobs:
+  weekly-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger weekly report
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.ARIA_API_URL }}/api/tasks/weekly-report" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --max-time 60)
+
+          echo "Response: $(cat /tmp/response.json)"
+          echo "HTTP Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Weekly report endpoint returned HTTP $HTTP_STATUS"
+            exit 1
+          fi

@@ -14,6 +14,8 @@ import { registerAudioRoutes } from './routes/audio-fastify.routes';
 import { registerReportsRoutes } from './routes/reports-fastify.routes';
 import { registerGoogleCalendarRoutes } from './routes/google-calendar-fastify.routes';
 import { registerGoogleAuthRoutes, checkGoogleHealth } from './routes/google-auth.routes';
+import { registerTelegramWebhookRoutes } from './routes/telegram-webhook.routes';
+import { registerScheduledTasksRoutes } from './routes/scheduled-tasks.routes';
 import { registerClickUpAuthRoutes } from './routes/clickup-auth.routes';
 import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
 import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
@@ -203,6 +205,8 @@ const startServer = async () => {
   await fastify.register(registerFinanceRoutes, { prefix: '/api/finance' });
   await fastify.register(registerTrafficRoutes, { prefix: '/api/traffic' });
   await fastify.register(registerTTSRoutes, { prefix: '/api/tts' });
+  await fastify.register(registerTelegramWebhookRoutes, { prefix: '/api/telegram' });
+  await fastify.register(registerScheduledTasksRoutes, { prefix: '/api/tasks' });
 
   // Global error handler
   fastify.setErrorHandler((error, req, reply) => {
