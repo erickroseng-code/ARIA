@@ -36,6 +36,21 @@ import {
 } from '@aria/integrations';
 import { db } from './config/db';
 
+// Ensure Atlas audit log table exists
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS atlas_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    dry_run INTEGER NOT NULL DEFAULT 1,
+    result TEXT NOT NULL,
+    reason TEXT,
+    triggered_by TEXT NOT NULL DEFAULT 'scheduler'
+  )
+`).run();
 
 const startServer = async () => {
   const fastify = Fastify({});

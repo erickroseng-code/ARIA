@@ -1,5 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 import { TrafficService } from './traffic.service';
+import { atlasChat, atlasAutoAnalyze, atlasSchedulerRun } from './agents/atlas-orchestrator';
+import { getAuditLogs } from './agents/atlas-audit';
+import { sendAtlasNotification, sendAtlasErrorAlert } from './agents/atlas-notifier';
 
 const trafficService = new TrafficService();
 
@@ -62,6 +65,38 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // GET /api/traffic/adsets?campaignId=xxx&workspace=erick
+  fastify.get<{ Querystring: { campaignId: string; workspace: string } }>(
+    '/adsets',
+    async (req, reply) => {
+      const { campaignId, workspace } = req.query;
+      if (!campaignId || !workspace)
+        return reply.status(400).send({ error: 'campaignId e workspace são obrigatórios' });
+      try {
+        const adsets = await trafficService.getAdSets(campaignId, workspace);
+        return reply.send(adsets);
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // GET /api/traffic/ads?adsetId=xxx&workspace=erick
+  fastify.get<{ Querystring: { adsetId: string; workspace: string } }>(
+    '/ads',
+    async (req, reply) => {
+      const { adsetId, workspace } = req.query;
+      if (!adsetId || !workspace)
+        return reply.status(400).send({ error: 'adsetId e workspace são obrigatórios' });
+      try {
+        const ads = await trafficService.getAds(adsetId, workspace);
+        return reply.send(ads);
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
   // POST /api/traffic/campaigns/:id/pause
   fastify.post<{ Params: { id: string }; Body: { workspace: string } }>(
     '/campaigns/:id/pause',
@@ -93,4 +128,171 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+
+  // POST /api/traffic/campaigns/:id/budget
+  fastify.post<{ Params: { id: string }; Body: { workspace: string; dailyBudget: number } }>(
+    '/campaigns/:id/budget',
+    async (req, reply) => {
+      const { id } = req.params;
+      const { workspace, dailyBudget } = req.body;
+      if (!workspace || !dailyBudget) return reply.status(400).send({ error: 'workspace e dailyBudget são obrigatórios' });
+      try {
+        await trafficService.updateCampaignBudget(id, dailyBudget, workspace);
+        return reply.send({ success: true });
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // POST /api/traffic/chat — Atlas AI chat
+  fastify.post<{
+    Body: {
+      message: string;
+      history: Array<{ role: 'user' | 'assistant'; content: string }>;
+      workspace: string;
+      accountId: string;
+      accountName?: string;
+      currency?: string;
+      datePreset?: string;
+    };
+  }>('/chat', async (req, reply) => {
+    const { message, history = [], workspace, accountId, accountName, currency, datePreset } = req.body;
+    if (!message || !workspace || !accountId)
+      return reply.status(400).send({ error: 'message, workspace e accountId são obrigatórios' });
+
+    try {
+      // Carrega dados frescos para contexto
+      const [insights, rawCampaigns] = await Promise.all([
+        trafficService.getAccountInsights(accountId, workspace, datePreset ?? 'last_30d'),
+        trafficService.getCampaigns(accountId, workspace),
+      ]);
+
+      // Enrich active campaigns with AdSet and Ad data (limit to 5 to avoid enormous prompts)
+      const activeCampaigns = rawCampaigns.filter(c => c.status === 'ACTIVE').slice(0, 5);
+      const enrichedCampaigns = await Promise.all(
+        rawCampaigns.map(async (c) => {
+          if (!activeCampaigns.find(ac => ac.id === c.id)) return c;
+          try {
+            const adsets = await trafficService.getAdSets(c.id, workspace);
+            const enrichedAdsets = await Promise.all(adsets.map(async (as) => {
+              const ads = await trafficService.getAds(as.id, workspace);
+              return { ...as, ads };
+            }));
+            return { ...c, adsets: enrichedAdsets };
+          } catch (e) {
+            return c;
+          }
+        })
+      );
+
+      const result = await atlasChat(message, history, {
+        workspace, accountId, accountName, currency, insights, campaigns: enrichedCampaigns, datePreset,
+      }, trafficService);
+
+      return reply.send(result);
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  // POST /api/traffic/atlas/auto-optimize — Autonomous scheduler (called by GitHub Actions)
+  fastify.post<{
+    Body: {
+      workspaceId: string;
+      accountId: string;
+      dryRun?: boolean;
+      datePreset?: string;
+    };
+  }>('/atlas/auto-optimize', async (req, reply) => {
+    // Auth check via Bearer token
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.replace('Bearer ', '');
+    const schedulerToken = process.env.ATLAS_SCHEDULER_TOKEN;
+
+    if (!schedulerToken || !token || token !== schedulerToken) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const { workspaceId, accountId, dryRun = true, datePreset = 'last_7d' } = req.body;
+    if (!workspaceId || !accountId) {
+      return reply.status(400).send({ error: 'workspaceId e accountId são obrigatórios' });
+    }
+
+    try {
+      // Load fresh campaign data with timeout
+      const dataPromise = Promise.all([
+        trafficService.getAccountInsights(accountId, workspaceId, datePreset),
+        trafficService.getCampaigns(accountId, workspaceId),
+      ]);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Data loading timeout after 30s')), 30000)
+      );
+
+      const [insights, campaigns] = await Promise.race([dataPromise, timeoutPromise]);
+
+      const ctx = { workspace: workspaceId, accountId, insights, campaigns, datePreset };
+      const result = await atlasSchedulerRun(ctx, trafficService, dryRun);
+
+      // Send Telegram notification (non-blocking)
+      sendAtlasNotification(result.actionsExecuted, dryRun).catch(() => {});
+
+      return reply.send({ ...result, dryRun });
+    } catch (error: any) {
+      // Alert on critical failure
+      sendAtlasErrorAlert(error.message).catch(() => {});
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  // GET /api/traffic/atlas/audit — Audit log history
+  fastify.get<{ Querystring: { limit?: string; workspaceId?: string } }>(
+    '/atlas/audit',
+    async (req, reply) => {
+      const { limit, workspaceId } = req.query;
+      const logs = getAuditLogs(workspaceId, limit ? parseInt(limit) : 50);
+      return reply.send({ logs });
+    }
+  );
+
+  // POST /api/traffic/analyze — Atlas AI auto-analysis
+  fastify.post<{
+    Body: { workspace: string; accountId: string; accountName?: string; currency?: string; datePreset?: string };
+  }>('/analyze', async (req, reply) => {
+    const { workspace, accountId, accountName, currency, datePreset } = req.body;
+    if (!workspace || !accountId)
+      return reply.status(400).send({ error: 'workspace e accountId são obrigatórios' });
+
+    try {
+      const [insights, rawCampaigns] = await Promise.all([
+        trafficService.getAccountInsights(accountId, workspace, datePreset ?? 'last_30d'),
+        trafficService.getCampaigns(accountId, workspace),
+      ]);
+
+      const activeCampaigns = rawCampaigns.filter(c => c.status === 'ACTIVE').slice(0, 5);
+      const enrichedCampaigns = await Promise.all(
+        rawCampaigns.map(async (c) => {
+          if (!activeCampaigns.find(ac => ac.id === c.id)) return c;
+          try {
+            const adsets = await trafficService.getAdSets(c.id, workspace);
+            const enrichedAdsets = await Promise.all(adsets.map(async (as) => {
+              const ads = await trafficService.getAds(as.id, workspace);
+              return { ...as, ads };
+            }));
+            return { ...c, adsets: enrichedAdsets };
+          } catch (e) {
+            return c;
+          }
+        })
+      );
+
+      const analysis = await atlasAutoAnalyze({
+        workspace, accountId, accountName, currency, insights, campaigns: enrichedCampaigns, datePreset,
+      }, trafficService);
+
+      return reply.send({ analysis });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
 };
