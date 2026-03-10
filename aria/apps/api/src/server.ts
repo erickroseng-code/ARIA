@@ -13,7 +13,7 @@ import { registerScheduledReportsRoutes } from './routes/scheduled-reports-fasti
 import { registerAudioRoutes } from './routes/audio-fastify.routes';
 import { registerReportsRoutes } from './routes/reports-fastify.routes';
 import { registerGoogleCalendarRoutes } from './routes/google-calendar-fastify.routes';
-import { registerGoogleAuthRoutes } from './routes/google-auth.routes';
+import { registerGoogleAuthRoutes, checkGoogleHealth } from './routes/google-auth.routes';
 import { registerClickUpAuthRoutes } from './routes/clickup-auth.routes';
 import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
 import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
@@ -31,6 +31,8 @@ import {
   initializeClickUpQueryService,
   setWorkspaceTokenResolver,
   setOnInvalidGrant,
+  setWorkspaceTokenPersistor,
+  isWorkspaceConfigured,
 } from '@aria/integrations';
 import { db } from './config/db';
 
@@ -70,6 +72,19 @@ const startServer = async () => {
       // On DB error, still try env fallback
       const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
       return envRefreshToken ? { refreshToken: envRefreshToken, accessToken: null } : null;
+    }
+  });
+
+  // Quando googleapis renova o access_token automaticamente, persiste o novo token no DB.
+  setWorkspaceTokenPersistor(async ({ accessToken, expiryDate }) => {
+    try {
+      db.prepare('UPDATE integrations SET accessToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE provider = ?')
+        .run(accessToken, 'google');
+      if (expiryDate) {
+        console.log(`[Google] Access token auto-renovado. Expira em: ${new Date(expiryDate).toISOString()}`);
+      }
+    } catch (err) {
+      console.error('[Google] Falha ao persistir token renovado:', err);
     }
   });
 
@@ -121,6 +136,10 @@ const startServer = async () => {
 
   // Enhanced health endpoint with detailed diagnostics
   fastify.get('/health', async (req, reply) => {
+    const googleStatus = await isWorkspaceConfigured()
+      .then(ok => ok ? 'connected' : 'disconnected')
+      .catch(() => 'not_configured');
+
     const health = {
       status: 'ok',
       uptime: process.uptime(),
@@ -129,6 +148,7 @@ const startServer = async () => {
         clickup: clickupQueryService ? 'configured' : 'not_configured',
         chat: !!chatService ? 'ready' : 'not_ready',
         fastify: 'ready',
+        google: googleStatus,
       },
       memory: {
         heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
@@ -208,6 +228,17 @@ const startServer = async () => {
     console.log(`   Status: READY`);
     console.log(`   ClickUp: ${clickupQueryService ? '✅ Connected' : '⚠️  Not configured'}`);
     console.log(`${'='.repeat(60)}\n`);
+
+    // Non-blocking boot validation — check Google tokens after server is live
+    checkGoogleHealth().then(({ connected, source }) => {
+      if (connected) {
+        console.log(`[Google] ✅ Integração ativa (source: ${source})`);
+      } else {
+        console.warn('[Google] ⚠️  Tokens ausentes ou inválidos. Re-autorize em /api/auth/google/url');
+      }
+    }).catch(() => {
+      console.warn('[Google] ⚠️  Erro ao verificar integração no startup');
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('[FATAL] Failed to start server:', err);

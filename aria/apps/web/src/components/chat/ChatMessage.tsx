@@ -105,18 +105,18 @@ const ChatMessage = ({ message, revealLength, onRegenerate }: ChatMessageProps) 
         <div className="flex flex-col items-end max-w-[75%]">
           {/* Avatar row */}
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[14px] font-medium text-white/60 tracking-wide drop-shadow-sm">Erick</span>
-            <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0 ring-1 ring-white/30">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest drop-shadow-sm">Erick</span>
+            <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0 ring-1 ring-white/10">
               <img src={erickAvatar} alt="Erick" className="w-full h-full object-cover" />
             </div>
           </div>
           {/* Bubble */}
-          <div className="bg-white/[0.08] backdrop-blur-md border border-white/[0.12] shadow-[0_4px_24px_rgba(0,0,0,0.2)] rounded-2xl rounded-tr-sm px-4 py-3">
-            <p className="text-[18px] leading-relaxed text-white whitespace-pre-wrap text-right">
+          <div className="bg-[#161618] border border-white/10 shadow-sm rounded-2xl rounded-tr-sm px-4 py-3">
+            <p className="text-[15px] leading-relaxed text-white/90 whitespace-pre-wrap text-right">
               {message.content}
             </p>
           </div>
-          <span className="text-[14px] text-white/40 mt-1.5 block drop-shadow-sm">
+          <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest mt-1.5 block">
             {message.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
@@ -146,10 +146,10 @@ const ChatMessage = ({ message, revealLength, onRegenerate }: ChatMessageProps) 
             <img src={ariaLogo} alt="ARIA" className="w-full h-full object-cover" />
           </div>
         </div>
-        <span className="text-[14px] font-medium text-white/90 tracking-wide drop-shadow-sm">ARIA</span>
+        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest drop-shadow-sm">ARIA</span>
         {(isSpeaking || isStreamingMsg) && (
           <div className="flex items-center gap-1.5 ml-1">
-            <span className="text-[10px] text-white/50 animate-pulse">gerando</span>
+            <span className="text-[10px] font-bold text-primary/70 uppercase tracking-widest animate-pulse">gerando</span>
           </div>
         )}
 
@@ -175,7 +175,7 @@ const ChatMessage = ({ message, revealLength, onRegenerate }: ChatMessageProps) 
           </div>
         ) : (
           <div className={cn(
-            "text-[18px] leading-[1.78] drop-shadow-sm prose prose-invert max-w-none prose-p:leading-[1.78] prose-p:my-0 prose-pre:bg-transparent prose-pre:p-0 transition-opacity duration-300 ease-in-out",
+            "text-[15px] leading-[1.78] drop-shadow-sm prose prose-invert max-w-none prose-p:leading-[1.78] prose-p:my-0 prose-pre:bg-transparent prose-pre:p-0 transition-opacity duration-300 ease-in-out",
             isStreamingMsg ? "text-white/80" : "text-white/95"
           )}
             style={{
@@ -220,7 +220,7 @@ const ChatMessage = ({ message, revealLength, onRegenerate }: ChatMessageProps) 
             )}
 
             {!(isSpeaking || isStreamingMsg) && (
-              <span className="text-[14px] text-white/40 mt-2 block drop-shadow-sm">
+              <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest mt-2 block">
                 {message.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </span>
             )}

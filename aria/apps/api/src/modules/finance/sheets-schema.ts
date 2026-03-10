@@ -4,6 +4,7 @@ export const SHEET_NAMES = {
   TRANSACTIONS: 'Transações',
   BUDGET: 'Orçamento',
   DEBTS: 'Dívidas',
+  OVERDUE_ACCOUNTS: 'Contas em Atraso',
   GOALS: 'Metas',
   DASHBOARD: 'Dashboard',
   PROFILE: 'Perfil',
@@ -18,6 +19,9 @@ export const SHEET_HEADERS = {
   ],
   [SHEET_NAMES.DEBTS]: [
     ['Credor', 'Valor Total (R$)', 'Taxa Juros (% a.m.)', 'Parcelas Restantes', 'Vencimento (dia)', 'Parcela Mensal (R$)'],
+  ],
+  [SHEET_NAMES.OVERDUE_ACCOUNTS]: [
+    ['Conta', 'Valor em Atraso (R$)', 'Dias em Atraso', 'Data de Registro', 'Status'],
   ],
   [SHEET_NAMES.GOALS]: [
     ['Meta', 'Valor Alvo (R$)', 'Valor Atual (R$)', 'Prazo (MM/AAAA)', '% Progresso'],

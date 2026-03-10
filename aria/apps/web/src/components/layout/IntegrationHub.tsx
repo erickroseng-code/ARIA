@@ -43,7 +43,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: "Google Workspace",
         description: "Docs, Drive, Mail, Sheets e Calendar",
         logo: driveLogo,
-        statusUrl: `${API_BASE}/api/auth/google/status`,
+        statusUrl: `${API_BASE}/api/auth/google/health`,
         authUrl: `${API_BASE}/api/auth/google/url`,
     },
     {
@@ -96,6 +96,9 @@ interface IntegrationHubProps {
 const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
     const [statuses, setStatuses] = useState<StatusMap>({});
     const [connecting, setConnecting] = useState<string | null>(null);
+    const [verifying, setVerifying] = useState<string | null>(null);
+    const [popupBlocked, setPopupBlocked] = useState<string | null>(null);
+    const [oauthUrls, setOauthUrls] = useState<Record<string, string>>({});
     const [showApiKeyForm, setShowApiKeyForm] = useState<string | null>(null);
     const [apiKeyInput, setApiKeyInput] = useState('');
     const [savingApiKey, setSavingApiKey] = useState<string | null>(null);
@@ -108,7 +111,10 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
         return new Set<string>(cached ? JSON.parse(cached) : []);
     })());
 
-    const fetchStatuses = async () => {
+    // Mirror of statuses in a ref so interval callbacks can read current value without stale closure
+    const statusesRef = useRef<StatusMap>({});
+
+    const fetchStatuses = async (): Promise<StatusMap> => {
         // Mark all with statusUrl as loading
         const loading: StatusMap = {};
         INTEGRATIONS.forEach(i => {
@@ -116,6 +122,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
         });
         setStatuses(loading);
 
+        const updated: StatusMap = {};
         await Promise.all(
             INTEGRATIONS
                 .filter(i => i.statusUrl)
@@ -124,6 +131,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                         const res = await fetch(i.statusUrl!);
                         const data = await res.json();
                         const connected = !!data.connected;
+                        updated[i.id] = connected;
                         setStatuses(prev => ({ ...prev, [i.id]: connected }));
                         // If backend says NOT connected, clear the session cache for this provider
                         // so clicking "Conectar" actually opens the popup (prevents stale cache bug)
@@ -132,15 +140,26 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                             sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
                         }
                     } catch {
+                        updated[i.id] = false;
                         setStatuses(prev => ({ ...prev, [i.id]: false }));
                         authCache.current.delete(i.id);
                     }
                 })
         );
+        statusesRef.current = { ...statusesRef.current, ...updated };
+        return updated;
     };
 
+    // Fetch on open
     useEffect(() => {
         if (open) fetchStatuses();
+    }, [open]);
+
+    // Auto-refresh every 30s while hub is open
+    useEffect(() => {
+        if (!open) return;
+        const interval = setInterval(() => { fetchStatuses(); }, 30_000);
+        return () => clearInterval(interval);
     }, [open]);
 
     const saveApiKey = async (integration: IntegrationDef) => {
@@ -224,23 +243,33 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                 // Navigate the popup directly to the provider's OAuth page
                 popup.location.href = data.url;
 
-                // Poll for popup close
+                // Poll for popup close, then retry status check up to 3 times
                 const check = setInterval(() => {
                     if (!popup || popup.closed) {
                         clearInterval(check);
                         setConnecting(null);
                         authCache.current.add(integration.id);
                         sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
-                        // Refresh status after short delay to let backend persist
-                        setTimeout(() => fetchStatuses(), 800);
+
+                        // Retry status with up to 3 attempts (backend may take a moment to persist)
+                        setVerifying(integration.id);
+                        let attempts = 0;
+                        const retryCheck = setInterval(async () => {
+                            attempts++;
+                            await fetchStatuses();
+                            const isConnected = statusesRef.current[integration.id] === true;
+                            if (isConnected || attempts >= 3) {
+                                clearInterval(retryCheck);
+                                setVerifying(null);
+                            }
+                        }, 1500);
                     }
                 }, 800);
             } else {
-                // Popup was blocked — open in new tab directly to provider URL
+                // Popup was blocked — show inline message with direct link
                 setConnecting(null);
-                window.open(data.url, '_blank');
-                authCache.current.add(integration.id);
-                sessionStorage.setItem('aria_auth_cache', JSON.stringify(Array.from(authCache.current)));
+                setOauthUrls(prev => ({ ...prev, [integration.id]: data.url as string }));
+                setPopupBlocked(integration.id);
             }
         } catch (err) {
             if (popup && !popup.closed) popup.close();
@@ -266,6 +295,8 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                         const isConnected = status === true;
                         const isLoading = status === null;
                         const isConnecting = connecting === integration.id;
+                        const isVerifying = verifying === integration.id;
+                        const isPopupBlocked = popupBlocked === integration.id;
                         const isShowingForm = showApiKeyForm === integration.id;
 
                         return (
@@ -322,15 +353,39 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                             <p className="text-xs text-muted-foreground truncate">{integration.description}</p>
                                         </div>
 
+                                        {/* Verifying post-OAuth (retry in progress) */}
+                                        {isVerifying && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 flex-shrink-0" aria-label="Verificando conexão">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                Verificando...
+                                            </span>
+                                        )}
+
+                                        {/* Popup blocked */}
+                                        {!isVerifying && isPopupBlocked && oauthUrls[integration.id] && (
+                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 flex-shrink-0">
+                                                Popup bloqueado.{' '}
+                                                <a
+                                                    href={oauthUrls[integration.id]}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="underline hover:text-amber-300"
+                                                    onClick={() => setPopupBlocked(null)}
+                                                >
+                                                    Abrir aqui
+                                                </a>
+                                            </span>
+                                        )}
+
                                         {/* Loading */}
-                                        {isLoading && (
+                                        {!isVerifying && !isPopupBlocked && isLoading && (
                                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground flex-shrink-0">
                                                 <Loader2 className="w-3 h-3 animate-spin" />
                                             </span>
                                         )}
 
                                         {/* Connected */}
-                                        {!isLoading && isConnected && (
+                                        {!isVerifying && !isPopupBlocked && !isLoading && isConnected && (
                                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
                                                 <Check className="w-3 h-3" />
                                                 Conectado
@@ -338,14 +393,14 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                         )}
 
                                         {/* Coming soon */}
-                                        {!isLoading && !isConnected && integration.comingSoon && (
+                                        {!isVerifying && !isPopupBlocked && !isLoading && !isConnected && integration.comingSoon && (
                                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/30 text-muted-foreground/60 border border-border/20 flex-shrink-0">
                                                 Em breve
                                             </span>
                                         )}
 
                                         {/* API key auth (Notion, etc.) */}
-                                        {!isLoading && !isConnected && !integration.comingSoon && integration.apiKeyAuth && (
+                                        {!isVerifying && !isPopupBlocked && !isLoading && !isConnected && !integration.comingSoon && integration.apiKeyAuth && (
                                             <button
                                                 onClick={() => handleConnect(integration)}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors flex-shrink-0"
@@ -356,7 +411,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                         )}
 
                                         {/* OAuth popup (Google, ClickUp) */}
-                                        {!isLoading && !isConnected && !integration.comingSoon && !integration.apiKeyAuth && !integration.externalAuth && integration.authUrl && (
+                                        {!isVerifying && !isPopupBlocked && !isLoading && !isConnected && !integration.comingSoon && !integration.apiKeyAuth && !integration.externalAuth && integration.authUrl && (
                                             <button
                                                 onClick={() => handleConnect(integration)}
                                                 disabled={isConnecting}

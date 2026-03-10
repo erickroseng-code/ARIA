@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { google } from 'googleapis';
 import { db } from '../config/db';
+import { isWorkspaceConfigured, createWorkspaceClient } from '@aria/integrations';
 
 /**
  * Google Workspace Auth Routes
@@ -47,6 +48,24 @@ function createOAuthClient() {
 
     return new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
 }
+
+/** Check Google Workspace connectivity without exposing tokens. */
+async function checkGoogleHealth(): Promise<{ connected: boolean; source: string | null }> {
+    try {
+        const configured = await isWorkspaceConfigured();
+        if (!configured) return { connected: false, source: null };
+
+        // Try to instantiate client — fails with invalid_grant if tokens are revoked
+        await createWorkspaceClient();
+
+        const row = db.prepare('SELECT refreshToken FROM integrations WHERE provider = ?').get('google') as any;
+        return { connected: true, source: row?.refreshToken ? 'db' : 'env' };
+    } catch {
+        return { connected: false, source: null };
+    }
+}
+
+export { checkGoogleHealth };
 
 export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promise<void> {
     /**
@@ -213,5 +232,17 @@ export async function registerGoogleAuthRoutes(fastify: FastifyInstance): Promis
         }
     });
 
-    fastify.log.info('[Google Auth] Registered /api/auth/google/url, /callback and /status');
+    /**
+     * GET /api/auth/google/health
+     * Returns Google Workspace integration health — safe for monitoring tools (no tokens exposed).
+     * Returns 200 when connected, 503 when disconnected.
+     */
+    fastify.get('/health', async (_req, reply) => {
+        const health = await checkGoogleHealth();
+        return reply
+            .status(health.connected ? 200 : 503)
+            .send({ ...health, lastChecked: new Date().toISOString() });
+    });
+
+    fastify.log.info('[Google Auth] Registered /api/auth/google/url, /callback, /status and /health');
 }

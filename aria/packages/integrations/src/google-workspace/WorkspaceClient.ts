@@ -25,6 +25,14 @@ export function notifyInvalidGrant() {
     globalInvalidGrantCallback?.();
 }
 
+// Callback invocado quando googleapis renova o access_token automaticamente — permite persistir no DB.
+type TokenPersistor = (tokens: { accessToken: string; expiryDate?: number | null }) => Promise<void>;
+let globalTokenPersistor: TokenPersistor | null = null;
+
+export function setWorkspaceTokenPersistor(persistor: TokenPersistor) {
+    globalTokenPersistor = persistor;
+}
+
 /**
  * GoogleWorkspaceClient
  * Shared OAuth2 client for all Google Workspace APIs.
@@ -51,9 +59,25 @@ export async function createWorkspaceClient(): Promise<OAuth2Client> {
 
     const auth = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
-    // Auto-setup credentials
-    if (refreshToken) auth.setCredentials({ refresh_token: refreshToken });
-    if (accessToken) auth.setCredentials({ access_token: accessToken });
+    // Set credentials in a single call — calling setCredentials twice overwrites the first call entirely.
+    auth.setCredentials({
+        refresh_token: refreshToken ?? undefined,
+        access_token: accessToken ?? undefined,
+    });
+
+    // When googleapis auto-refreshes the access_token, persist the new token back to the DB.
+    if (globalTokenPersistor) {
+        auth.on('tokens', (tokens) => {
+            if (tokens.access_token && globalTokenPersistor) {
+                globalTokenPersistor({
+                    accessToken: tokens.access_token,
+                    expiryDate: tokens.expiry_date,
+                }).catch((err) => {
+                    console.error('[WorkspaceClient] Failed to persist refreshed token:', err);
+                });
+            }
+        });
+    }
 
     return auth;
 }

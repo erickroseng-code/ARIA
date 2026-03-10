@@ -215,5 +215,98 @@ function formatDiagnosisReply(diagnosis: DiagnosisResult, spreadsheetUrl: string
 
 export function getFirstOnboardingMessage(): string {
   const s = ONBOARDING_STEPS[0];
-  return `Olá! Sou o Buffet, seu assistente financeiro pessoal. 🎯\n\nAntes de começarmos, preciso entender sua situação para criar um plano personalizado.\n\n**(1/${ONBOARDING_STEPS.length})** ${s.question}${s.hint ? `\n\n_${s.hint}_` : ''}`;
+  return `Olá! Sou o Graham, seu assistente financeiro pessoal. 🎯\n\nAntes de começarmos, preciso entender sua situação para criar um plano personalizado.\n\n**(1/${ONBOARDING_STEPS.length})** ${s.question}${s.hint ? `\n\n_${s.hint}_` : ''}`;
+}
+
+// ── Onboarding Estruturado (Wizard) ──────────────────────────────────────────
+
+interface StructuredItem {
+  id: string;
+  label: string;
+  amount: string;
+  extra?: string;
+}
+
+interface StructuredFormData {
+  fixedIncome: string;
+  variableIncome?: string;
+  fixedExpenses: StructuredItem[];
+  debts: StructuredItem[];
+  overdueAccounts: StructuredItem[];
+  goal: string;
+  savingsCapacity?: string;
+}
+
+/**
+ * Processa os dados do wizard estruturado do onboarding.
+ * Converte os dados para o formato texto e reutiliza generateDiagnosis + populateSpreadsheet.
+ */
+export async function processStructuredOnboarding(formData: StructuredFormData): Promise<{
+  reply: string;
+  completed: boolean;
+  diagnosis?: DiagnosisResult;
+  spreadsheetUrl?: string;
+}> {
+  // Converter dados estruturados em texto para compatibilidade com generateDiagnosis
+  const parseCurrency = (s: string) => parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+
+  const fixedIncome = parseCurrency(formData.fixedIncome);
+  const variableIncome = parseCurrency(formData.variableIncome ?? '');
+
+  const fixedExpensesText = formData.fixedExpenses.length > 0
+    ? formData.fixedExpenses.map(e => `${e.label}: R$ ${e.amount}`).join(', ')
+    : 'Nenhuma despesa fixa informada';
+
+  const debtsText = formData.debts.length > 0
+    ? formData.debts.map(d => `${d.label}: total R$ ${d.amount}${d.extra ? `, parcela R$ ${d.extra}` : ''}`).join('; ')
+    : 'Sem dívidas';
+
+  const overdueText = formData.overdueAccounts.length > 0
+    ? formData.overdueAccounts.map(o => `${o.label}: R$ ${o.amount}${o.extra ? ` (${o.extra} dias atrasada)` : ''}`).join('; ')
+    : 'Sem contas em atraso';
+
+  const answers: Record<string, string> = {
+    monthlyFixedIncome: String(fixedIncome),
+    monthlyVariableIncome: String(variableIncome),
+    fixedExpenses: fixedExpensesText,
+    debts: debtsText,
+    overdueAccounts: overdueText,
+    primaryGoal: formData.goal || 'Organizar as finanças e reduzir despesas',
+    monthlySavingsCapacity: formData.savingsCapacity ? `R$ ${formData.savingsCapacity}` : 'Não informado',
+  };
+
+  // Gerar diagnóstico
+  const diagnosis = await generateDiagnosis(answers);
+
+  // Popular planilha (existente + adicionar aba de contas em atraso)
+  const spreadsheetUrl = await populateSpreadsheet(diagnosis, answers);
+
+  // Popular a aba de Contas em Atraso se houver dados
+  if (formData.overdueAccounts.length > 0) {
+    try {
+      const spreadsheetId = getSpreadsheetId();
+      if (spreadsheetId) {
+        const service = new SheetsService();
+        const overdueRows = formData.overdueAccounts.map(o => [
+          o.label,
+          String(parseCurrency(o.amount)),
+          o.extra || '0',
+          new Date().toISOString().split('T')[0],
+          'Em Atraso',
+        ]);
+        await service.appendRows(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A2`, overdueRows);
+      }
+    } catch (err) {
+      console.error('[Finance] Erro ao salvar contas em atraso:', err);
+    }
+  }
+
+  saveOnboardingState({ completed: true, step: 6, answers });
+
+  return {
+    reply: formatDiagnosisReply(diagnosis, spreadsheetUrl),
+    completed: true,
+    diagnosis,
+    spreadsheetUrl,
+  };
 }

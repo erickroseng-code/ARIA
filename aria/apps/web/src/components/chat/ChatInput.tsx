@@ -326,8 +326,8 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
                 )}
 
                 <div className={cn(
-                    "bg-white/[0.04] backdrop-blur-xl border border-white/[0.1] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[24px] flex items-center gap-3 px-4 py-4 transition-all duration-300",
-                    isListening && "border-primary/40 shadow-[0_0_24px_hsl(18_50%_50%/0.15)]"
+                    "bg-[#161618]/60 backdrop-blur-3xl border border-white/10 shadow-2xl rounded-[20px] flex items-center gap-3 px-4 py-4 transition-all duration-300",
+                    isListening && "border-primary/40 shadow-[0_0_24px_hsl(var(--primary)/0.15)]"
                 )}>
                     <input
                         type="file"
@@ -378,7 +378,7 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
 
                                 {/* Custom Attachment Menu (Frosted Deep Glass) */}
                                 {showAttachmentMenu && (
-                                    <div className="absolute bottom-[calc(100%+12px)] left-0 min-w-[280px] bg-[#1a1425]/90 backdrop-blur-2xl border border-white/[0.1] rounded-[24px] shadow-[0_16px_40px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                                    <div className="absolute bottom-[calc(100%+12px)] left-0 min-w-[280px] bg-[#0B0B0C]/90 backdrop-blur-3xl border border-white/10 rounded-[20px] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
                                         {menuView === 'main' ? (
                                             <div className="flex flex-col py-2">
                                                 <button
@@ -432,7 +432,7 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
                                                     >
                                                         <ChevronLeft className="w-4 h-4" />
                                                     </button>
-                                                    <span className="text-[13px] font-semibold text-white/80 uppercase tracking-widest px-1">Conectores</span>
+                                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-1">Conectores</span>
                                                 </div>
 
                                                 <div className="flex flex-col py-1.5 px-1">
@@ -467,7 +467,7 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
 
                                                             {conn.id === 'google' && activeConnectors.google && (
                                                                 <div className="flex flex-col gap-1 px-3 pb-3 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                    <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-1 px-1">Arquivos Recentes</div>
+                                                                    <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1 px-1">Arquivos Recentes</div>
                                                                     {isLoadingDocs ? (
                                                                         <div className="flex items-center justify-center p-2">
                                                                             <Loader2 className="w-4 h-4 text-white/20 animate-spin" />
