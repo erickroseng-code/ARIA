@@ -62,11 +62,10 @@ COPY --from=build /monorepo/apps/api/prisma ./apps/api/prisma
 # --- Production node_modules (from root, without devDeps) ---
 COPY --from=build /monorepo/node_modules ./node_modules
 
-# Set up @aria/* symlinks so Node can resolve workspace packages
-# Use explicit absolute targets that match where files were copied
+# Set up @aria/* by copying the built packages so Node can resolve them without symlinks
 RUN mkdir -p node_modules/@aria && \
-    ln -s /app/packages/core node_modules/@aria/core && \
-    ln -s /app/packages/integrations node_modules/@aria/integrations
+    cp -r /app/packages/core node_modules/@aria/core && \
+    cp -r /app/packages/integrations node_modules/@aria/integrations
 
 # Directory for SQLite in production
 RUN mkdir -p /app/data
