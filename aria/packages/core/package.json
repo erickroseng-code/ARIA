@@ -7,10 +7,13 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
     "./dist/*": {
       "import": "./dist/*.js",
+      "require": "./dist/*.js",
       "default": "./dist/*.js",
       "types": "./dist/*.d.ts"
     }
