@@ -1,12 +1,57 @@
-node_modules
+# ── Aria Monorepo — Docker build ignore ───────────────────────────────────
+# Applied when building with context: aria/
+# docker build -t aria-api -f aria/apps/api/Dockerfile aria/
+
+# Dependencies (reinstalled inside container)
+**/node_modules
+
+# Build artifacts (rebuilt inside container)
+**/dist
 .next
-dist
 .turbo
-.git
-*.md
-*.test.ts
-__tests__
-.env
-.env.local
-.env.example
+
+# Environment files (set via --env-file or Render env vars)
+**/.env
+**/.env.local
+**/.env.*
+!**/.env.example
+
+# Databases
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Logs
+**/*.log
+**/logs/
+**/out.txt
+**/err.txt
 bot.pid
+
+# Test files
+**/*.test.ts
+**/__tests__/
+**/vitest_output.log
+**/tsc_errors*.log
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# DevOps artifacts (not needed inside container)
+.github
+.claude
+docs
+squads
+
+# Web app (not needed for API-only image)
+apps/web
+apps/bot
+apps/tts-service
