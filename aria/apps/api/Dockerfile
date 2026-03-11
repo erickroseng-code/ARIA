@@ -63,7 +63,8 @@ COPY --from=build /monorepo/apps/api/prisma ./apps/api/prisma
 COPY --from=build /monorepo/node_modules ./node_modules
 
 # Set up @aria/* by copying the built packages so Node can resolve them without symlinks
-RUN mkdir -p node_modules/@aria && \
+RUN rm -rf node_modules/@aria/core node_modules/@aria/integrations && \
+    mkdir -p node_modules/@aria && \
     cp -r /app/packages/core node_modules/@aria/core && \
     cp -r /app/packages/integrations node_modules/@aria/integrations
 
