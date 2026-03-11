@@ -34,9 +34,10 @@ COPY apps/api/ ./apps/api/
 RUN npx prisma generate --schema=./apps/api/prisma/schema.prisma
 
 # Build packages in dependency order: integrations first (core depends on it)
-RUN npx turbo run build --filter=./packages/integrations
-RUN npx turbo run build --filter=./packages/core
-RUN npx turbo run build --filter=./apps/api
+RUN npx turbo run build --filter=./packages/integrations --force
+RUN npx turbo run build --filter=./packages/core --force
+RUN echo "--- STAGE 1 CORE DIST CONTENT ---" && ls -laR /monorepo/packages/core/dist || echo "STAGE 1 DIST FAILED"
+RUN npx turbo run build --filter=./apps/api --force
 
 # Prune devDependencies for runtime image
 RUN npm prune --production
@@ -72,6 +73,8 @@ RUN rm -rf node_modules/@aria/core node_modules/@aria/integrations && \
 RUN mkdir -p /app/data
 
 WORKDIR /app/apps/api
+
+RUN echo "--- STAGE 2 NODE_MODULES/ARIA ---" && ls -laR /app/node_modules/@aria || echo "STAGE 2 ARIA IN NODE_MODULES FAILED"
 
 EXPOSE 3001
 
