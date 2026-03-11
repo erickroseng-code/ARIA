@@ -34,6 +34,15 @@ RUN cd /app/packages/integrations && npm run build
 RUN cd /app/packages/core && npm run build
 RUN cd /app/apps/api && npm run build
 
+# Replace workspace symlinks with real physical copies so Node.js can find
+# the compiled modules reliably. npm workspaces creates symlinks
+# (e.g. node_modules/@aria/core -> ../../packages/core) which can fail to
+# resolve in some container environments.
+RUN rm -rf /app/node_modules/@aria/core \
+    && cp -rL /app/packages/core /app/node_modules/@aria/core
+RUN rm -rf /app/node_modules/@aria/integrations \
+    && cp -rL /app/packages/integrations /app/node_modules/@aria/integrations
+
 # Directory for SQLite in production
 RUN mkdir -p /app/data
 
