@@ -28,34 +28,11 @@ COPY apps/api/ ./apps/api/
 # Generate Prisma client before building
 RUN npx prisma generate --schema=./apps/api/prisma/schema.prisma
 
-# Before building, delete the "paths" configuration in tsconfig.base.json to prevent 
-# TypeScript from aggregating source files across packages. Without this, cross-package 
-# imports would cause tsc to emit nested structures like `dist/core/src/index.js`
-# because it tries to maintain a common root directory. By removing paths, tsc reads
-# typings from node_modules and emits perfectly to `dist/index.js`.
-RUN sed -i '/"paths": {/,/}/d' tsconfig.base.json
+# No need to build with tsc — we will run natively with tsx.
+# This avoids all the fragile issues with monorepo workspace symlinks
+# and TypeScript nested "dist" emissions in Docker.
 
-# Build each package in its own directory
-RUN cd /app/packages/shared && npm run build
-RUN cd /app/packages/integrations && npm run build
-RUN cd /app/packages/core && npm run build
-
-# Diagnostic: verify what was actually built
-RUN echo "--- INTEGRATIONS DIST ---" && ls -la /app/packages/integrations/dist || echo "MISSING"
-RUN echo "--- CORE DIST ---" && ls -la /app/packages/core/dist || echo "MISSING"
-
-RUN cd /app/apps/api && npm run build
-
-# Replace workspace symlinks with real physical copies so Node.js can find
-# the compiled modules reliably. npm workspaces creates symlinks
-# (e.g. node_modules/@aria/core -> ../../packages/core) which can fail to
-# resolve in some container environments.
-RUN rm -rf /app/node_modules/@aria/core \
-    && cp -rL /app/packages/core /app/node_modules/@aria/core
-RUN rm -rf /app/node_modules/@aria/integrations \
-    && cp -rL /app/packages/integrations /app/node_modules/@aria/integrations
-
-# Directory for SQLite in production
+# Directory for SQLite in production (auth tokens)
 RUN mkdir -p /app/data
 
 WORKDIR /app/apps/api
@@ -68,4 +45,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
-CMD ["node", "dist/apps/api/src/server.js"]
+# Run directly via tsx to avoid module resolution/build complexities
+CMD ["npx", "tsx", "src/server.js"]
