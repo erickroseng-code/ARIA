@@ -1,0 +1,117 @@
+# ── Aria API — Render Infrastructure as Code ─────────────────────────────────
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Deploy command (from repo root):
+#   Connect this repo at dashboard.render.com → New Blueprint
+#
+# Build context is `aria/` because the API depends on @aria/core and
+# @aria/integrations (npm workspace packages) that live outside apps/api/.
+
+services:
+  - type: web
+    name: aria-api
+    runtime: docker
+    dockerfilePath: aria/apps/api/Dockerfile
+    dockerContext: aria
+    plan: free
+    branch: master
+    autoDeploy: true
+    healthCheckPath: /health
+
+    # ── Environment Variables ──────────────────────────────────────────────
+    # sync: false → value must be set manually in Render Dashboard
+    # value: "..." → set directly here (non-secret, safe to commit)
+    envVars:
+      # App
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: LOG_LEVEL
+        value: info
+      - key: ALLOWED_ORIGINS
+        value: https://aria-api.onrender.com
+
+      # Database (SQLite local — resets on deploy; use Turso URL for persistence)
+      - key: DATABASE_URL
+        value: file:/app/data/prod.db
+
+      # LLM — OBRIGATÓRIO
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+      # Auth
+      - key: JWT_SECRET
+        sync: false
+
+      # Scheduled tasks authentication (GitHub Actions → API)
+      - key: SCHEDULER_SECRET
+        sync: false
+
+      # Google Workspace
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://aria-api.onrender.com/api/auth/google/callback
+
+      # Telegram
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+
+      # ClickUp
+      - key: CLICKUP_API_TOKEN
+        sync: false
+      - key: CLICKUP_TEAM_ID
+        sync: false
+      - key: CLICKUP_DEFAULT_LIST_ID
+        sync: false
+      - key: CLICKUP_USER_ID
+        sync: false
+
+      # Notion
+      - key: NOTION_API_KEY
+        sync: false
+
+      # Figma (Carousel export — opcional)
+      - key: FIGMA_API_TOKEN
+        sync: false
+      - key: FIGMA_FILE_KEY
+        sync: false
+
+      # Meta Ads (Atlas Traffic Squad — opcional)
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_ACCESS_TOKEN_PETY
+        sync: false
+      - key: META_ACCESS_TOKEN_ERICK
+        sync: false
+      - key: META_AD_ACCOUNT_ID
+        sync: false
+
+      # Atlas Optimizer
+      - key: ATLAS_WRITE_ENABLED
+        value: "false"
+      - key: ATLAS_SCHEDULER_TOKEN
+        sync: false
+
+      # Maverick
+      - key: MAVERICK_ENABLED
+        value: "true"
+      - key: MAVERICK_CAROUSEL_ENABLED
+        value: "true"
+      - key: MAVERICK_CACHE_TTL_HOURS
+        value: "24"
+
+      # ElevenLabs TTS (opcional)
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
