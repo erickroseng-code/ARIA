@@ -200,9 +200,9 @@ export class TraceabilityService {
     // Fontes nunca usadas
     const usedSourceIds = new Set(traces.map(t => t.sourceId));
     const unusedSources = sourceMetadata
-      .filter(m => !usedSourceIds.has(m.sourceId))
+      .filter((m: typeof sourceMetadata[number]) => !usedSourceIds.has(m.sourceId))
       .slice(0, 10)
-      .map(m => ({
+      .map((m: typeof sourceMetadata[number]) => ({
         sourceId: m.sourceId,
         title: m.title,
         category: m.category,
@@ -210,7 +210,7 @@ export class TraceabilityService {
 
     // Distribuição por categoria
     const categoryDistribution: Record<string, number> = {};
-    sourceMetadata.forEach(m => {
+    sourceMetadata.forEach((m: typeof sourceMetadata[number]) => {
       if (usedSourceIds.has(m.sourceId)) {
         categoryDistribution[m.category] =
           (categoryDistribution[m.category] || 0) + 1;
@@ -329,7 +329,7 @@ export class TraceabilityService {
       }
     );
 
-    return sources.map(s => ({
+    return sources.map((s: typeof sources[number]) => ({
       sourceId: s.sourceId,
       title: s.title,
       category: s.category,
