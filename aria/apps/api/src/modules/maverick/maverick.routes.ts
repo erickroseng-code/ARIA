@@ -415,7 +415,7 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.send({
         username,
         count: analyses.length,
-        analyses: analyses.map(a => ({
+        analyses: analyses.map((a: typeof analyses[number]) => ({
           id: a.id,
           createdAt: a.createdAt,
           status: a.status,
@@ -472,7 +472,7 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
         limit: result.limit,
         offset: result.offset,
         hasMore: result.hasMore,
-        analyses: result.data.map(a => ({
+        analyses: result.data.map((a: typeof result.data[number]) => ({
           id: a.id,
           username: a.username,
           createdAt: a.createdAt,

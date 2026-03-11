@@ -197,7 +197,7 @@ export class MaverickService {
       return {
         totalAnalyses: total,
         byStatus: Object.fromEntries(
-          byStatus.map((s) => [s.status, s._count])
+          byStatus.map((s: typeof byStatus[number]) => [s.status, s._count])
         ),
         uniqueUsers: uniqueUsers.length,
       };

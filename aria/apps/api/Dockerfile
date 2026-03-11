@@ -30,6 +30,9 @@ RUN npm ci --include=dev
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
+# Generate Prisma client before building (required for TypeScript to find PrismaClient types)
+RUN npx prisma generate --schema=./apps/api/prisma/schema.prisma
+
 # Build packages in dependency order: integrations first (core depends on it)
 RUN npx turbo run build --filter=./packages/integrations
 RUN npx turbo run build --filter=./packages/core
