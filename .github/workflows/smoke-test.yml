@@ -1,0 +1,68 @@
+name: Smoke Test — Aria API
+
+# Verifica que a API no Render está respondendo corretamente.
+# Dispara: toda segunda às 9h BRT (12h UTC) e manualmente.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * 1'  # Segunda-feira às 12h UTC = 9h BRT
+
+jobs:
+  smoke:
+    name: Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Verify ARIA_API_URL is configured
+        run: |
+          if [ -z "${{ secrets.ARIA_API_URL }}" ]; then
+            echo "❌ Secret ARIA_API_URL não configurado no repositório."
+            echo "   Configure via: gh secret set ARIA_API_URL --body 'https://aria-api.onrender.com'"
+            exit 1
+          fi
+          echo "✅ ARIA_API_URL configurado"
+
+      - name: Warm up (Render free tier may need cold start)
+        run: |
+          echo "⏳ Aguardando possível cold start do Render (~30s)..."
+          curl --silent --max-time 45 --output /dev/null \
+            "${{ secrets.ARIA_API_URL }}/health" || true
+          sleep 5
+
+      - name: Health check
+        run: |
+          response=$(curl \
+            --silent \
+            --max-time 30 \
+            --write-out "%{http_code}" \
+            --output /tmp/health-response.json \
+            "${{ secrets.ARIA_API_URL }}/health")
+
+          echo "HTTP Status: $response"
+          echo "Response body:"
+          cat /tmp/health-response.json 2>/dev/null || echo "(sem body)"
+          echo ""
+
+          if [ "$response" != "200" ]; then
+            echo "❌ Health check falhou: HTTP $response"
+            exit 1
+          fi
+
+          echo "✅ Aria API saudável: HTTP $response"
+
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] && [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
+            curl --silent \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --data "{
+                \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
+                \"text\": \"❌ *Aria API Smoke Test falhou!*\n\nURL: ${{ secrets.ARIA_API_URL }}/health\nWorkflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                \"parse_mode\": \"Markdown\"
+              }" \
+              "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+          fi
