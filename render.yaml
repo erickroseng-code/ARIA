@@ -103,6 +103,8 @@ services:
         sync: false
 
       # Maverick
+      - key: MAVERICK_WEEKLY_USERNAME
+        sync: false
       - key: MAVERICK_ENABLED
         value: "true"
       - key: MAVERICK_CAROUSEL_ENABLED

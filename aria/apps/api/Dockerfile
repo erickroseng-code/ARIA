@@ -46,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
 # Run directly via tsx to avoid module resolution/build complexities
-CMD ["npx", "tsx", "src/server.js"]
+CMD ["npx", "tsx", "src/server.ts"]

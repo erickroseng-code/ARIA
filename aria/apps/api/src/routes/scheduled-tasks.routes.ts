@@ -36,23 +36,45 @@ export async function registerScheduledTasksRoutes(fastify: FastifyInstance): Pr
       const insights = await trafficService.getAccountInsights(accountId, workspaceId, 'last_7d');
       const campaigns = await trafficService.getCampaigns(accountId, workspaceId);
 
-      const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE').length;
-      const currency = 'BRL';
+      const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE');
+      const pausedThisWeek = campaigns.filter(c => c.status === 'PAUSED');
       const fmt = (v: number) => `R$ ${v.toFixed(2)}`;
 
-      const message =
-        `📊 <b>Relatório Semanal — Atlas</b>\n` +
-        `📅 ${new Date().toLocaleDateString('pt-BR')}\n\n` +
-        `💰 Gasto total: ${fmt(insights.total_spend)}\n` +
-        `👁 Impressões: ${insights.total_impressions.toLocaleString('pt-BR')}\n` +
-        `🖱 Cliques: ${insights.total_clicks.toLocaleString('pt-BR')}\n` +
-        `📈 CTR médio: ${insights.avg_ctr.toFixed(2)}%\n` +
-        `💵 CPC médio: ${fmt(insights.avg_cpc)}\n` +
-        `🎯 ROAS médio: ${insights.avg_roas.toFixed(2)}x\n\n` +
-        `Campanhas ativas: ${activeCampaigns} de ${campaigns.length}`;
+      // Threshold indicators: ✅ good · ⚠️ warning · 🔴 critical
+      const ctrStatus  = insights.avg_ctr  >= 2.0 ? '✅' : insights.avg_ctr  >= 1.0 ? '⚠️' : '🔴';
+      const cpcStatus  = insights.avg_cpc  <= 1.50 ? '✅' : insights.avg_cpc  <= 2.50 ? '⚠️' : '🔴';
+      const roasStatus = insights.avg_roas >= 3.0  ? '✅' : insights.avg_roas >= 2.0  ? '⚠️' : '🔴';
+
+      // Period range (last 7 days)
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+      const period = `${weekAgo.toLocaleDateString('pt-BR')} → ${today.toLocaleDateString('pt-BR')}`;
+
+      const lines = [
+        `📊 <b>Relatório Semanal — Atlas</b>`,
+        `📅 ${period}`,
+        ``,
+        `━━━━━━━━━━━━━━━━━━`,
+        `💰 Gasto total:   ${fmt(insights.total_spend)}`,
+        `👁 Impressões:    ${insights.total_impressions.toLocaleString('pt-BR')}`,
+        `🖱 Cliques:       ${insights.total_clicks.toLocaleString('pt-BR')}`,
+        `📈 CTR médio:     ${insights.avg_ctr.toFixed(2)}%  ${ctrStatus}`,
+        `💵 CPC médio:     ${fmt(insights.avg_cpc)}  ${cpcStatus}`,
+        `🎯 ROAS médio:    ${insights.avg_roas.toFixed(2)}x  ${roasStatus}`,
+        `━━━━━━━━━━━━━━━━━━`,
+        `🟢 Campanhas ativas: ${activeCampaigns.length} de ${campaigns.length}`,
+      ];
+
+      if (pausedThisWeek.length > 0) {
+        const names = pausedThisWeek.slice(0, 3).map(c => c.name).join(', ');
+        lines.push(`⏸ Pausadas: ${names}`);
+      }
+
+      lines.push(``, `💡 <i>Veja o resumo diário do Atlas para detalhes das ações executadas.</i>`);
 
       if (chatId) {
-        await sendTelegram(chatId, message);
+        await sendTelegram(chatId, lines.join('\n'));
       }
 
       return reply.send({ task: 'weekly-report', executedAt, success: true, result: 'Report sent' });

@@ -22,6 +22,8 @@ interface AtlasContext {
 export interface ActionResult {
   action: string;
   entityId: string;
+  entityName?: string;
+  reason?: string;
   result: string;
   dryRun: boolean;
 }
@@ -383,6 +385,28 @@ export async function atlasAutoAnalyze(
   return completion.choices[0]?.message?.content ?? 'Não foi possível gerar análise.';
 }
 
+function findEntityName(action: Record<string, any>, ctx: AtlasContext): string | undefined {
+  const campaigns = ctx.campaigns ?? [];
+  if (action.campaignId) {
+    return campaigns.find(c => c.id === action.campaignId)?.name;
+  }
+  if (action.adSetId) {
+    for (const campaign of campaigns) {
+      const adset = ((campaign as any).adsets ?? []).find((a: any) => a.id === action.adSetId);
+      if (adset) return adset.name;
+    }
+  }
+  if (action.adId) {
+    for (const campaign of campaigns) {
+      for (const adset of ((campaign as any).adsets ?? [])) {
+        const ad = (adset.ads ?? []).find((a: any) => a.id === action.adId);
+        if (ad) return ad.name;
+      }
+    }
+  }
+  return undefined;
+}
+
 export async function atlasSchedulerRun(
   ctx: AtlasContext,
   trafficService: TrafficService,
@@ -397,12 +421,13 @@ export async function atlasSchedulerRun(
     if (!action.action || action.action === 'none') continue;
 
     const entityId = action.campaignId ?? action.adSetId ?? action.adId ?? 'unknown';
+    const entityName = findEntityName(action, ctx);
     const result = await executeAction(action, ctx, trafficService, {
       dryRun,
       logContext: { workspaceId: ctx.workspace, triggeredBy: 'scheduler' },
     });
 
-    actionsExecuted.push({ action: action.action, entityId, result, dryRun });
+    actionsExecuted.push({ action: action.action, entityId, entityName, reason: action.reason, result, dryRun });
   }
 
   return { actionsExecuted, analysis };

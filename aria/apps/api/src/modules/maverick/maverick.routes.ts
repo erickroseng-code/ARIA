@@ -6,10 +6,11 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
+import { sendTelegram } from '../../shared/telegram';
 import { MetricsService } from './metrics.service';
 import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
 import { generateCarouselHtml } from './carousel-designer/html-export';
-import { runWeeklyBatch, getBatch } from './weekly-batch.service';
+import { runWeeklyBatch, getBatch, BatchResult, BatchTopic } from './weekly-batch.service';
 import { createBatchZip, getBatchFilename } from './zip.service';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
@@ -646,7 +647,7 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       .send(zipBuffer);
   });
 
-  // POST /api/maverick/weekly-batch/:batchId/send-telegram — Envia ZIP via Telegram (AC: 6)
+  // POST /api/maverick/weekly-batch/:batchId/send-telegram — Envia diagnóstico + lista + ZIP (AC: 6)
   fastify.post('/weekly-batch/:batchId/send-telegram', async (
     req: FastifyRequest<{ Params: { batchId: string } }>,
     reply: FastifyReply,
@@ -663,18 +664,33 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.status(500).send({ error: 'Telegram não configurado (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)' });
     }
 
+    // ── Mensagem 1: Diagnóstico do perfil (opcional) ──────────────────────────
+    const weeklyUsername = process.env.MAVERICK_WEEKLY_USERNAME;
+    if (weeklyUsername) {
+      try {
+        const analyses = await maverickService.getAnalysisByUsername(weeklyUsername);
+        if (analyses.length > 0) {
+          const diagnosticMsg = buildDiagnosticMessage(analyses[0], analyses[1] ?? null);
+          await sendTelegram(chatId, diagnosticMsg);
+        }
+      } catch (err) {
+        console.warn('[Maverick Weekly] Diagnóstico de perfil indisponível:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    // ── Mensagem 2: Lista de carrosséis com hooks ─────────────────────────────
+    const carouselListMsg = buildCarouselListMessage(batch);
+    await sendTelegram(chatId, carouselListMsg);
+
+    // ── Mensagem 3: ZIP como documento ────────────────────────────────────────
     const zipBuffer = await createBatchZip(batch);
     const filename = getBatchFilename(batch);
-    const date = batch.generatedAt.slice(0, 10);
     const successCount = batch.topics.filter(t => t.status === 'success').length;
+    const date = new Date(batch.generatedAt).toLocaleDateString('pt-BR');
 
     const formData = new FormData();
     formData.append('chat_id', chatId);
-    formData.append(
-      'caption',
-      `🎨 *Maverick Weekly* — Carrosséis da semana!\n📅 ${date}\n📦 ${successCount} tópico(s) gerado(s)`,
-    );
-    formData.append('parse_mode', 'Markdown');
+    formData.append('caption', `📎 ${successCount} carrossel(is) · ${date}`);
     formData.append('document', new Blob([zipBuffer.buffer as ArrayBuffer], { type: 'application/zip' }), filename);
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
@@ -689,6 +705,152 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
 
     return reply.send({ success: true, filename });
   });
+}
+
+// ── Telegram message builders ──────────────────────────────────────────────────
+
+interface ProfileScore {
+  overall: number;
+  dimensions: { consistency: number; engagement: number; niche_clarity: number; cta_presence: number; bio_quality: number };
+}
+interface EngagementPanorama { profile_rate: string; classification: string; tier: string; market_position: string; verdict?: string }
+interface SuggestedIcp { inferred_audience?: string; inferred_product?: string; main_pain_addressed?: string }
+interface FullReportExtended {
+  profile: { username: string; followers: string; posts_count: string };
+  analysis: {
+    positive_points: string[];
+    profile_gaps: string[];
+    best_posts: { caption_preview: string; reason: string }[];
+    worst_posts: { caption_preview: string; reason: string }[];
+  };
+  strategy: {
+    diagnosis: string;
+    key_concept?: string;
+    next_steps: string[];
+    profile_score?: ProfileScore;
+    engagement_panorama?: EngagementPanorama;
+    suggested_icp?: SuggestedIcp;
+  };
+}
+
+function scoreDelta(curr: number, prev: number | undefined): string {
+  if (prev === undefined) return '';
+  const diff = curr - prev;
+  if (diff === 0) return ' — igual';
+  return diff > 0 ? ` ▲ +${diff}` : ` ▼ ${diff}`;
+}
+
+function buildDiagnosticMessage(current: any, previous: any | null): string {
+  const report = current.fullReport as FullReportExtended;
+  const prevReport = previous?.fullReport as FullReportExtended | null;
+  const { profile, analysis, strategy } = report;
+  const prevStrategy = prevReport?.strategy;
+
+  const followers = parseInt(profile.followers || '0').toLocaleString('pt-BR');
+  const date = new Date(current.createdAt).toLocaleDateString('pt-BR');
+  const score = strategy.profile_score;
+  const eng = strategy.engagement_panorama;
+  const icp = strategy.suggested_icp;
+
+  const lines: string[] = [
+    `🎨 <b>Maverick Weekly — @${profile.username}</b>`,
+    `📅 ${date}`,
+    ``,
+    `👥 ${followers} seguidores · ${profile.posts_count} posts`,
+  ];
+
+  if (score) {
+    const prevScore = prevStrategy?.profile_score;
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`, `📊 <b>SCORE DO PERFIL</b>`, `━━━━━━━━━━━━━━━━━━`);
+    lines.push(`🏆 Overall: ${score.overall}/100${scoreDelta(score.overall, prevScore?.overall)}`);
+    lines.push(``);
+    lines.push(`• Consistência:     ${score.dimensions.consistency}${scoreDelta(score.dimensions.consistency, prevScore?.dimensions.consistency)}`);
+    lines.push(`• Engajamento:      ${score.dimensions.engagement}${scoreDelta(score.dimensions.engagement, prevScore?.dimensions.engagement)}`);
+    lines.push(`• Clareza de nicho: ${score.dimensions.niche_clarity}${scoreDelta(score.dimensions.niche_clarity, prevScore?.dimensions.niche_clarity)}`);
+    lines.push(`• CTAs:             ${score.dimensions.cta_presence}${scoreDelta(score.dimensions.cta_presence, prevScore?.dimensions.cta_presence)}`);
+    lines.push(`• Qualidade da bio: ${score.dimensions.bio_quality}${scoreDelta(score.dimensions.bio_quality, prevScore?.dimensions.bio_quality)}`);
+  }
+
+  if (eng) {
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`, `📈 <b>ENGAJAMENTO</b>`, `━━━━━━━━━━━━━━━━━━`);
+    lines.push(`Taxa: ${eng.profile_rate} · <b>${eng.classification}</b>`);
+    lines.push(`Tier: ${eng.tier} · ${eng.market_position}`);
+    if (eng.verdict) lines.push(``, `<i>${eng.verdict.slice(0, 200)}</i>`);
+  }
+
+  lines.push(``, `━━━━━━━━━━━━━━━━━━`, `🔍 <b>DIAGNÓSTICO</b>`, `━━━━━━━━━━━━━━━━━━`);
+  if (strategy.key_concept) lines.push(`📌 Conceito-chave: <b>${strategy.key_concept}</b>`, ``);
+  lines.push(`<i>${strategy.diagnosis.slice(0, 300)}</i>`);
+
+  if (analysis.positive_points.length > 0) {
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`, `✅ <b>PONTOS FORTES</b>`, `━━━━━━━━━━━━━━━━━━`);
+    analysis.positive_points.slice(0, 3).forEach(p => lines.push(`✔ ${p.slice(0, 100)}`));
+  }
+
+  if (analysis.profile_gaps.length > 0) {
+    lines.push(``, `⚠️ <b>PONTOS DE MELHORIA</b>`);
+    analysis.profile_gaps.slice(0, 3).forEach(g => lines.push(`✖ ${g.slice(0, 100)}`));
+  }
+
+  const best = analysis.best_posts[0];
+  const worst = analysis.worst_posts[0];
+  if (best || worst) {
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`);
+    if (best) {
+      lines.push(`🏅 <b>Melhor post:</b> <i>"${best.caption_preview.slice(0, 70)}..."</i>`);
+      lines.push(`   └ ${best.reason.slice(0, 100)}`);
+    }
+    if (worst) {
+      lines.push(``);
+      lines.push(`💀 <b>Post que não funcionou:</b> <i>"${worst.caption_preview.slice(0, 70)}..."</i>`);
+      lines.push(`   └ ${worst.reason.slice(0, 100)}`);
+    }
+  }
+
+  if (strategy.next_steps.length > 0) {
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`, `🎯 <b>PRÓXIMOS PASSOS</b>`, `━━━━━━━━━━━━━━━━━━`);
+    const nums = ['1️⃣', '2️⃣', '3️⃣'];
+    strategy.next_steps.slice(0, 3).forEach((step, i) => lines.push(`${nums[i]} ${step.slice(0, 120)}`));
+  }
+
+  if (icp) {
+    lines.push(``, `━━━━━━━━━━━━━━━━━━`, `👤 <b>SEU ICP</b>`, `━━━━━━━━━━━━━━━━━━`);
+    if (icp.inferred_audience) lines.push(`Público: ${icp.inferred_audience.slice(0, 120)}`);
+    if (icp.inferred_product) lines.push(`Produto: ${icp.inferred_product.slice(0, 100)}`);
+    if (icp.main_pain_addressed) lines.push(`Dor principal: ${icp.main_pain_addressed.slice(0, 100)}`);
+  }
+
+  return lines.join('\n');
+}
+
+function buildCarouselListMessage(batch: BatchResult): string {
+  const successTopics = batch.topics.filter(t => t.status === 'success');
+  const date = new Date(batch.generatedAt).toLocaleDateString('pt-BR');
+  const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+  const lines: string[] = [
+    `🎨 <b>Maverick Weekly — Carrosséis</b>`,
+    `📅 ${date}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━`,
+    `📦 ${successTopics.length} carrossel(is) prontos para postar:`,
+    `━━━━━━━━━━━━━━━━━━`,
+  ];
+
+  successTopics.forEach((topic: BatchTopic, i: number) => {
+    const num = nums[i] ?? `${i + 1}.`;
+    const slides = topic.carousel?.total_slides ?? 0;
+    const hook = topic.carousel?.slides?.[0]?.title ?? '';
+    lines.push(``);
+    lines.push(`${num} <b>${topic.topic}</b>`);
+    lines.push(`   ${slides} slides`);
+    if (hook) lines.push(`   🎣 <i>"${hook.slice(0, 80)}"</i>`);
+  });
+
+  lines.push(``, `━━━━━━━━━━━━━━━━━━`);
+  lines.push(`💡 Abra os HTMLs no navegador · 1080×1080px prontos`);
+
+  return lines.join('\n');
 }
 
 // Figma REST API v1 is read-only — cannot create frames programmatically.
