@@ -1,0 +1,54 @@
+name: Telegram Weekly Reports
+
+on:
+  schedule:
+    # Roda toda segunda-feira às 08:00 UTC (05:00 BRT)
+    - cron: '0 8 * * 1'
+  
+  # Permite disparar manualmente pelo painel do GitHub Actions
+  workflow_dispatch:
+
+jobs:
+  send-reports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Atlas Weekly Report
+        run: |
+          echo "Disparando relatório semanal inteligente do Atlas..."
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.API_URL }}/api/tasks/weekly-report" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Status Code: $HTTP_STATUS"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Falha ao disparar o relatório do Atlas."
+            exit 1
+          fi
+
+      - name: Trigger Maverick Research
+        if: success()
+        run: |
+          echo "Disparando pesquisa de mercado do Maverick..."
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.API_URL }}/api/tasks/maverick-research" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Status Code: $HTTP_STATUS"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Falha ao disparar a pesquisa do Maverick."
+            exit 1
+          fi
