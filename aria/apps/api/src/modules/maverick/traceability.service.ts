@@ -48,6 +48,10 @@ export interface SourceFeedback {
   feedbackNote?: string;
 }
 
+// Type helpers for Prisma models
+type KnowledgeTraceRow = Awaited<ReturnType<PrismaClient['knowledgeTrace']['findMany']>>[number];
+type SourceMetadataRow = Awaited<ReturnType<PrismaClient['sourceMetadata']['findMany']>>[number];
+
 export class TraceabilityService {
   constructor(private prisma: PrismaClient) {}
 
@@ -148,7 +152,7 @@ export class TraceabilityService {
   async getTraceStats(analysisId?: string): Promise<TraceStats> {
     const whereClause = analysisId ? { analysisId } : {};
 
-    const traces = await this.prisma.knowledgeTrace.findMany({
+    const traces: KnowledgeTraceRow[] = await this.prisma.knowledgeTrace.findMany({
       where: whereClause,
     });
 
@@ -166,23 +170,23 @@ export class TraceabilityService {
       };
     }
 
-    const validSources = traces.filter(t => t.isValid).length;
-    const invalidSources = traces.filter(t => !t.isValid).length;
-    const hallucinationCount = traces.filter(t => t.hallucination).length;
+    const validSources = traces.filter((t: KnowledgeTraceRow) => t.isValid).length;
+    const invalidSources = traces.filter((t: KnowledgeTraceRow) => !t.isValid).length;
+    const hallucinationCount = traces.filter((t: KnowledgeTraceRow) => t.hallucination).length;
 
     const avgConfidence =
-      traces.reduce((sum, t) => sum + t.confidenceScore, 0) / traces.length;
+      traces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.confidenceScore, 0) / traces.length;
     const avgRelevance =
-      traces.reduce((sum, t) => sum + t.relevanceScore, 0) / traces.length;
+      traces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.relevanceScore, 0) / traces.length;
 
     // Fontes mais usadas
     const sourceUsage = new Map<string, number>();
-    traces.forEach(t => {
+    traces.forEach((t: KnowledgeTraceRow) => {
       sourceUsage.set(t.sourceId, (sourceUsage.get(t.sourceId) || 0) + 1);
     });
 
-    const sourceMetadata = await this.prisma.sourceMetadata.findMany();
-    const metadataMap = new Map(sourceMetadata.map(m => [m.sourceId, m]));
+    const sourceMetadata: SourceMetadataRow[] = await this.prisma.sourceMetadata.findMany();
+    const metadataMap = new Map(sourceMetadata.map((m: SourceMetadataRow) => [m.sourceId, m]));
 
     const mostUsedSources = Array.from(sourceUsage.entries())
       .sort((a, b) => b[1] - a[1])
@@ -198,11 +202,11 @@ export class TraceabilityService {
       });
 
     // Fontes nunca usadas
-    const usedSourceIds = new Set(traces.map(t => t.sourceId));
+    const usedSourceIds = new Set(traces.map((t: KnowledgeTraceRow) => t.sourceId));
     const unusedSources = sourceMetadata
-      .filter((m: typeof sourceMetadata[number]) => !usedSourceIds.has(m.sourceId))
+      .filter((m: SourceMetadataRow) => !usedSourceIds.has(m.sourceId))
       .slice(0, 10)
-      .map((m: typeof sourceMetadata[number]) => ({
+      .map((m: SourceMetadataRow) => ({
         sourceId: m.sourceId,
         title: m.title,
         category: m.category,
@@ -210,7 +214,7 @@ export class TraceabilityService {
 
     // Distribuição por categoria
     const categoryDistribution: Record<string, number> = {};
-    sourceMetadata.forEach((m: typeof sourceMetadata[number]) => {
+    sourceMetadata.forEach((m: SourceMetadataRow) => {
       if (usedSourceIds.has(m.sourceId)) {
         categoryDistribution[m.category] =
           (categoryDistribution[m.category] || 0) + 1;
@@ -321,7 +325,7 @@ export class TraceabilityService {
    * Obtém ranking de confiabilidade de fontes
    */
   async getSourceReliabilityRanking() {
-    const sources = await this.prisma.sourceMetadata.findMany(
+    const sources: SourceMetadataRow[] = await this.prisma.sourceMetadata.findMany(
       {
         where: { usageCount: { gt: 0 } },
         orderBy: { avgRelevance: 'desc' },
@@ -329,11 +333,13 @@ export class TraceabilityService {
       }
     );
 
-    return sources.map((s: typeof sources[number]) => ({
+    return sources.map((s: SourceMetadataRow) => ({
       sourceId: s.sourceId,
       title: s.title,
       category: s.category,
       usageCount: s.usageCount,
+      avgRelevance: s.avgRelevance,
+      totalConfidence: s.totalConfidence,
       reliability: Math.round(
         (s.avgRelevance * 0.6 + (s.totalConfidence / Math.max(s.usageCount, 1)) * 0.4)
       ),

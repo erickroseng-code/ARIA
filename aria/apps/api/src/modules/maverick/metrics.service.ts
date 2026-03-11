@@ -126,6 +126,10 @@ export interface DashboardMetrics {
   };
 }
 
+// Type helpers for Prisma models
+type KnowledgeTraceRow = Awaited<ReturnType<PrismaClient['knowledgeTrace']['findMany']>>[number];
+type SourceMetadataRow = Awaited<ReturnType<PrismaClient['sourceMetadata']['findMany']>>[number];
+
 export class MetricsService {
   private traceabilityService: TraceabilityService;
 
@@ -153,11 +157,11 @@ export class MetricsService {
     const coverage = await this.traceabilityService.getCoverageReport(analysisId);
 
     // Get hallucinations
-    const hallucinations = await this.traceabilityService.getAnalysisHallucinations(analysisId);
+    const hallucinations: KnowledgeTraceRow[] = await this.traceabilityService.getAnalysisHallucinations(analysisId);
 
     // Get top sources
     const ranking = await this.traceabilityService.getSourceReliabilityRanking();
-    const topSources = ranking.slice(0, 10).map((r: any) => ({
+    const topSources = ranking.slice(0, 10).map((r) => ({
       sourceId: r.sourceId,
       title: r.title,
       category: r.category,
@@ -194,7 +198,7 @@ export class MetricsService {
 
       topSources,
 
-      hallucinations: hallucinations.map(h => ({
+      hallucinations: hallucinations.map((h: KnowledgeTraceRow) => ({
         sourceId: h.sourceId,
         sourceText: h.sourceText,
         positionInAnalysis: h.positionInAnalysis,
@@ -210,38 +214,39 @@ export class MetricsService {
     // Overall counts
     const totalAnalyses = await this.prisma.maverickAnalysis.count();
     const totalTraces = await this.prisma.knowledgeTrace.count();
-    const allTraces = await this.prisma.knowledgeTrace.findMany();
-    const allSourceMetadata = await this.prisma.sourceMetadata.findMany();
+    const allTraces: KnowledgeTraceRow[] = await this.prisma.knowledgeTrace.findMany();
+    const allSourceMetadata: SourceMetadataRow[] = await this.prisma.sourceMetadata.findMany();
 
     // Calculate coverage rates
+    const analyses = await this.prisma.maverickAnalysis.findMany();
     const analysesWithStats = await Promise.all(
-      (await this.prisma.maverickAnalysis.findMany())
+      analyses
         .slice(0, 100) // Limit for performance
-        .map(a => this.traceabilityService.getCoverageReport(a.id))
+        .map((a) => this.traceabilityService.getCoverageReport(a.id))
     );
 
     const avgCoverageRate = analysesWithStats.length > 0
-      ? Math.round(analysesWithStats.reduce((sum, s) => sum + s.coverageRate, 0) / analysesWithStats.length)
+      ? Math.round(analysesWithStats.reduce((sum: number, s) => sum + s.coverageRate, 0) / analysesWithStats.length)
       : 0;
 
     const avgValidationRate = analysesWithStats.length > 0
-      ? Math.round(analysesWithStats.reduce((sum, s) => sum + s.validationRate, 0) / analysesWithStats.length)
+      ? Math.round(analysesWithStats.reduce((sum: number, s) => sum + s.validationRate, 0) / analysesWithStats.length)
       : 0;
 
     const avgHallucinationRate = analysesWithStats.length > 0
-      ? Math.round(analysesWithStats.reduce((sum, s) => sum + s.hallucinationRate, 0) / analysesWithStats.length)
+      ? Math.round(analysesWithStats.reduce((sum: number, s) => sum + s.hallucinationRate, 0) / analysesWithStats.length)
       : 0;
 
     // Knowledge Base Stats
     const sortedByUsage = [...allSourceMetadata].sort((a, b) => b.usageCount - a.usageCount);
-    const mostUsedSources = sortedByUsage.slice(0, 10).map(s => ({
+    const mostUsedSources = sortedByUsage.slice(0, 10).map((s: SourceMetadataRow) => ({
       sourceId: s.sourceId,
       title: s.title,
       usageCount: s.usageCount,
       category: s.category,
     }));
 
-    const leastUsedSources = sortedByUsage.slice(-10).reverse().map(s => ({
+    const leastUsedSources = sortedByUsage.slice(-10).reverse().map((s: SourceMetadataRow) => ({
       sourceId: s.sourceId,
       title: s.title,
       usageCount: s.usageCount,
@@ -250,14 +255,14 @@ export class MetricsService {
 
     // Quality metrics
     const avgConfidence = allTraces.length > 0
-      ? Math.round(allTraces.reduce((sum, t) => sum + t.confidenceScore, 0) / allTraces.length)
+      ? Math.round(allTraces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.confidenceScore, 0) / allTraces.length)
       : 0;
 
     const avgRelevance = allTraces.length > 0
-      ? Math.round(allTraces.reduce((sum, t) => sum + t.relevanceScore, 0) / allTraces.length)
+      ? Math.round(allTraces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.relevanceScore, 0) / allTraces.length)
       : 0;
 
-    const hallucinationCount = allTraces.filter(t => t.hallucination).length;
+    const hallucinationCount = allTraces.filter((t: KnowledgeTraceRow) => t.hallucination).length;
     const hallucinationRate = allTraces.length > 0
       ? Math.round((hallucinationCount / allTraces.length) * 100)
       : 0;
@@ -270,8 +275,8 @@ export class MetricsService {
     }> = {};
 
     for (const metadata of allSourceMetadata) {
-      const categoryTraces = allTraces.filter(t => {
-        const source = allSourceMetadata.find(s => s.sourceId === t.sourceId);
+      const categoryTraces = allTraces.filter((t: KnowledgeTraceRow) => {
+        const source = allSourceMetadata.find((s: SourceMetadataRow) => s.sourceId === t.sourceId);
         return source?.category === metadata.category;
       });
 
@@ -279,10 +284,10 @@ export class MetricsService {
         categoryDistribution[metadata.category] = {
           count: categoryTraces.length,
           avgRelevance: Math.round(
-            categoryTraces.reduce((sum, t) => sum + t.relevanceScore, 0) / categoryTraces.length
+            categoryTraces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.relevanceScore, 0) / categoryTraces.length
           ),
           avgConfidence: Math.round(
-            categoryTraces.reduce((sum, t) => sum + t.confidenceScore, 0) / categoryTraces.length
+            categoryTraces.reduce((sum: number, t: KnowledgeTraceRow) => sum + t.confidenceScore, 0) / categoryTraces.length
           ),
         };
       }
@@ -292,13 +297,10 @@ export class MetricsService {
     const sourceRankings = await this.traceabilityService.getSourceReliabilityRanking();
 
     // Recent Hallucinations
-    const recentHallucinations = await this.prisma.knowledgeTrace.findMany({
+    const recentHallucinations: KnowledgeTraceRow[] = await this.prisma.knowledgeTrace.findMany({
       where: { hallucination: true },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      include: {
-        maverickAnalysis: true,
-      },
     });
 
     // Feedback Analytics
@@ -329,7 +331,7 @@ export class MetricsService {
 
       categoryDistribution,
 
-      sourceRankings: sourceRankings.slice(0, 20).map((r: any) => ({
+      sourceRankings: sourceRankings.slice(0, 20).map((r) => ({
         sourceId: r.sourceId,
         title: r.title,
         category: r.category,
@@ -339,7 +341,7 @@ export class MetricsService {
         totalConfidence: r.totalConfidence || 0,
       })),
 
-      recentHallucinations: recentHallucinations.map(h => ({
+      recentHallucinations: recentHallucinations.map((h: KnowledgeTraceRow) => ({
         analysisId: h.analysisId,
         sourceId: h.sourceId,
         sourceText: h.sourceText,
