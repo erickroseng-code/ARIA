@@ -28,29 +28,21 @@ COPY apps/api/ ./apps/api/
 # Generate Prisma client before building
 RUN npx prisma generate --schema=./apps/api/prisma/schema.prisma
 
-# Build shared
+# Before building, delete the "paths" configuration in tsconfig.base.json to prevent 
+# TypeScript from aggregating source files across packages. Without this, cross-package 
+# imports would cause tsc to emit nested structures like `dist/core/src/index.js`
+# because it tries to maintain a common root directory. By removing paths, tsc reads
+# typings from node_modules and emits perfectly to `dist/index.js`.
+RUN sed -i '/"paths": {/,/}/d' tsconfig.base.json
+
+# Build each package in its own directory
 RUN cd /app/packages/shared && npm run build
-# tsc in shared might emit to dist/shared/src or dist/ depending on its imports
-RUN if [ -d "/app/packages/shared/dist/shared/src" ]; then \
-      cp -r /app/packages/shared/dist/shared/src/* /app/packages/shared/dist/ && \
-      rm -rf /app/packages/shared/dist/shared; \
-    fi
-
-# Build integrations
 RUN cd /app/packages/integrations && npm run build
-# tsc emits to dist/integrations/src because of cross-package imports
-RUN if [ -d "/app/packages/integrations/dist/integrations/src" ]; then \
-      cp -r /app/packages/integrations/dist/integrations/src/* /app/packages/integrations/dist/ && \
-      rm -rf /app/packages/integrations/dist/integrations; \
-    fi
-
-# Build core
 RUN cd /app/packages/core && npm run build
-# tsc emits to dist/core/src because of cross-package imports
-RUN if [ -d "/app/packages/core/dist/core/src" ]; then \
-      cp -r /app/packages/core/dist/core/src/* /app/packages/core/dist/ && \
-      rm -rf /app/packages/core/dist/core; \
-    fi
+
+# Diagnostic: verify what was actually built
+RUN echo "--- INTEGRATIONS DIST ---" && ls -la /app/packages/integrations/dist || echo "MISSING"
+RUN echo "--- CORE DIST ---" && ls -la /app/packages/core/dist || echo "MISSING"
 
 RUN cd /app/apps/api && npm run build
 
