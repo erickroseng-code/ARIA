@@ -3,7 +3,7 @@
 # Build command: docker build -t aria-api -f aria/apps/api/Dockerfile aria/
 # Run command:   docker run --env-file aria/.env -p 3001:3001 aria-api
 
-FROM node:20-alpine
+FROM node:22-alpine
 
 # Required for native addons (e.g. better-sqlite3)
 RUN apk add --no-cache python3 make g++
