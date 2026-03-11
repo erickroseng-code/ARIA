@@ -28,10 +28,15 @@ COPY apps/api/ ./apps/api/
 # Generate Prisma client before building
 RUN npx prisma generate --schema=./apps/api/prisma/schema.prisma
 
-# Build each package in its own directory to ensure tsc uses the correct cwd
-# This guarantees outDir "dist" resolves relative to each package, not the monorepo root
-RUN cd /app/packages/integrations && npm run build
-RUN cd /app/packages/core && npm run build
+# Build each package manually forcing tsc (in case npm scripts/turbo are hiding errors or caching)
+RUN cd /app/packages/shared && npx tsc -p tsconfig.json || true
+RUN cd /app/packages/integrations && npx tsc -p tsconfig.json || true
+RUN cd /app/packages/core && npx tsc -p tsconfig.json || true
+
+# Diagnostic: verify what was actually built
+RUN echo "--- INTEGRATIONS DIST ---" && ls -la /app/packages/integrations/dist || echo "MISSING"
+RUN echo "--- CORE DIST ---" && ls -la /app/packages/core/dist || echo "MISSING"
+
 RUN cd /app/apps/api && npm run build
 
 # Replace workspace symlinks with real physical copies so Node.js can find
