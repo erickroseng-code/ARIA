@@ -1,4 +1,11 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+
+// Mock screenshot module globally — avoids Playwright browser launch in unit tests
+vi.mock('../carousel-designer/screenshot', () => ({
+  screenshotBatch: vi.fn().mockResolvedValue(null), // simulate Playwright unavailable
+  cleanupScreenshots: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { runWeeklyBatch, getBatch } from '../weekly-batch.service';
 
 // ── Mock global fetch ──────────────────────────────────────────────────────────

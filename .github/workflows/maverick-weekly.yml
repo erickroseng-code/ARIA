@@ -1,0 +1,98 @@
+name: Maverick Weekly — Carrosséis Automáticos
+
+on:
+  schedule:
+    - cron: '0 11 * * 1'  # Segunda-feira às 11h UTC = 8h BRT (UTC-3)
+  workflow_dispatch:
+    inputs:
+      topics:
+        description: 'Tópicos JSON (ex: ["emagrecimento feminino", "mindset"])'
+        required: false
+        type: string
+      theme:
+        description: 'Tema do carrossel'
+        required: false
+        type: choice
+        options:
+          - dark
+          - light
+        default: dark
+
+jobs:
+  generate-carousels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Warm up API (Render free tier cold start)
+        run: |
+          echo "⏳ Aquecendo a API..."
+          curl --silent --max-time 45 --output /dev/null \
+            "${{ secrets.ARIA_API_URL }}/health" || true
+          echo "✅ API pronta"
+
+      - name: Generate weekly batch
+        id: batch
+        run: |
+          # Usa tópicos do input manual se fornecidos, senão usa os configurados no secret
+          TOPICS='${{ github.event.inputs.topics }}'
+          if [ -z "$TOPICS" ]; then
+            TOPICS='${{ secrets.MAVERICK_WEEKLY_TOPICS }}'
+          fi
+
+          THEME='${{ github.event.inputs.theme }}'
+          if [ -z "$THEME" ]; then
+            THEME="dark"
+          fi
+
+          echo "🚀 Gerando carrosséis — tema: $THEME"
+
+          RESPONSE=$(curl \
+            --silent \
+            --max-time 600 \
+            --fail-with-body \
+            --header "Content-Type: application/json" \
+            --data "{\"topics\": $TOPICS, \"theme\": \"$THEME\"}" \
+            "${{ secrets.ARIA_API_URL }}/api/maverick/weekly-batch")
+
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Falha ao gerar batch. Resposta: $RESPONSE"
+            exit 1
+          fi
+
+          # Extrai batchId — jq é nativo no ubuntu-latest
+          BATCH_ID=$(echo "$RESPONSE" | jq -r '.batchId')
+          if [ -z "$BATCH_ID" ] || [ "$BATCH_ID" = "null" ]; then
+            echo "❌ batchId não encontrado na resposta: $RESPONSE"
+            exit 1
+          fi
+
+          echo "batch_id=$BATCH_ID" >> "$GITHUB_OUTPUT"
+          echo "✅ Batch gerado: $BATCH_ID"
+
+      - name: Send carousels to Telegram
+        run: |
+          echo "📤 Enviando carrosséis ao Telegram..."
+
+          curl \
+            --silent \
+            --max-time 120 \
+            --fail-with-body \
+            --request POST \
+            "${{ secrets.ARIA_API_URL }}/api/maverick/weekly-batch/${{ steps.batch.outputs.batch_id }}/send-telegram"
+
+          echo "✅ Carrosséis enviados com sucesso!"
+
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          curl --silent \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data "{
+              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
+              \"text\": \"❌ *Maverick Weekly falhou!*\n\nVerifique os logs:\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+              \"parse_mode\": \"Markdown\"
+            }" \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"

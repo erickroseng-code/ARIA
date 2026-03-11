@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
 import { generateCarouselHtml } from './carousel-designer/html-export';
+import { screenshotBatch, cleanupScreenshots } from './carousel-designer/screenshot';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ export interface BatchTopic {
       visual_hint: string;
     }>;
     htmlExport: string;
+    screenshotPaths?: string[];   // absolute paths to PNG files (present when Playwright available)
+    hasScreenshots: boolean;
   };
   error?: string;
 }
@@ -30,6 +33,9 @@ export interface BatchResult {
 
 // ── In-memory store (cleared on restart — acceptable for MVP) ─────────────────
 const batchStore = new Map<string, BatchResult>();
+
+// Screenshot dirs associated with each batch — cleaned up together with the batch
+const screenshotDirs = new Map<string, string[]>();
 
 const TOPIC_TIMEOUT_MS = 5 * 60 * 1000; // 5 min per topic (AC: 6)
 const BATCH_TTL_MS = 24 * 60 * 60 * 1000; // 24h retention (AC: 7)
@@ -57,7 +63,29 @@ export async function runWeeklyBatch(
   };
 
   batchStore.set(batchId, batch);
-  setTimeout(() => batchStore.delete(batchId), BATCH_TTL_MS);
+
+  // Collect all screenshot dirs for cleanup after TTL
+  const dirs = results
+    .flatMap(t => t.carousel?.screenshotPaths ?? [])
+    .map(p => {
+      const parts = p.split(/[\\/]/);
+      parts.pop(); // remove filename
+      return parts.join('/');
+    })
+    .filter((d, i, arr) => arr.indexOf(d) === i); // unique
+
+  if (dirs.length > 0) {
+    screenshotDirs.set(batchId, dirs);
+  }
+
+  setTimeout(async () => {
+    batchStore.delete(batchId);
+    const dirsToClean = screenshotDirs.get(batchId) ?? [];
+    for (const dir of dirsToClean) {
+      await cleanupScreenshots({ slidePaths: [], tmpDir: dir }).catch(() => {});
+    }
+    screenshotDirs.delete(batchId);
+  }, BATCH_TTL_MS);
 
   return batch;
 }
@@ -105,6 +133,9 @@ async function processTopic(
   const carousel = generateCarouselStructure(script);
   const htmlExport = generateCarouselHtml(carousel, theme);
 
+  // Screenshots — graceful fallback when Playwright/Chromium is unavailable
+  const screenshotResult = await screenshotBatch(carousel, theme);
+
   return {
     topic,
     status: 'success',
@@ -113,6 +144,8 @@ async function processTopic(
       total_slides: carousel.total_slides,
       slides: carousel.slides,
       htmlExport,
+      hasScreenshots: screenshotResult !== null,
+      ...(screenshotResult ? { screenshotPaths: screenshotResult.slidePaths } : {}),
     },
   };
 }

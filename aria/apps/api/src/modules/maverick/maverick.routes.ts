@@ -10,6 +10,7 @@ import { MetricsService } from './metrics.service';
 import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
 import { generateCarouselHtml } from './carousel-designer/html-export';
 import { runWeeklyBatch, getBatch } from './weekly-batch.service';
+import { createBatchZip, getBatchFilename } from './zip.service';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
 const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
@@ -623,6 +624,70 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.status(404).send({ error: 'Batch não encontrado ou expirado (TTL: 24h)' });
     }
     return reply.send(batch);
+  });
+
+  // GET /api/maverick/weekly-batch/:batchId/download — Download ZIP do batch (AC: 1, 2, 3)
+  fastify.get('/weekly-batch/:batchId/download', async (
+    req: FastifyRequest<{ Params: { batchId: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const { batchId } = req.params;
+    const batch = getBatch(batchId);
+    if (!batch) {
+      return reply.status(404).send({ error: 'Batch não encontrado ou expirado (TTL: 24h)' });
+    }
+
+    const zipBuffer = await createBatchZip(batch);
+    const filename = getBatchFilename(batch);
+
+    return reply
+      .header('Content-Type', 'application/zip')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(zipBuffer);
+  });
+
+  // POST /api/maverick/weekly-batch/:batchId/send-telegram — Envia ZIP via Telegram (AC: 6)
+  fastify.post('/weekly-batch/:batchId/send-telegram', async (
+    req: FastifyRequest<{ Params: { batchId: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const { batchId } = req.params;
+    const batch = getBatch(batchId);
+    if (!batch) {
+      return reply.status(404).send({ error: 'Batch não encontrado ou expirado (TTL: 24h)' });
+    }
+
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!token || !chatId) {
+      return reply.status(500).send({ error: 'Telegram não configurado (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)' });
+    }
+
+    const zipBuffer = await createBatchZip(batch);
+    const filename = getBatchFilename(batch);
+    const date = batch.generatedAt.slice(0, 10);
+    const successCount = batch.topics.filter(t => t.status === 'success').length;
+
+    const formData = new FormData();
+    formData.append('chat_id', chatId);
+    formData.append(
+      'caption',
+      `🎨 *Maverick Weekly* — Carrosséis da semana!\n📅 ${date}\n📦 ${successCount} tópico(s) gerado(s)`,
+    );
+    formData.append('parse_mode', 'Markdown');
+    formData.append('document', new Blob([zipBuffer.buffer as ArrayBuffer], { type: 'application/zip' }), filename);
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return reply.status(500).send({ error: `Telegram error: ${errText.slice(0, 200)}` });
+    }
+
+    return reply.send({ success: true, filename });
   });
 }
 
