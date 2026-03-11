@@ -51,13 +51,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# --- Core package ---
-COPY --from=build /monorepo/packages/core/dist ./packages/core/dist
-COPY --from=build /monorepo/packages/core/package.json ./packages/core/package.json
-
-# --- Integrations package ---
-COPY --from=build /monorepo/packages/integrations/dist ./packages/integrations/dist
-COPY --from=build /monorepo/packages/integrations/package.json ./packages/integrations/package.json
+# --- Workspace packages ---
+COPY --from=build /monorepo/packages ./packages
 
 # --- API dist and config ---
 COPY --from=build /monorepo/apps/api/dist ./apps/api/dist
@@ -68,9 +63,10 @@ COPY --from=build /monorepo/apps/api/prisma ./apps/api/prisma
 COPY --from=build /monorepo/node_modules ./node_modules
 
 # Set up @aria/* symlinks so Node can resolve workspace packages
+# Use explicit absolute targets that match where files were copied
 RUN mkdir -p node_modules/@aria && \
-    ln -sf /app/packages/core node_modules/@aria/core && \
-    ln -sf /app/packages/integrations node_modules/@aria/integrations
+    ln -s /app/packages/core node_modules/@aria/core && \
+    ln -s /app/packages/integrations node_modules/@aria/integrations
 
 # Directory for SQLite in production
 RUN mkdir -p /app/data
