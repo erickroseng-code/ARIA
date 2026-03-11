@@ -30,9 +30,9 @@ RUN npm ci --include=dev
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
-# Build packages first (turbo respects dependency order: ^build)
-RUN npx turbo run build --filter=./packages/core
+# Build packages in dependency order: integrations first (core depends on it)
 RUN npx turbo run build --filter=./packages/integrations
+RUN npx turbo run build --filter=./packages/core
 RUN npx turbo run build --filter=./apps/api
 
 # Prune devDependencies for runtime image

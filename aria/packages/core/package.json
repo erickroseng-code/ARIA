@@ -23,6 +23,7 @@
     "create:notion-report": "tsx src/integrations/NotionDocumentCreator.ts"
   },
   "dependencies": {
+    "@aria/integrations": "*",
     "bull": "^4.16.5",
     "bullmq": "^5.70.0",
     "ioredis": "^5.9.3",
