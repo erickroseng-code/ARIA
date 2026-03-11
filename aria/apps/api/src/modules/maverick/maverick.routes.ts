@@ -9,6 +9,7 @@ import { MaverickService } from './maverick.service';
 import { MetricsService } from './metrics.service';
 import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
 import { generateCarouselHtml } from './carousel-designer/html-export';
+import { runWeeklyBatch, getBatch } from './weekly-batch.service';
 
 const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
 const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
@@ -489,18 +490,18 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
 
   // POST /api/maverick/carousel — Gera estrutura de carrossel a partir de um script
   fastify.post('/carousel', async (
-    req: FastifyRequest<{ Body: { script: ScriptInput; exportToFigma?: boolean } }>,
+    req: FastifyRequest<{ Body: { script: ScriptInput; exportToFigma?: boolean; theme?: 'dark' | 'light' } }>,
     reply: FastifyReply,
   ) => {
     if (process.env.MAVERICK_CAROUSEL_ENABLED === 'false') {
       return reply.status(503).send({ error: 'Carousel feature not enabled' });
     }
 
-    const { script, exportToFigma = false } = req.body;
+    const { script, exportToFigma = false, theme = 'dark' } = req.body;
     if (!script) return reply.status(400).send({ error: 'script é obrigatório' });
 
     const carousel = generateCarouselStructure(script);
-    const htmlExport = generateCarouselHtml(carousel);
+    const htmlExport = generateCarouselHtml(carousel, theme);
 
     let figmaUrl: string | undefined;
 
@@ -584,6 +585,44 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao recuperar métricas do dashboard' });
     }
+  });
+
+  // ========== EPIC 12: Weekly Batch ==========
+
+  // POST /api/maverick/weekly-batch — Gera carrosséis para múltiplos tópicos (AC: 1-7)
+  fastify.post('/weekly-batch', async (
+    req: FastifyRequest<{ Body: { topics: string[]; theme?: 'dark' | 'light'; scriptOptions?: { maxAgeDays?: number } } }>,
+    reply: FastifyReply,
+  ) => {
+    const { topics, theme = 'dark', scriptOptions = {} } = req.body;
+
+    if (!Array.isArray(topics) || topics.length === 0) {
+      return reply.status(400).send({ error: 'topics deve ser um array não vazio' });
+    }
+    if (topics.length > 10) {
+      return reply.status(400).send({ error: 'máximo de 10 tópicos por request' });
+    }
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      return reply.status(500).send({ error: 'OPENROUTER_API_KEY não configurada' });
+    }
+
+    const result = await runWeeklyBatch(topics, theme, apiKey, scriptOptions);
+    return reply.send(result);
+  });
+
+  // GET /api/maverick/weekly-batch/:batchId — Recupera resultado de um batch (usado pela Story 12.3)
+  fastify.get('/weekly-batch/:batchId', async (
+    req: FastifyRequest<{ Params: { batchId: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const { batchId } = req.params;
+    const batch = getBatch(batchId);
+    if (!batch) {
+      return reply.status(404).send({ error: 'Batch não encontrado ou expirado (TTL: 24h)' });
+    }
+    return reply.send(batch);
   });
 }
 
