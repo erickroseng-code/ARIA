@@ -363,6 +363,7 @@ const DATE_PRESETS = [
   { value: 'last_30d', label: '30 dias' },
   { value: 'this_month', label: 'Este mês' },
   { value: 'last_month', label: 'Mês passado' },
+  { value: 'maximum', label: 'Máximo' },
 ];
 
 function formatCurrency(value: number, currency = 'BRL'): string {
