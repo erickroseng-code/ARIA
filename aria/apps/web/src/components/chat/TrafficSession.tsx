@@ -998,8 +998,8 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
 
                                 {/* Nome */}
                                 <td className="px-3 py-3">
-                                  <div className="max-w-[200px]">
-                                    <p className="truncate text-white/80 font-medium">{campaign.name}</p>
+                                  <div className="min-w-[250px] max-w-[400px]">
+                                    <p className="line-clamp-2 text-white/80 font-medium leading-snug">{campaign.name}</p>
                                     <p className="text-white/25 text-[10px] mt-0.5 uppercase tracking-wide">
                                       {campaign.objective?.replace(/_/g, ' ')}
                                     </p>
@@ -1080,7 +1080,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
                                                   )}
                                                 </button>
                                                 <Layers className="w-3 h-3 text-blue-400/60 shrink-0" />
-                                                <span className="text-white/60 text-[11px] truncate max-w-[160px]">{adSet.name}</span>
+                                                <span className="text-white/60 text-[11px] line-clamp-2 max-w-[300px] leading-tight">{adSet.name}</span>
                                               </div>
                                             </td>
                                             <td className="px-3 py-2 text-center">
@@ -1138,10 +1138,10 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
                                                           <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-1.5 mb-0.5">
                                                               <FileText className="w-2.5 h-2.5 text-purple-400/60 shrink-0" />
-                                                              <p className="text-white/55 text-[11px] font-medium truncate">{ad.name}</p>
+                                                              <p className="text-white/55 text-[11px] font-medium line-clamp-2 leading-tight max-w-[300px]">{ad.name}</p>
                                                             </div>
                                                             {creative?.title && (
-                                                              <p className="text-white/70 text-[11px] font-semibold truncate">{creative.title}</p>
+                                                              <p className="text-white/70 text-[11px] font-semibold line-clamp-2 leading-tight max-w-[300px]">{creative.title}</p>
                                                             )}
                                                             {creative?.body && (
                                                               <p className="text-white/35 text-[10px] line-clamp-2 leading-relaxed mt-0.5">{creative.body}</p>
