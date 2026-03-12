@@ -1,32 +1,50 @@
-name: Telegram Weekly Reports
+name: Telegram Weekly Reports & Atlas Daily
 
 on:
   schedule:
-    # Roda toda segunda-feira às 08:00 UTC (05:00 BRT)
+    # Relatório semanal — toda segunda-feira às 08:00 UTC (05:00 BRT)
     - cron: '0 8 * * 1'
-  
+    # Atlas otimização diária — todo dia às 12:00 UTC (09:00 BRT)
+    - cron: '0 12 * * *'
+
   # Permite disparar manualmente pelo painel do GitHub Actions
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'Qual job executar'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - weekly-report
+          - atlas-optimize
+          - maverick-research
 
 jobs:
-  send-reports:
+  weekly-reports:
+    name: Relatórios Semanais
     runs-on: ubuntu-latest
+    # Roda apenas às segundas OU quando manual com job=all/weekly-report
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'weekly-report'))
     steps:
       - name: Trigger Atlas Weekly Report
         run: |
           echo "Disparando relatório semanal inteligente do Atlas..."
-          
+
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.API_URL }}/api/tasks/weekly-report" \
             -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{}')
-          
+
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
-          
+
           echo "Status Code: $HTTP_STATUS"
           echo "Response Body: $BODY"
-          
+
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Falha ao disparar o relatório do Atlas."
             exit 1
@@ -36,19 +54,49 @@ jobs:
         if: success()
         run: |
           echo "Disparando pesquisa de mercado do Maverick..."
-          
+
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.API_URL }}/api/tasks/maverick-research" \
             -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{}')
-          
+
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
-          
+
           echo "Status Code: $HTTP_STATUS"
           echo "Response Body: $BODY"
-          
+
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Falha ao disparar a pesquisa do Maverick."
             exit 1
           fi
+
+  atlas-daily-optimize:
+    name: Atlas Otimização Diária
+    runs-on: ubuntu-latest
+    # Roda todo dia às 09:00 BRT OU quando manual com job=all/atlas-optimize
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'atlas-optimize'))
+    steps:
+      - name: Trigger Atlas Daily Optimization
+        run: |
+          echo "Disparando análise e otimização diária do Atlas..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.API_URL }}/api/tasks/atlas-optimize" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dryRun": false}')
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Status Code: $HTTP_STATUS"
+          echo "Response Body: $BODY"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Falha ao disparar a otimização do Atlas."
+            exit 1
+          fi
+
+          echo "Atlas otimização concluída. Propostas enviadas via Telegram para aprovação."
