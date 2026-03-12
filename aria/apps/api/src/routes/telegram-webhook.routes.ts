@@ -1,90 +1,56 @@
 import type { FastifyInstance } from 'fastify';
-import { sendTelegram } from '../shared/telegram';
-import { getAuditLogs } from '../modules/traffic/agents/atlas-audit';
-import { isAtlasWriteEnabled } from '../modules/traffic/agents/atlas-orchestrator';
-import { isWorkspaceConfigured } from '@aria/integrations';
+import { TrafficService } from '../modules/traffic/traffic.service';
+import { handleTelegramUpdate, isAuthorized } from '../modules/telegram/telegram-bot.service';
 
-function isAuthorized(chatId: number): boolean {
-  const allowed = (process.env.ALLOWED_TELEGRAM_IDS ?? '')
-    .split(',').map(id => id.trim()).filter(Boolean);
-  return allowed.includes(String(chatId));
-}
+const trafficService = new TrafficService();
 
 export async function registerTelegramWebhookRoutes(fastify: FastifyInstance): Promise<void> {
+
+  // POST /api/telegram/webhook — receives all Telegram updates
   fastify.post('/webhook', async (req, reply) => {
     // Always respond 200 immediately — Telegram resends if no response within 5s
     reply.status(200).send({ ok: true });
 
-    const body = req.body as any;
-    const message = body?.message;
-    if (!message?.text || !message?.chat?.id) return;
+    const update = req.body as any;
 
-    const chatId: number = message.chat.id;
-    if (!isAuthorized(chatId)) return;
+    // Auth check for messages
+    const chatId = update?.message?.chat?.id ?? update?.callback_query?.from?.id;
+    if (chatId && !isAuthorized(chatId)) return;
 
-    const command = message.text.trim().split(' ')[0].toLowerCase();
-
-    // Process asynchronously — reply already sent
     setImmediate(async () => {
-      switch (command) {
-        case '/status':
-          await handleStatus(chatId);
-          break;
-        case '/atlas':
-          await handleAtlas(chatId);
-          break;
-        case '/help':
-          await handleHelp(chatId);
-          break;
-        default:
-          await sendTelegram(chatId, 'Comando não reconhecido. Use /help para ver os comandos disponíveis.');
+      try {
+        await handleTelegramUpdate(update, trafficService);
+      } catch (err) {
+        console.error('[Telegram Webhook] Unhandled error:', err);
       }
     });
   });
-}
 
-async function handleStatus(chatId: number): Promise<void> {
-  const googleOk = await isWorkspaceConfigured().catch(() => false);
-  const atlasMode = isAtlasWriteEnabled() ? '⚡ ativo' : '🔒 modo seguro';
-  const uptimeSec = Math.floor(process.uptime());
-  const h = Math.floor(uptimeSec / 3600);
-  const m = Math.floor((uptimeSec % 3600) / 60);
+  // POST /api/telegram/setup-webhook — register webhook URL with Telegram
+  fastify.post('/setup-webhook', async (req, reply) => {
+    const body = req.body as any;
+    const url: string = body?.url;
+    if (!url) return reply.status(400).send({ error: 'url is required' });
 
-  await sendTelegram(
-    chatId,
-    `🤖 <b>Aria — Status</b>\n` +
-    `✅ API: online\n` +
-    `${googleOk ? '✅' : '❌'} Google: ${googleOk ? 'conectado' : 'desconectado'}\n` +
-    `📊 Atlas: ${atlasMode}\n` +
-    `🔔 Telegram: ativo\n` +
-    `⏰ Uptime: ${h}h ${m}m`
-  );
-}
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return reply.status(500).send({ error: 'TELEGRAM_BOT_TOKEN not set' });
 
-async function handleAtlas(chatId: number): Promise<void> {
-  const logs = getAuditLogs(undefined, 5);
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'] }),
+    });
+    const data = await res.json() as any;
+    return reply.send(data);
+  });
 
-  if (logs.length === 0) {
-    await sendTelegram(chatId, '📊 <b>Atlas</b>\nNenhuma ação registrada ainda.');
-    return;
-  }
+  // GET /api/telegram/webhook-info — check registered webhook
+  fastify.get('/webhook-info', async (_req, reply) => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return reply.status(500).send({ error: 'TELEGRAM_BOT_TOKEN not set' });
 
-  const lines = ['📊 <b>Atlas — Últimas ações</b>'];
-  for (const log of logs) {
-    const icon = log.result.startsWith('ERROR') ? '❌' : '✅';
-    const dryRunFlag = (log as any).dry_run === 1 ? ' <i>[dry-run]</i>' : '';
-    lines.push(`${icon} ${log.action} (${log.entityId})${dryRunFlag}: ${log.result}`);
-  }
-
-  await sendTelegram(chatId, lines.join('\n'));
-}
-
-async function handleHelp(chatId: number): Promise<void> {
-  await sendTelegram(
-    chatId,
-    `🤖 <b>Aria — Comandos</b>\n\n` +
-    `/status — Status geral da Aria\n` +
-    `/atlas — Últimas ações autônomas do Atlas\n` +
-    `/help — Esta mensagem`
-  );
+    const res  = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+    const data = await res.json() as any;
+    return reply.send(data);
+  });
 }

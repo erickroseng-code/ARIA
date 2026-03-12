@@ -6,7 +6,11 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
-import { sendTelegram } from '../../shared/telegram';
+import { sendTelegram, sendTelegramDocument } from '../../shared/telegram';
+import { PdfService } from '../../services/pdf/pdf.service';
+import type { ReportLayoutData } from '../../services/pdf/pdf.service';
+
+const pdfService = new PdfService();
 import { MetricsService } from './metrics.service';
 import { generateCarouselStructure, ScriptInput } from './carousel-designer/index';
 import { generateCarouselHtml } from './carousel-designer/html-export';
@@ -664,14 +668,23 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.status(500).send({ error: 'Telegram não configurado (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)' });
     }
 
-    // ── Mensagem 1: Diagnóstico do perfil (opcional) ──────────────────────────
+    // ── Mensagem 1: Diagnóstico do perfil como PDF (opcional) ────────────────
     const weeklyUsername = process.env.MAVERICK_WEEKLY_USERNAME;
     if (weeklyUsername) {
       try {
         const analyses = await maverickService.getAnalysisByUsername(weeklyUsername);
         if (analyses.length > 0) {
-          const diagnosticMsg = buildDiagnosticMessage(analyses[0], analyses[1] ?? null);
-          await sendTelegram(chatId, diagnosticMsg);
+          const pdfData = buildMaverickPdfData(analyses[0]);
+          const pdfBuffer = await pdfService.generatePdfBuffer('maverick', pdfData);
+          const date = new Date(analyses[0].createdAt).toISOString().slice(0, 10);
+          const filename = `Maverick-Weekly-${date}.pdf`;
+          const report = analyses[0].fullReport as unknown as FullReportExtended;
+          await sendTelegramDocument(
+            chatId,
+            pdfBuffer,
+            filename,
+            `🎨 Diagnóstico Maverick — @${report.profile?.username ?? weeklyUsername} · ${new Date(analyses[0].createdAt).toLocaleDateString('pt-BR')}`,
+          );
         }
       } catch (err) {
         console.warn('[Maverick Weekly] Diagnóstico de perfil indisponível:', err instanceof Error ? err.message : String(err));
@@ -821,6 +834,55 @@ function buildDiagnosticMessage(current: any, previous: any | null): string {
   }
 
   return lines.join('\n');
+}
+
+function buildMaverickPdfData(analysis: any): ReportLayoutData {
+  const report = analysis.fullReport as unknown as FullReportExtended;
+  const { profile, strategy, analysis: analysisData } = report;
+  const score = strategy.profile_score;
+  const eng = strategy.engagement_panorama;
+  const icp = strategy.suggested_icp;
+
+  const resultsRows: ReportLayoutData['results'] = [];
+  analysisData.positive_points.slice(0, 3).forEach(p => {
+    resultsRows.push({ name: p.slice(0, 60), status: 'FORTE', detail: '' });
+  });
+  analysisData.profile_gaps.slice(0, 3).forEach(g => {
+    resultsRows.push({ name: g.slice(0, 60), status: 'ATENÇÃO', detail: '' });
+  });
+  if (analysisData.best_posts[0]) {
+    resultsRows.push({ name: `"${analysisData.best_posts[0].caption_preview.slice(0, 55)}"`, status: 'VIRAL', detail: analysisData.best_posts[0].reason.slice(0, 80) });
+  }
+  if (analysisData.worst_posts[0]) {
+    resultsRows.push({ name: `"${analysisData.worst_posts[0].caption_preview.slice(0, 55)}"`, status: 'FALHOU', detail: analysisData.worst_posts[0].reason.slice(0, 80) });
+  }
+
+  const diagLines: string[] = [];
+  if (strategy.key_concept) diagLines.push(`Conceito-chave: ${strategy.key_concept}`, '');
+  diagLines.push(strategy.diagnosis.slice(0, 400));
+  if (strategy.next_steps.length > 0) {
+    diagLines.push('', 'Próximos passos:');
+    strategy.next_steps.slice(0, 3).forEach((step, i) => diagLines.push(`${i + 1}. ${step.slice(0, 120)}`));
+  }
+  if (icp?.inferred_audience) diagLines.push('', `ICP: ${icp.inferred_audience.slice(0, 120)}`);
+
+  const followers = parseInt(profile.followers || '0').toLocaleString('pt-BR');
+  const metrics: ReportLayoutData['metrics'] = [
+    { label: 'Seguidores', value: followers },
+    { label: 'Posts', value: profile.posts_count },
+  ];
+  if (score) metrics.push({ label: 'Score Geral', value: `${score.overall}/100` });
+  if (eng) metrics.push({ label: 'Engajamento', value: eng.profile_rate });
+
+  return {
+    title: 'Análise de Nicho & Roteiros (Maverick)',
+    clientName: `@${profile.username}`,
+    clientId: analysis.id?.slice(0, 8) ?? 'MAV',
+    reportDate: new Date(analysis.createdAt).toLocaleDateString('pt-BR'),
+    metrics,
+    results: resultsRows.length > 0 ? resultsRows : [{ name: 'Análise concluída', status: 'OK', detail: '' }],
+    diagnosis: diagLines.join('\n'),
+  };
 }
 
 function buildCarouselListMessage(batch: BatchResult): string {

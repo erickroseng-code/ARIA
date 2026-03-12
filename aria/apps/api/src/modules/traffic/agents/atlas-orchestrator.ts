@@ -9,7 +9,7 @@ interface ChatMessage {
   content: string;
 }
 
-interface AtlasContext {
+export interface AtlasContext {
   workspace: string;
   accountId: string;
   accountName?: string;
@@ -431,4 +431,51 @@ export async function atlasSchedulerRun(
   }
 
   return { actionsExecuted, analysis };
+}
+
+// ─── Telegram Bot Exports ─────────────────────────────────────────────────────
+
+export async function executeAtlasAction(
+  action: Record<string, any>,
+  ctx: AtlasContext,
+  trafficService: TrafficService,
+  dryRun = false,
+): Promise<string> {
+  return executeAction(action, ctx, trafficService, { dryRun });
+}
+
+const PROPOSAL_LABELS: Record<string, string> = {
+  pause_campaign: '⏸ Pausar campanha',
+  enable_campaign: '▶️ Ativar campanha',
+  update_budget: '💰 Atualizar budget da campanha',
+  pause_adset: '⏸ Pausar adset',
+  enable_adset: '▶️ Ativar adset',
+  update_adset_budget: '💰 Escalar budget do adset',
+  pause_ad: '⏸ Pausar anúncio',
+  enable_ad: '▶️ Ativar anúncio',
+};
+
+export interface ProposedAction {
+  action: Record<string, any>;
+  label: string;
+  entityName?: string;
+}
+
+export async function atlasGetProposedActions(
+  ctx: AtlasContext,
+  trafficService: TrafficService,
+): Promise<{ analysis: string; proposals: ProposedAction[] }> {
+  const analysis = await atlasAutoAnalyze(ctx, trafficService);
+  const rawActions = extractAllActions(analysis);
+
+  const proposals: ProposedAction[] = rawActions
+    .filter(a => a.action && a.action !== 'none')
+    .slice(0, 8)
+    .map(action => ({
+      action,
+      label: PROPOSAL_LABELS[action.action] ?? `⚙️ ${action.action}`,
+      entityName: findEntityName(action, ctx),
+    }));
+
+  return { analysis, proposals };
 }

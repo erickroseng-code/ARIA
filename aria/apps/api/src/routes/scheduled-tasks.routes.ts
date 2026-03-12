@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { sendTelegram } from '../shared/telegram';
+import { sendTelegram, sendTelegramDocument } from '../shared/telegram';
 import { TrafficService } from '../modules/traffic/traffic.service';
 import { atlasSchedulerRun } from '../modules/traffic/agents/atlas-orchestrator';
+import { PdfService } from '../services/pdf/pdf.service';
+import type { ReportLayoutData } from '../services/pdf/pdf.service';
+
+const pdfService = new PdfService();
 
 function checkSchedulerAuth(req: FastifyRequest, reply: FastifyReply): boolean {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -51,30 +55,48 @@ export async function registerScheduledTasksRoutes(fastify: FastifyInstance): Pr
       weekAgo.setDate(today.getDate() - 7);
       const period = `${weekAgo.toLocaleDateString('pt-BR')} → ${today.toLocaleDateString('pt-BR')}`;
 
-      const lines = [
-        `📊 <b>Relatório Semanal — Atlas</b>`,
-        `📅 ${period}`,
+      // Build PDF data
+      const resultsRows: ReportLayoutData['results'] = [];
+      activeCampaigns.slice(0, 5).forEach(c => {
+        resultsRows.push({ name: c.name, status: 'ATIVO', detail: 'Campanha em veiculação' });
+      });
+      pausedThisWeek.slice(0, 3).forEach(c => {
+        resultsRows.push({ name: c.name, status: 'PAUSADA', detail: 'Suspensa no período' });
+      });
+
+      const diagLines = [
+        `Período: ${period}`,
         ``,
-        `━━━━━━━━━━━━━━━━━━`,
-        `💰 Gasto total:   ${fmt(insights.total_spend)}`,
-        `👁 Impressões:    ${insights.total_impressions.toLocaleString('pt-BR')}`,
-        `🖱 Cliques:       ${insights.total_clicks.toLocaleString('pt-BR')}`,
-        `📈 CTR médio:     ${insights.avg_ctr.toFixed(2)}%  ${ctrStatus}`,
-        `💵 CPC médio:     ${fmt(insights.avg_cpc)}  ${cpcStatus}`,
-        `🎯 ROAS médio:    ${insights.avg_roas.toFixed(2)}x  ${roasStatus}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `🟢 Campanhas ativas: ${activeCampaigns.length} de ${campaigns.length}`,
+        `CTR: ${insights.avg_ctr.toFixed(2)}% ${ctrStatus}   |   CPC: ${fmt(insights.avg_cpc)} ${cpcStatus}   |   ROAS: ${insights.avg_roas.toFixed(2)}x ${roasStatus}`,
+        ``,
+        `${activeCampaigns.length} de ${campaigns.length} campanhas ativas no período.`,
       ];
-
       if (pausedThisWeek.length > 0) {
-        const names = pausedThisWeek.slice(0, 3).map(c => c.name).join(', ');
-        lines.push(`⏸ Pausadas: ${names}`);
+        diagLines.push(``, `Pausadas: ${pausedThisWeek.map(c => c.name).join(', ')}`);
       }
+      diagLines.push(``, `Veja o resumo diário do Atlas para detalhes das ações executadas.`);
 
-      lines.push(``, `💡 <i>Veja o resumo diário do Atlas para detalhes das ações executadas.</i>`);
+      const pdfData: ReportLayoutData = {
+        title: 'Análise de Performance de Anúncios (Atlas)',
+        clientName: workspaceId,
+        clientId: accountId,
+        reportDate: today.toLocaleDateString('pt-BR'),
+        metrics: [
+          { label: 'Gasto Total', value: fmt(insights.total_spend) },
+          { label: 'Impressões', value: insights.total_impressions.toLocaleString('pt-BR') },
+          { label: 'Cliques', value: insights.total_clicks.toLocaleString('pt-BR') },
+          { label: 'CTR Médio', value: `${insights.avg_ctr.toFixed(2)}%` },
+          { label: 'CPC Médio', value: fmt(insights.avg_cpc) },
+          { label: 'ROAS Médio', value: `${insights.avg_roas.toFixed(2)}x` },
+        ],
+        results: resultsRows.length > 0 ? resultsRows : [{ name: 'Sem campanhas no período', status: '—', detail: '' }],
+        diagnosis: diagLines.join('\n'),
+      };
 
       if (chatId) {
-        await sendTelegram(chatId, lines.join('\n'));
+        const pdfBuffer = await pdfService.generatePdfBuffer('atlas', pdfData);
+        const filename = `Atlas-Weekly-${today.toISOString().slice(0, 10)}.pdf`;
+        await sendTelegramDocument(chatId, pdfBuffer, filename, `📊 Relatório Semanal Atlas · ${period}`);
       }
 
       return reply.send({ task: 'weekly-report', executedAt, success: true, result: 'Report sent' });
