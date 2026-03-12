@@ -796,6 +796,65 @@ export type { ProposedAction };
 
 // ── Daily optimization prompt (called by cron) ────────────────────────────────
 
+// Returns true when a pause_ad proposal is due to creative fatigue
+function isCreativeFatigue(proposal: ProposedAction): boolean {
+  const reason = (proposal.action.reason ?? '').toLowerCase();
+  return proposal.action.action === 'pause_ad' &&
+    /fadiga|ctr|hook|criativo|frequên|creative|fatigue/i.test(reason);
+}
+
+// Sends a combined "pause + swap creative" proposal for a fatigued ad
+async function sendCreativeSwapProposal(
+  chatId: number,
+  proposal: ProposedAction,
+  accountId: string,
+  campaigns: any[],
+  insights: any,
+  driveFiles: CreativeFile[],
+): Promise<boolean> {
+  if (driveFiles.length === 0) return false;
+
+  // Pick first available creative from Drive
+  const file = driveFiles[0];
+
+  // Generate copy via LLM
+  const copy = await generateCreativeCopy({
+    adName: proposal.entityName ?? proposal.action.adId ?? 'Anúncio',
+    reason: proposal.action.reason ?? 'Fadiga de criativo detectada',
+  });
+
+  const token = Math.random().toString(36).slice(2, 14);
+  pendingCreativeAppr.set(token, {
+    chatId,
+    adId: proposal.action.adId ?? '',
+    adName: proposal.entityName ?? proposal.action.adId ?? 'Anúncio',
+    file,
+    copy,
+    workspaceId: 'erick',
+    accountId,
+    campaigns,
+    insights,
+    expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+  });
+
+  const icon = file.mimeType.startsWith('video/') ? '🎬' : '🖼';
+  const reason = proposal.action.reason ? `\n└ <i>${proposal.action.reason}</i>` : '';
+  await send(chatId,
+    `🔄 <b>Troca de Criativo — "${proposal.entityName ?? 'Anúncio'}"</b>${reason}\n\n` +
+    `${icon} <b>Novo criativo:</b> ${file.name}\n` +
+    (file.webViewLink ? `🔗 <a href="${file.webViewLink}">Ver no Drive</a>\n` : '') +
+    `\n✍️ <b>Copy gerada:</b>\n` +
+    `Texto: <i>${copy.primaryText}</i>\n` +
+    `Título: <i>${copy.title}</i>\n` +
+    `Descrição: <i>${copy.description}</i>`,
+    { inline_keyboard: [[
+      { text: '✅ Pausar + Subir Novo', callback_data: `cappr:${token}` },
+      { text: '❌ Pular',               callback_data: `crej:${token}` },
+    ]] }
+  );
+  return true;
+}
+
 export async function sendDailyOptimizationPrompt(trafficService: TrafficService): Promise<void> {
   const chatIdStr = process.env.TELEGRAM_CHAT_ID;
   if (!chatIdStr) { console.warn('[Atlas] TELEGRAM_CHAT_ID not set — skipping daily prompt'); return; }
@@ -819,7 +878,10 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
     return;
   }
 
-  // 2. For each account, check for active campaigns and collect proposals
+  // 2. Pre-load Drive creatives once (shared across all accounts)
+  const driveFiles = await listCreativesFromDrive().catch(() => [] as CreativeFile[]);
+
+  // 3. For each account, check for active campaigns and collect proposals
   let totalProposals = 0;
 
   for (const acc of activeAccounts) {
@@ -830,20 +892,26 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
       ]);
 
       const activeCampaigns = campaigns.filter((c: any) => c.status === 'ACTIVE');
-      if (activeCampaigns.length === 0) continue; // skip accounts with no active campaigns
+      if (activeCampaigns.length === 0) continue;
 
       const ctx: AtlasContext = { workspace: 'erick', accountId: acc.id, accountName: acc.name, insights, campaigns };
-      const { proposals, analysis } = await atlasGetProposedActions(ctx, trafficService);
+      const { proposals } = await atlasGetProposedActions(ctx, trafficService);
 
       if (proposals.length === 0) {
         await send(chatId, `✅ <b>${acc.name}</b> — Nenhuma ação necessária.`);
         continue;
       }
 
-      // 3. Send proposals for this account with approve/reject buttons
       await send(chatId, `📊 <b>${acc.name}</b> — ${activeCampaigns.length} campanha(s) ativa(s)\n🎯 <b>${proposals.length} proposta(s):</b>`);
 
       for (const proposal of proposals) {
+        // Creative fatigue: auto-fetch replacement from Drive + generate copy
+        if (isCreativeFatigue(proposal) && driveFiles.length > 0) {
+          const sent = await sendCreativeSwapProposal(chatId, proposal, acc.id, campaigns, insights, driveFiles);
+          if (sent) { totalProposals++; continue; }
+        }
+
+        // Standard proposal (pause, budget change, etc.)
         const actionId = Math.random().toString(36).slice(2, 14);
         pendingActions.set(actionId, {
           action: proposal.action,
@@ -863,7 +931,6 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
         totalProposals++;
       }
 
-      // Brief pause between accounts to avoid Telegram rate limits
       await new Promise(r => setTimeout(r, 500));
 
     } catch (err: any) {
