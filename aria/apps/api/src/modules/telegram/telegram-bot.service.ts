@@ -803,7 +803,7 @@ function isCreativeFatigue(proposal: ProposedAction): boolean {
     /fadiga|ctr|hook|criativo|frequên|creative|fatigue/i.test(reason);
 }
 
-// Sends a combined "pause + swap creative" proposal for a fatigued ad
+// Sends a "swap creative only" proposal for a fatigued ad (copy is kept as-is)
 async function sendCreativeSwapProposal(
   chatId: number,
   proposal: ProposedAction,
@@ -817,11 +817,8 @@ async function sendCreativeSwapProposal(
   // Pick first available creative from Drive
   const file = driveFiles[0];
 
-  // Generate copy via LLM
-  const copy = await generateCreativeCopy({
-    adName: proposal.entityName ?? proposal.action.adId ?? 'Anúncio',
-    reason: proposal.action.reason ?? 'Fadiga de criativo detectada',
-  });
+  // Use a placeholder copy — copy is intentionally NOT changed
+  const copy = { primaryText: '', title: '', description: '' };
 
   const token = Math.random().toString(36).slice(2, 14);
   pendingCreativeAppr.set(token, {
@@ -843,10 +840,7 @@ async function sendCreativeSwapProposal(
     `🔄 <b>Troca de Criativo — "${proposal.entityName ?? 'Anúncio'}"</b>${reason}\n\n` +
     `${icon} <b>Novo criativo:</b> ${file.name}\n` +
     (file.webViewLink ? `🔗 <a href="${file.webViewLink}">Ver no Drive</a>\n` : '') +
-    `\n✍️ <b>Copy gerada:</b>\n` +
-    `Texto: <i>${copy.primaryText}</i>\n` +
-    `Título: <i>${copy.title}</i>\n` +
-    `Descrição: <i>${copy.description}</i>`,
+    `\n📝 <i>A copy do anúncio será mantida como está.</i>`,
     { inline_keyboard: [[
       { text: '✅ Pausar + Subir Novo', callback_data: `cappr:${token}` },
       { text: '❌ Pular',               callback_data: `crej:${token}` },
