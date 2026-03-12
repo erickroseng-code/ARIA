@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { sendTelegram, sendTelegramDocument } from '../shared/telegram';
+import { sendTelegramDocument } from '../shared/telegram';
 import { TrafficService } from '../modules/traffic/traffic.service';
-import { atlasSchedulerRun } from '../modules/traffic/agents/atlas-orchestrator';
+import { sendDailyOptimizationPrompt } from '../modules/telegram/telegram-bot.service';
 import { PdfService } from '../services/pdf/pdf.service';
 import type { ReportLayoutData } from '../services/pdf/pdf.service';
 
@@ -105,31 +105,16 @@ export async function registerScheduledTasksRoutes(fastify: FastifyInstance): Pr
     }
   });
 
-  // POST /api/tasks/atlas-optimize — Trigger Atlas autonomous optimization
+  // POST /api/tasks/atlas-optimize — Send daily optimization prompt via Telegram
+  // User selects the account directly in Telegram; no accountId required here.
   fastify.post('/atlas-optimize', async (req, reply) => {
     if (!checkSchedulerAuth(req, reply)) return;
-
-    const body = req.body as any ?? {};
-    const workspaceId = body.workspaceId ?? process.env.ATLAS_DEFAULT_WORKSPACE ?? 'erick';
-    const accountId = body.accountId ?? process.env.ATLAS_DEFAULT_ACCOUNT_ID ?? '';
-    const dryRun: boolean = body.dryRun !== undefined ? Boolean(body.dryRun) : true;
-
-    if (!accountId) {
-      return reply.status(400).send({ error: 'accountId is required (or set ATLAS_DEFAULT_ACCOUNT_ID in .env)' });
-    }
 
     const executedAt = new Date().toISOString();
 
     try {
-      const [insights, campaigns] = await Promise.all([
-        trafficService.getAccountInsights(accountId, workspaceId, 'last_7d'),
-        trafficService.getCampaigns(accountId, workspaceId),
-      ]);
-
-      const ctx = { workspace: workspaceId, accountId, insights, campaigns };
-      const result = await atlasSchedulerRun(ctx, trafficService, dryRun);
-
-      return reply.send({ task: 'atlas-optimize', executedAt, success: true, result });
+      await sendDailyOptimizationPrompt(trafficService);
+      return reply.send({ task: 'atlas-optimize', executedAt, success: true, result: 'Daily prompt sent via Telegram' });
     } catch (error: any) {
       return reply.status(500).send({ task: 'atlas-optimize', executedAt, success: false, error: error.message });
     }

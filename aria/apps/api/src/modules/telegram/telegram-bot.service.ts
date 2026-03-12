@@ -173,7 +173,7 @@ async function handleCallbackQuery(cb: any, trafficService: TrafficService): Pro
 
   await answerCb(cb.id);
 
-  // Account selection
+  // Account selection (manual /conta)
   if (data.startsWith('sel:')) {
     const sel = pendingSel.get(data.slice(4));
     if (!sel) { await send(chatId, '❌ Seleção expirada. Use /conta novamente.'); return; }
@@ -184,6 +184,21 @@ async function handleCallbackQuery(cb: any, trafficService: TrafficService): Pro
     });
     pendingSel.delete(data.slice(4));
     await editMsg(chatId, messageId, `✅ <b>Conta selecionada:</b> ${sel.name}\n\nAgora pode usar /otimizar ou /criativo para gerenciar criativos.`);
+    return;
+  }
+
+  // Daily optimization trigger — selects account AND immediately runs optimization
+  if (data.startsWith('dailyopt:')) {
+    const sel = pendingSel.get(data.slice(9));
+    if (!sel) { await send(chatId, '❌ Seleção expirada. Use /otimizar para rodar manualmente.'); return; }
+    const session = sessions.get(chatId);
+    sessions.set(chatId, {
+      workspaceId: sel.workspaceId, accountId: sel.accountId, accountName: sel.name,
+      mode: 'atlas', history: session?.history ?? [],
+    });
+    pendingSel.delete(data.slice(9));
+    await editMsg(chatId, messageId, `🧠 <b>Atlas analisando ${sel.name}...</b>\n⏳ Aguarde ~30 segundos.`);
+    await handleOtimizar(chatId, trafficService);
     return;
   }
 
@@ -792,3 +807,34 @@ async function handleAtlasChat(chatId: number, text: string, trafficService: Tra
 
 // Suppress unused import warning — ProposedAction is re-exported for consumers
 export type { ProposedAction };
+
+// ── Daily optimization prompt (called by cron) ────────────────────────────────
+
+export async function sendDailyOptimizationPrompt(trafficService: TrafficService): Promise<void> {
+  const chatIdStr = process.env.TELEGRAM_CHAT_ID;
+  if (!chatIdStr) { console.warn('[Atlas] TELEGRAM_CHAT_ID not set — skipping daily prompt'); return; }
+  const chatId = Number(chatIdStr);
+
+  let accounts: any[] = [];
+  try {
+    accounts = await trafficService.getAccounts('erick');
+  } catch (err: any) {
+    await send(chatId, `❌ Atlas: erro ao buscar contas para análise diária.\n${err.message}`);
+    return;
+  }
+
+  const active = accounts.filter((a: any) => a.account_status === 1).slice(0, 10);
+  if (active.length === 0) {
+    await send(chatId, '⚠️ Atlas: nenhuma conta Meta ativa encontrada para análise.');
+    return;
+  }
+
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const keyboard: any[][] = active.map((acc: any) => {
+    const selId = Math.random().toString(36).slice(2, 10);
+    pendingSel.set(selId, { workspaceId: 'erick', accountId: acc.id, name: acc.name });
+    return [{ text: `📊 ${acc.name}`, callback_data: `dailyopt:${selId}` }];
+  });
+
+  await send(chatId, `🕘 <b>Atlas — Análise Diária (${now})</b>\n\nSelecione a conta que deseja otimizar:`, { inline_keyboard: keyboard });
+}
