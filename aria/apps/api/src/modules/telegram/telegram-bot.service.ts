@@ -15,10 +15,11 @@ import {
   GeneratedCopy,
 } from '../traffic/agents/atlas-creative-service';
 import { processFinanceMessage } from '../finance/agents/orchestrator';
+import { handleWorkspaceMessage } from './workspace-handler';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AgentMode = 'aria' | 'atlas' | 'graham' | 'maverick';
+type AgentMode = 'aria' | 'atlas' | 'graham' | 'maverick' | 'workspace';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
@@ -119,6 +120,7 @@ const AGENT_EMOJI: Record<AgentMode, string> = {
   atlas: '🎯',
   graham: '💰',
   maverick: '🚀',
+  workspace: '🗂️',
 };
 
 const AGENT_NAME: Record<AgentMode, string> = {
@@ -126,6 +128,7 @@ const AGENT_NAME: Record<AgentMode, string> = {
   atlas: 'Atlas',
   graham: 'Graham',
   maverick: 'Maverick',
+  workspace: 'Workspace',
 };
 
 // ── Main dispatcher ───────────────────────────────────────────────────────────
@@ -153,7 +156,8 @@ export async function handleTelegramUpdate(update: any, trafficService: TrafficS
     case '/menu':     await handleMenu(chatId); break;
     case '/atlas':    await handleSetMode(chatId, 'atlas'); break;
     case '/graham':   await handleSetMode(chatId, 'graham'); break;
-    case '/maverick': await handleSetMode(chatId, 'maverick'); break;
+    case '/maverick':   await handleSetMode(chatId, 'maverick'); break;
+    case '/workspace':  await handleSetMode(chatId, 'workspace'); break;
     case '/conta':
     case '/contas':   await handleSelectAccount(chatId, trafficService); break;
     case '/status':   await handleStatus(chatId, trafficService); break;
@@ -259,7 +263,8 @@ async function handleHelp(chatId: number): Promise<void> {
     `/menu — Selecionar agente ativo\n` +
     `/atlas — Ativar Atlas (tráfego Meta)\n` +
     `/graham — Ativar Graham (finanças pessoais)\n` +
-    `/maverick — Ativar Maverick (conteúdo)\n\n` +
+    `/maverick — Ativar Maverick (conteúdo)\n` +
+    `/workspace — Ativar Google Workspace\n\n` +
     `<b>Atlas — Tráfego:</b>\n` +
     `/conta — Selecionar conta Meta Ads\n` +
     `/status — Performance dos últimos 7 dias\n` +
@@ -268,8 +273,12 @@ async function handleHelp(chatId: number): Promise<void> {
     `/relatorio — Gerar relatório semanal PDF\n\n` +
     `<b>Graham — Finanças:</b>\n` +
     `• "gastei R$50 no mercado" — Registrar gasto\n` +
-    `• "qual meu saldo?" — Ver balanço\n` +
-    `• "ver orçamento" — Resumo do orçamento\n\n` +
+    `• "qual meu saldo?" — Ver balanço\n\n` +
+    `<b>Workspace — Google:</b>\n` +
+    `/email — Ler emails recentes\n` +
+    `/agenda — Ver próximos eventos\n` +
+    `/planilha ID — Ler planilha\n` +
+    `/doc ID — Ler documento\n\n` +
     `💬 Ou envie qualquer mensagem para conversar com o agente ativo.`
   );
 }
@@ -279,8 +288,7 @@ async function handleMenu(chatId: number): Promise<void> {
   const current = session?.mode ?? 'aria';
   await send(chatId,
     `🤖 <b>ARIA — Selecione o agente:</b>\n\nAtivo: ${AGENT_EMOJI[current]} <b>${AGENT_NAME[current]}</b>`,
-    {
-      inline_keyboard: [
+    { inline_keyboard: [
         [
           { text: '🎯 Atlas (Tráfego Meta)', callback_data: 'mode:atlas' },
         ],
@@ -289,6 +297,9 @@ async function handleMenu(chatId: number): Promise<void> {
         ],
         [
           { text: '🚀 Maverick (Conteúdo)', callback_data: 'mode:maverick' },
+        ],
+        [
+          { text: '🗂️ Workspace (Google)', callback_data: 'mode:workspace' },
         ],
       ],
     }
@@ -730,6 +741,16 @@ async function handleAgentChat(chatId: number, text: string, trafficService: Tra
     case 'maverick':
       await handleMaverickChat(chatId, text);
       break;
+    case 'workspace': {
+      await send(chatId, '⏳ Acessando Google Workspace...');
+      try {
+        const response = await handleWorkspaceMessage(text);
+        await send(chatId, response);
+      } catch (err: any) {
+        await send(chatId, `❌ Erro ao acessar o Workspace: ${err.message}`);
+      }
+      break;
+    }
     default:
       // ARIA mode — route by content heuristics
       if (/tráfego|campanha|anúncio|meta|ctr|cpc|roas|cpa|ads/i.test(text)) {
