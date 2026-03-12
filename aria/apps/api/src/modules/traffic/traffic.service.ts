@@ -188,19 +188,43 @@ export class TrafficService {
 
     const raw: any[] = data.data ?? [];
 
+    const RESULT_ACTION_TYPES = [
+      'purchase',
+      'lead',
+      'onsite_conversion.messaging_conversation_started_7d',
+      'onsite_conversion.messaging_first_reply',
+      'contact',
+      'complete_registration',
+    ];
+
     const campaigns: CampaignInsights[] = raw.map((c) => {
-      const purchaseValue = c.action_values?.find((av: any) => av.action_type === 'purchase')?.value;
-      const purchaseCount = c.actions?.find((a: any) => a.action_type === 'purchase')?.value;
-      const costPerPurchase = c.cost_per_action_type?.find((a: any) => a.action_type === 'purchase')?.value;
+      let resultCount = 0;
+      let resultValue = 0;
+
+      if (c.actions) {
+        for (const action of c.actions) {
+          if (RESULT_ACTION_TYPES.includes(action.action_type)) {
+            resultCount += parseFloat(action.value || '0');
+          }
+        }
+      }
+
+      if (c.action_values) {
+        for (const action of c.action_values) {
+          if (RESULT_ACTION_TYPES.includes(action.action_type)) {
+            resultValue += parseFloat(action.value || '0');
+          }
+        }
+      }
+
       const postEngagement = c.actions?.find((a: any) => a.action_type === 'post_engagement')?.value;
       
       const spend = parseFloat(c.spend || '0');
-      const roas = purchaseValue && spend > 0 ? parseFloat(purchaseValue) / spend : undefined;
+      const roas = resultValue > 0 && spend > 0 ? resultValue / spend : undefined;
+      const costPerResult = resultCount > 0 ? spend / resultCount : 0;
+      
       const linkClicks = parseInt(c.inline_link_clicks || '0', 10);
       const linkCtr = parseFloat(c.inline_link_click_ctr || '0');
-
-      const getVideoAction = (arr: any[] | undefined, pct: string) =>
-        parseInt(arr?.find((a: any) => a.action_type === `video_view` && a.value)?.value || '0', 10);
 
       return {
         campaign_id: c.campaign_id,
@@ -215,9 +239,9 @@ export class TrafficService {
         frequency: parseFloat(c.frequency || '0'),
         roas,
         unique_clicks: parseInt(c.unique_inline_link_clicks || '0', 10),
-        conversions: purchaseCount ? parseFloat(purchaseCount) : 0,
-        conversion_value: purchaseValue ? parseFloat(purchaseValue) : 0,
-        cost_per_conversion: costPerPurchase ? parseFloat(costPerPurchase) : 0,
+        conversions: resultCount,
+        conversion_value: resultValue,
+        cost_per_conversion: costPerResult,
         engagement: postEngagement ? parseInt(postEngagement, 10) : 0,
         video_views_25: parseInt(c.video_p25_watched_actions?.[0]?.value || '0', 10),
         video_views_50: parseInt(c.video_p50_watched_actions?.[0]?.value || '0', 10),
