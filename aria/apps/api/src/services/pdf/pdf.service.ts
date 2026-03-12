@@ -38,212 +38,157 @@ export class PdfService {
   private generateHtml(squad: SquadTheme, data: ReportLayoutData): string {
     const theme = THEMES[squad];
 
-    // CSS minimalista, contrastante: Fundo puro (0,0,0), Texto #fff e variações de Dark Gray
+    // CSS variables exatas do outfit-insights
+    const tailwindConfig = `
+      tailwind.config = {
+        darkMode: ['class'],
+        theme: {
+          extend: {
+            colors: {
+              border: "hsl(var(--border))",
+              background: "hsl(var(--background))",
+              foreground: "hsl(var(--foreground))",
+              primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
+              secondary: { DEFAULT: "hsl(var(--secondary))" },
+              muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
+              card: { DEFAULT: "hsl(var(--card))" },
+              destructive: { DEFAULT: "hsl(var(--destructive))" },
+            },
+            fontFamily: {
+              sans: ['Outfit', 'sans-serif'],
+            }
+          }
+        }
+      }
+    `;
+
+    // Vamos forçar os KPIs e as tabelas usando a referência exata do outfit-insights
+    // O Lucide.js renderiza os ícones no client-side após o load.
     return `
       <!DOCTYPE html>
       <html lang="pt-BR">
       <head>
         <meta charset="UTF-8">
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/lucide@latest"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
+        <script>${tailwindConfig}</script>
+        
+        <style type="text/tailwindcss">
+          @layer base {
+            :root {
+              --background: 220 18% 8%;
+              --foreground: 210 40% 98%;
+              --card: 220 18% 11%;
+              --primary: 142 71% 45%;
+              --secondary: 220 18% 14%;
+              --secondary-foreground: 215 20% 65%;
+              --muted: 220 18% 14%;
+              --muted-foreground: 217 12% 45%;
+              --destructive: 0 63% 51%;
+              --border: 217 15% 18%;
 
-          :root {
-            --bg-color: #000000;
-            --text-color: #ffffff;
-            --text-muted: #888888;
-            --border-color: #333333;
-            --squad-primary: ${theme.primaryColor};
-            --squad-accent: ${theme.accentColor};
+              --kpi-orange: 28 90% 55%;
+              --kpi-purple: 265 80% 60%;
+              --kpi-pink: 330 80% 60%;
+              --kpi-cyan: 175 70% 50%;
+              --kpi-magenta: 320 75% 55%;
+            }
+            body {
+              background-color: hsl(var(--background));
+              color: hsl(var(--foreground));
+              /* Fix to fit nicely on A4 */
+              width: 1100px;
+              margin: 0 auto;
+            }
           }
-
-          * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-          }
-
-          body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding: 50px 60px;
-            font-size: 14px;
-            line-height: 1.6;
-          }
-
-          /* --- HIERARQUIA & HEADER --- */
-          .header {
-            margin-bottom: 50px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 20px;
-          }
-
-          .report-title {
-            font-size: 28px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--squad-primary);
-            margin-bottom: 8px;
-          }
-
-          .report-subtitle {
-            font-weight: 300;
-            color: var(--text-muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-
-          /* --- TOP COLUMNS (Informações do Cliente) --- */
-          .info-grid {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 60px;
-          }
-
-          .info-col {
-            flex: 1;
-            padding-right: 20px;
-          }
-
-          .info-label {
-            font-weight: 600;
-            color: var(--squad-primary);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 4px;
-          }
-
-          .info-value {
-            font-weight: 300;
-            font-size: 16px;
-          }
-
-          /* --- TABLE RESULTADOS --- */
-          .section-title {
-            font-weight: 600;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 20px;
-            color: var(--text-muted);
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 60px; /* Grande respiro */
-          }
-
-          th {
-            text-align: left;
-            padding-bottom: 12px;
-            font-weight: 400;
-            font-size: 12px;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--border-color);
-          }
-
-          td {
-            padding: 16px 0;
-            font-weight: 300;
-            border-bottom: 1px solid #1a1a1a;
-          }
-
-          .highlight {
-            color: var(--squad-primary);
-            font-weight: 600;
-          }
-
-          /* --- DIAGNÓSTICO FINAL --- */
-          .diagnosis-box {
-            background-color: #0a0a0a;
-            border-left: 3px solid var(--squad-primary);
-            padding: 24px;
-            margin-top: 40px;
-          }
-
-          .diagnosis-text {
-            font-weight: 300;
-            color: #dddddd;
-            white-space: pre-wrap;
-          }
-
-          /* --- FOOTER --- */
-          .footer {
-            margin-top: 60px;
-            text-align: center;
-            font-size: 10px;
-            color: var(--text-muted);
-            font-weight: 300;
-            letter-spacing: 1px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 20px;
-          }
+          .tabular-nums { font-feature-settings: 'tnum'; }
+          .kpi-shadow { box-shadow: 0 0 0 1px hsla(0,0%,100%,0.05), 0px 4px 12px -4px hsla(0,0%,0%,0.3); }
+          .card-border { box-shadow: 0 0 0 1px hsla(0,0%,100%,0.05), 0px 4px 12px -4px hsla(0,0%,0%,0.2); }
         </style>
       </head>
-      <body>
+      <body class="min-h-screen bg-background antialiased px-8 py-10">
 
-        <div class="header">
-          <div class="report-title">RELATÓRIO ${theme.name}</div>
-          <div class="report-subtitle">${data.title}</div>
-        </div>
-
-        <div class="info-grid">
-          <div class="info-col">
-            <div class="info-label">Cliente</div>
-            <div class="info-value">${data.clientName}</div>
-          </div>
-          <div class="info-col">
-            <div class="info-label">ID do Cliente</div>
-            <div class="info-value">${data.clientId}</div>
-          </div>
-          <div class="info-col">
-            <div class="info-label">Data</div>
-            <div class="info-value">${data.reportDate}</div>
-          </div>
-        </div>
-
-        <div class="info-grid">
-          ${data.metrics.map(m => `
-            <div class="info-col">
-              <div class="info-label">${m.label}</div>
-              <div class="info-value">${m.value}</div>
+        <!-- Header -->
+        <header class="pt-6 pb-2">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center pt-0.5" style="background: linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor})">
+              <i data-lucide="${squad === 'atlas' ? 'zap' : squad === 'maverick' ? 'pen-tool' : 'pie-chart'}" class="text-foreground w-[18px] h-[18px]"></i>
             </div>
-          `).join('')}
-        </div>
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight text-foreground leading-tight">
+                ${theme.name} | ${data.title}
+              </h1>
+              <p class="text-sm text-muted-foreground">${data.clientName} (${data.clientId}) — Data: ${data.reportDate}</p>
+            </div>
+          </div>
+        </header>
 
-        <div class="section-title">Resultados Consolidados</div>
-        <table>
-          <thead>
-            <tr>
-              <th>MÉTRICA / TAREFA</th>
-              <th>STATUS</th>
-              <th>DETALHE</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.results.map(r => `
-              <tr>
-                <td style="width: 40%">${r.name}</td>
-                <td style="width: 20%" class="highlight">${r.status}</td>
-                <td style="width: 40%">${r.detail}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <!-- KPI Cards Grid -->
+        <section class="grid grid-cols-5 gap-4 py-8">
+          ${data.metrics.map((kpi, i) => {
+            const icons = ['dollar-sign', 'eye', 'mouse-pointer-click', 'trending-up', 'circle-dot'];
+            const icon = icons[i % icons.length];
+            const vars = ['--kpi-orange', '--kpi-purple', '--kpi-pink', '--kpi-cyan', '--kpi-magenta'];
+            const accent = vars[i % vars.length];
+            return `
+            <div class="rounded-lg bg-card p-5 relative overflow-hidden kpi-shadow" style="box-shadow: 0 0 0 1px hsl(var(${accent}))33, 0px 4px 12px -4px hsla(0,0%,0%,0.3);">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center mb-4" style="background-color: hsl(var(${accent}))18">
+                <i data-lucide="${icon}" class="w-[18px] h-[18px]" style="color: hsl(var(${accent}))"></i>
+              </div>
+              <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">${kpi.label}</p>
+              <p class="text-2xl font-semibold tracking-tight tabular-nums text-foreground leading-none">${kpi.value.toString()}</p>
+            </div>
+            `;
+          }).join('')}
+        </section>
 
-        <div class="section-title">Diagnóstico Final</div>
-        <div class="diagnosis-box">
-          <div class="diagnosis-text">${data.diagnosis}</div>
-        </div>
+        <!-- Dynamic Section depending if there is diagnosis or it's just Atlas generic -->
+        <section class="py-6">
+          <div class="rounded-lg bg-card card-border">
+             <div class="p-6 pb-4">
+                <h2 class="text-xl font-medium uppercase tracking-tight text-muted-foreground">Resultados Analíticos</h2>
+             </div>
+             <div class="overflow-x-auto">
+               <table class="w-full text-sm">
+                 <thead>
+                   <tr class="border-b border-border">
+                     <th class="text-left font-medium text-muted-foreground px-6 py-3">Métrica / Tarefa</th>
+                     <th class="text-left font-medium text-muted-foreground px-6 py-3">Status</th>
+                     <th class="text-left font-medium text-muted-foreground px-6 py-3">Detalhe</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   ${data.results.map(r => `
+                     <tr class="border-b border-border/50 transition-colors duration-150 hover:bg-[hsla(0,0%,100%,0.03)]">
+                       <td class="px-6 py-4 font-medium text-foreground">${r.name}</td>
+                       <td class="px-6 py-4">
+                          <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium tracking-wide ${r.status.toLowerCase().includes('ativo') || r.status.toLowerCase().includes('conclu') ? 'bg-primary/20 text-primary' : 'bg-destructive/20 text-destructive'}">${r.status}</span>
+                       </td>
+                       <td class="px-6 py-4 text-secondary-foreground leading-relaxed">${r.detail}</td>
+                     </tr>
+                   `).join('')}
+                 </tbody>
+               </table>
+             </div>
+          </div>
+        </section>
 
-        <div class="footer">
-          Gerado automaticamente por ARIA Intelligence System — Squad ${theme.name}
-        </div>
+        <!-- Diagnosis Box -->
+        <section class="py-6">
+          <div class="rounded-lg bg-card card-border p-6 border-l-4" style="border-left-color: ${theme.primaryColor}">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-foreground mb-3 flex items-center gap-2">
+              <i data-lucide="brain-circuit" class="w-[16px] h-[16px]"></i> Diagnóstico Final da Inteligência
+            </h2>
+            <p class="text-secondary-foreground leading-relaxed font-light text-[15px] whitespace-pre-wrap">${data.diagnosis}</p>
+          </div>
+        </section>
 
+        <script>
+          // Renderiza os ícones
+          lucide.createIcons();
+        </script>
       </body>
       </html>
     `;
@@ -266,6 +211,8 @@ export class PdfService {
       
       // Carrega o HTML cru na página
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      // Adiciona um pequeno delay para garantir que os fontes (Outfit) e o Lucide Icons / Tailwind CDN carreguem e renderizem
+      await new Promise(r => setTimeout(r, 1500)); 
 
       // O @types/puppeteer para pdf é Uint8Array, que pode ser transformado em Buffer no node >= 18
       const pdfUint8Array = await page.pdf({

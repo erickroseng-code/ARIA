@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+      background: #111;
+      color: #fff;
+      padding: 16px;
+      font-size: 13px;
+    }
+
+    h1 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtitle {
+      color: rgba(255,255,255,0.4);
+      font-size: 11px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 10px;
+      resize: vertical;
+      outline: none;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      border-color: rgba(229, 62, 62, 0.5);
+    }
+
+    textarea::placeholder {
+      color: rgba(255,255,255,0.2);
+    }
+
+    .theme-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .theme-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .theme-btn.active {
+      background: rgba(229, 62, 62, 0.15);
+      border-color: rgba(229, 62, 62, 0.4);
+      color: #fff;
+    }
+
+    .unsplash-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.1);
+      border-radius: 18px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .slider:before {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .slider { background: #E53E3E; }
+    input:checked + .slider:before { transform: translateX(14px); }
+
+    .toggle-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      flex: 1;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 11px;
+      padding: 6px 10px;
+      outline: none;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"]:focus { border-color: rgba(229,62,62,0.5); }
+    input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-generate {
+      flex: 1;
+      padding: 10px;
+      background: #E53E3E;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-generate:hover { opacity: 0.85; }
+    .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-close {
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      display: none;
+    }
+
+    .status.info  { background: rgba(99,179,237,0.1);  color: #63b3ed; display: block; }
+    .status.ok    { background: rgba(72,187,120,0.1);  color: #68d391; display: block; }
+    .status.error { background: rgba(229,62,62,0.1);   color: #fc8181; display: block; }
+
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <h1>🎨 Aria Carousel</h1>
+  <p class="subtitle">Gera slides no Figma a partir do JSON do Maverick</p>
+
+  <label>JSON do Carrossel</label>
+  <textarea id="json-input" placeholder='Cole aqui o JSON do carrossel gerado pela Aria...
+{"title":"...","slides":[...]}'></textarea>
+
+  <label>Tema</label>
+  <div class="theme-row">
+    <button class="theme-btn active" data-theme="dark" onclick="selectTheme('dark')">🌑 Dark</button>
+    <button class="theme-btn" data-theme="light" onclick="selectTheme('light')">☀️ Light</button>
+  </div>
+
+  <hr class="divider">
+
+  <div class="unsplash-row">
+    <label class="toggle">
+      <input type="checkbox" id="use-images" onchange="toggleImages(this.checked)">
+      <span class="slider"></span>
+    </label>
+    <span class="toggle-label">Adicionar imagens via Unsplash</span>
+  </div>
+
+  <div id="unsplash-key-section" style="display:none">
+    <label>Unsplash Access Key</label>
+    <input type="text" id="unsplash-key" placeholder="Obtenha em unsplash.com/developers">
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-generate" id="btn-generate" onclick="generate()">Gerar no Figma →</button>
+    <button class="btn-close" onclick="cancel()">✕</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    let selectedTheme = 'dark';
+
+    function selectTheme(t) {
+      selectedTheme = t;
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+    }
+
+    function toggleImages(checked) {
+      document.getElementById('unsplash-key-section').style.display = checked ? 'block' : 'none';
+    }
+
+    function setStatus(type, msg) {
+      const el = document.getElementById('status');
+      el.className = 'status ' + type;
+      el.textContent = msg;
+    }
+
+    function generate() {
+      const raw = document.getElementById('json-input').value.trim();
+      if (!raw) return setStatus('error', 'Cole o JSON do carrossel primeiro.');
+
+      let carousel;
+      try { carousel = JSON.parse(raw); }
+      catch (e) { return setStatus('error', 'JSON inválido — verifique o formato.'); }
+
+      if (!carousel.slides || !Array.isArray(carousel.slides)) {
+        return setStatus('error', 'JSON não contém "slides". Copie o campo "carousel" da resposta da API.');
+      }
+
+      const useImages = document.getElementById('use-images').checked;
+      const unsplashKey = document.getElementById('unsplash-key').value.trim();
+
+      if (useImages && !unsplashKey) {
+        return setStatus('error', 'Informe o Unsplash Access Key para usar imagens.');
+      }
+
+      document.getElementById('btn-generate').disabled = true;
+      setStatus('info', `Gerando ${carousel.slides.length} slides...`);
+
+      parent.postMessage({
+        pluginMessage: { type: 'generate', carousel, theme: selectedTheme, unsplashKey: useImages ? unsplashKey : null }
+      }, '*');
+    }
+
+    function cancel() {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    }
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+      if (msg.type === 'done') {
+        document.getElementById('btn-generate').disabled = false;
+        setStatus('ok', `✅ ${msg.count} slides criados com sucesso!`);
+      }
+      if (msg.type === 'error') {
+        document.getElementById('btn-generate').disabled = false;
+        setStatus('error', '❌ ' + msg.message);
+      }
+      if (msg.type === 'progress') {
+        setStatus('info', msg.message);
+      }
+    };
+  </script>
+</body>
+</html>

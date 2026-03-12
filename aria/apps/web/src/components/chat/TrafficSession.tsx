@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, RefreshCw, Loader2, TrendingUp, Eye, MousePointer,
   DollarSign, Activity, Pause, Play, BarChart2, Target, Zap, AlertCircle,
+  MessageSquare, Send, BrainCircuit, X, ChevronRight, ChevronDown,
+  Image as ImageIcon, Layers, FileText, Columns, GripVertical, Check, RotateCcw,
 } from 'lucide-react';
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -39,9 +42,20 @@ interface CampaignInsights {
   ctr: number;
   reach: number;
   roas?: number;
+  frequency?: number;
+  unique_clicks?: number;
+  conversions?: number;
+  conversion_value?: number;
+  cost_per_conversion?: number;
+  engagement?: number;
+  video_views_25?: number;
+  video_views_50?: number;
+  video_views_75?: number;
+  video_views_100?: number;
   date_start: string;
   date_stop: string;
 }
+
 
 interface AccountInsights {
   total_spend: number;
@@ -59,46 +73,251 @@ interface Workspace {
   name: string;
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  actionExecuted?: string;
+}
+
+interface AdSet {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED';
+  effective_status: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  optimization_goal?: string;
+}
+
+interface AdCreative {
+  id: string;
+  title?: string;
+  body?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  call_to_action_type?: string;
+}
+
+interface Ad {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED';
+  effective_status: string;
+  creative?: AdCreative;
+}
+
 interface TrafficSessionProps {
   onClose: () => void;
 }
 
-// ── Utilitários ───────────────────────────────────────────────────────────────
+// ── Column Catalog ────────────────────────────────────────────────────────────
 
-const DATE_PRESETS = [
-  { value: 'today', label: 'Hoje' },
-  { value: 'yesterday', label: 'Ontem' },
-  { value: 'last_7d', label: '7 dias' },
-  { value: 'last_14d', label: '14 dias' },
-  { value: 'last_30d', label: '30 dias' },
-  { value: 'this_month', label: 'Este mês' },
-  { value: 'last_month', label: 'Mês passado' },
-];
+type ColAggregate = 'sum' | 'avg' | 'none';
+type ColType = 'currency' | 'number' | 'percent' | 'text' | 'multiplier';
 
-function formatCurrency(value: number, currency = 'BRL'): string {
-  if (isNaN(value)) return '—';
-  if (currency === 'BRL') {
-    return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  return `$ ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+interface ColDef {
+  id: keyof CampaignInsights;
+  label: string;
+  description: string;
+  type: ColType;
+  aggregate: ColAggregate;
 }
 
-function formatNumber(value: number): string {
-  if (isNaN(value)) return '—';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toLocaleString('pt-BR');
+const COLUMN_CATALOG: ColDef[] = [
+  { id: 'spend', label: 'Gasto', description: 'Total gasto no período', type: 'currency', aggregate: 'sum' },
+  { id: 'impressions', label: 'Impressões', description: 'Total de vezes que o anúncio foi exibido', type: 'number', aggregate: 'sum' },
+  { id: 'clicks', label: 'Cliques no Link', description: 'Cliques diretos no link do anúncio', type: 'number', aggregate: 'sum' },
+  { id: 'ctr', label: 'CTR Link', description: 'Taxa de cliques no link (%)', type: 'percent', aggregate: 'avg' },
+  { id: 'cpc', label: 'CPC', description: 'Custo por clique no link', type: 'currency', aggregate: 'avg' },
+  { id: 'cpm', label: 'CPM', description: 'Custo por mil impressões', type: 'currency', aggregate: 'avg' },
+  { id: 'reach', label: 'Alcance', description: 'Pessoas únicas alcançadas', type: 'number', aggregate: 'sum' },
+  { id: 'frequency', label: 'Frequência', description: 'Média de exibições por pessoa', type: 'text', aggregate: 'avg' },
+  { id: 'unique_clicks', label: 'Cliques Únicos', description: 'Usuários únicos que clicaram', type: 'number', aggregate: 'sum' },
+  { id: 'roas', label: 'ROAS', description: 'Retorno sobre gasto em anúncio', type: 'multiplier', aggregate: 'avg' },
+  { id: 'conversions', label: 'Conversões', description: 'Número de compras registradas', type: 'number', aggregate: 'sum' },
+  { id: 'conversion_value', label: 'Valor Conv.', description: 'Receita total das compras (R$)', type: 'currency', aggregate: 'sum' },
+  { id: 'cost_per_conversion', label: 'Custo/Conv.', description: 'Custo médio por compra', type: 'currency', aggregate: 'avg' },
+  { id: 'engagement', label: 'Engajamento', description: 'Total de engajamentos no post', type: 'number', aggregate: 'sum' },
+  { id: 'video_views_25', label: 'Vídeo 25%', description: 'Reproduzões até 25% do vídeo', type: 'number', aggregate: 'sum' },
+  { id: 'video_views_50', label: 'Vídeo 50%', description: 'Reproduzões até 50% do vídeo', type: 'number', aggregate: 'sum' },
+  { id: 'video_views_75', label: 'Vídeo 75%', description: 'Reproduzões até 75% do vídeo', type: 'number', aggregate: 'sum' },
+  { id: 'video_views_100', label: 'Vídeo 100%', description: 'Reproduzões completas do vídeo', type: 'number', aggregate: 'sum' },
+];
+
+const DEFAULT_COLUMNS: Array<keyof CampaignInsights> = ['spend', 'impressions', 'clicks', 'ctr', 'cpc'];
+const COL_STORAGE_KEY = 'atlas_columns_v1';
+
+function loadSavedColumns(): Array<keyof CampaignInsights> {
+  try {
+    const raw = localStorage.getItem(COL_STORAGE_KEY);
+    if (!raw) return DEFAULT_COLUMNS;
+    const parsed = JSON.parse(raw) as string[];
+    const valid = parsed.filter((id) => COLUMN_CATALOG.some((c) => c.id === id)) as Array<keyof CampaignInsights>;
+    return valid.length > 0 ? valid : DEFAULT_COLUMNS;
+  } catch {
+    return DEFAULT_COLUMNS;
+  }
+}
+
+function formatColValue(col: ColDef, ci: CampaignInsights, currency: string): string {
+  const raw = ci[col.id];
+  if (raw === undefined || raw === null || raw === 0 && ['roas', 'frequency', 'conversions', 'conversion_value', 'cost_per_conversion', 'engagement', 'video_views_25', 'video_views_50', 'video_views_75', 'video_views_100', 'unique_clicks'].includes(col.id)) return '—';
+  const n = Number(raw);
+  if (isNaN(n)) return '—';
+  switch (col.type) {
+    case 'currency': return formatCurrency(n, currency);
+    case 'percent': return `${n.toFixed(2)}%`;
+    case 'multiplier': return `${n.toFixed(2)}x`;
+    case 'text': return n.toFixed(2);
+    default: return formatNumber(n);
+  }
+}
+
+// ── Column Picker Panel ──────────────────────────────────────────────────────
+
+function ColumnPickerPanel({
+  visible,
+  onClose,
+  columns,
+  onChange,
+}: {
+  visible: Array<keyof CampaignInsights>;
+  onClose: () => void;
+  columns: Array<keyof CampaignInsights>;
+  onChange: (cols: Array<keyof CampaignInsights>) => void;
+}) {
+  const [local, setLocal] = useState<Array<keyof CampaignInsights>>(columns);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  const isActive = (id: keyof CampaignInsights) => local.includes(id);
+
+  const toggle = (id: keyof CampaignInsights) => {
+    setLocal((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
+
+  const onDragStart = (idx: number) => setDragIdx(idx);
+
+  const onDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    const next = [...local];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(idx, 0, moved);
+    setDragIdx(idx);
+    setLocal(next);
+  };
+
+  const onDragEnd = () => setDragIdx(null);
+
+  const apply = () => {
+    onChange(local);
+    onClose();
+  };
+
+  const reset = () => setLocal([...DEFAULT_COLUMNS]);
+
+  const activeItems = local
+    .map((id) => COLUMN_CATALOG.find((c) => c.id === id)!)
+    .filter(Boolean);
+
+  const availableItems = COLUMN_CATALOG.filter((c) => !local.includes(c.id));
+
+  return (
+    <div className="flex flex-col h-full bg-[#0d0a0f] w-[300px] shrink-0 border-l border-white/10 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 shrink-0">
+        <Columns className="w-3.5 h-3.5 text-orange-400" />
+        <p className="text-xs font-semibold text-white/90 flex-1">Colunas</p>
+        <button onClick={reset} title="Restaurar padrão" className="p-1 rounded-md hover:bg-white/10 text-white/30 hover:text-white/70 transition-colors">
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={onClose} className="p-1 rounded-md hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {/* Active columns - draggable */}
+        {activeItems.length > 0 && (
+          <div className="p-3 border-b border-white/5">
+            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Ativas (arraste para reordenar)</p>
+            <div className="space-y-1">
+              {activeItems.map((col, idx) => (
+                <div
+                  key={col.id}
+                  draggable
+                  onDragStart={() => onDragStart(idx)}
+                  onDragOver={(e) => onDragOver(e, idx)}
+                  onDragEnd={onDragEnd}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${dragIdx === idx
+                    ? 'border-orange-500/40 bg-orange-500/10'
+                    : 'border-white/5 bg-white/[0.03] hover:bg-white/[0.06]'
+                    }`}
+                >
+                  <GripVertical className="w-3 h-3 text-white/20 shrink-0" />
+                  <span className="text-[11px] text-white/70 flex-1 truncate">{col.label}</span>
+                  <button
+                    onClick={() => toggle(col.id)}
+                    className="p-0.5 rounded text-white/25 hover:text-red-400 transition-colors shrink-0"
+                    title="Remover"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Available columns to add */}
+        {availableItems.length > 0 && (
+          <div className="p-3">
+            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Disponíveis</p>
+            <div className="space-y-1">
+              {availableItems.map((col) => (
+                <button
+                  key={col.id}
+                  onClick={() => toggle(col.id)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border border-white/5 bg-white/[0.015] hover:bg-white/[0.05] hover:border-orange-500/20 text-left transition-all group"
+                >
+                  <div className="w-3.5 h-3.5 rounded border border-white/15 group-hover:border-orange-500/40 flex items-center justify-center shrink-0 transition-colors" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-white/60 group-hover:text-white/80 font-medium truncate transition-colors">{col.label}</p>
+                    <p className="text-[9px] text-white/25 truncate">{col.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Apply button */}
+      <div className="p-3 border-t border-white/10 shrink-0">
+        <button
+          onClick={apply}
+          className="w-full py-2 bg-orange-500/20 text-orange-300 rounded-xl text-xs font-semibold hover:bg-orange-500/30 transition-colors flex items-center justify-center gap-2"
+        >
+          <Check className="w-3.5 h-3.5" />
+          Aplicar Colunas
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
 
+
 const colorMap = {
   orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
-  blue:   { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/20' },
+  blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
   purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  green:  { bg: 'bg-green-500/10',  text: 'text-green-400',  border: 'border-green-500/20' },
+  green: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' },
   yellow: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' },
-  pink:   { bg: 'bg-pink-500/10',   text: 'text-pink-400',   border: 'border-pink-500/20' },
+  pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' },
 } as const;
 
 type ColorKey = keyof typeof colorMap;
@@ -134,20 +353,83 @@ function KpiCard({
   );
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
+// ── Utilitários ───────────────────────────────────────────────────────────────
+
+const DATE_PRESETS = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last_7d', label: '7 dias' },
+  { value: 'last_14d', label: '14 dias' },
+  { value: 'last_30d', label: '30 dias' },
+  { value: 'this_month', label: 'Este mês' },
+  { value: 'last_month', label: 'Mês passado' },
+];
+
+function formatCurrency(value: number, currency = 'BRL'): string {
+  if (isNaN(value)) return '—';
+  if (currency === 'BRL') {
+    return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `$ ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatNumber(value: number): string {
+  if (isNaN(value)) return '—';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString('pt-BR');
+}
 
 export function TrafficSession({ onClose }: TrafficSessionProps) {
-  const [workspaces, setWorkspaces]           = useState<Workspace[]>([]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
-  const [accounts, setAccounts]               = useState<AdAccount[]>([]);
+  const [accounts, setAccounts] = useState<AdAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState('');
-  const [insights, setInsights]               = useState<AccountInsights | null>(null);
-  const [campaigns, setCampaigns]             = useState<Campaign[]>([]);
-  const [datePreset, setDatePreset]           = useState('last_30d');
-  const [loading, setLoading]                 = useState(false);
-  const [loadingAction, setLoadingAction]     = useState<string | null>(null);
-  const [error, setError]                     = useState<string | null>(null);
-  const [initialized, setInitialized]         = useState(false);
+  const [insights, setInsights] = useState<AccountInsights | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [datePreset, setDatePreset] = useState('last_30d');
+  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Filtro de status
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
+
+  // Ad sets e ads (expandable)
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [adSets, setAdSets] = useState<Map<string, AdSet[]>>(new Map());
+  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+  const [ads, setAds] = useState<Map<string, Ad[]>>(new Map());
+  const [loadingAdSets, setLoadingAdSets] = useState<Set<string>>(new Set());
+  const [loadingAds, setLoadingAds] = useState<Set<string>>(new Set());
+
+  // Atlas AI Chat
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Column picker
+  const [visibleColumns, setVisibleColumns] = useState<Array<keyof CampaignInsights>>(DEFAULT_COLUMNS);
+  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
+
+  // Load saved columns on mount
+  useEffect(() => {
+    setVisibleColumns(loadSavedColumns());
+  }, []);
+
+  // Persist columns when they change
+  const handleColumnsChange = (cols: Array<keyof CampaignInsights>) => {
+    setVisibleColumns(cols);
+    try { localStorage.setItem(COL_STORAGE_KEY, JSON.stringify(cols)); } catch { /* noop */ }
+  };
+
+  const activeColDefs = visibleColumns
+    .map((id) => COLUMN_CATALOG.find((c) => c.id === id)!)
+    .filter(Boolean);
 
   // Carregar workspaces ao montar
   useEffect(() => {
@@ -252,6 +534,180 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   };
 
   const currency = accounts.find((a) => a.id === selectedAccount)?.currency ?? 'BRL';
+  const accountName = accounts.find((a) => a.id === selectedAccount)?.name;
+
+  // Auto-scroll chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const sendChatMessage = async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatLoading || !selectedAccount) return;
+
+    const userMsg: ChatMessage = { role: 'user', content: msg };
+    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/api/traffic/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: msg,
+          history,
+          workspace: selectedWorkspace,
+          accountId: selectedAccount,
+          accountName,
+          currency,
+          datePreset,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: data.reply,
+        actionExecuted: data.actionExecuted,
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+
+      // Refresh data if an action was executed
+      if (data.actionExecuted) {
+        await loadDashboard();
+      }
+    } catch (e: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Erro: ${e.message}` },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const runAnalysis = async () => {
+    if (analyzing || !selectedAccount) return;
+    setAnalyzing(true);
+    setChatOpen(true);
+
+    const triggerMsg: ChatMessage = {
+      role: 'user',
+      content: '📊 Analisar conta completa agora',
+    };
+    setChatMessages((prev) => [...prev, triggerMsg]);
+
+    try {
+      const res = await fetch(`${API_URL}/api/traffic/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace: selectedWorkspace,
+          accountId: selectedAccount,
+          accountName,
+          currency,
+          datePreset,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: data.analysis },
+      ]);
+    } catch (e: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Erro na análise: ${e.message}` },
+      ]);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // Campanhas filtradas por status
+  const filteredCampaigns = campaigns.filter((c) => {
+    if (statusFilter === 'active') return c.status === 'ACTIVE';
+    if (statusFilter === 'paused') return c.status === 'PAUSED';
+    return true;
+  });
+
+  // Calcular totais das campanhas filtradas
+  const filteredTotals = filteredCampaigns.reduce(
+    (acc, campaign) => {
+      const ci = insights?.campaigns.find((c) => c.campaign_id === campaign.id);
+      if (ci) {
+        acc.spend += ci.spend;
+        acc.impressions += ci.impressions;
+        acc.clicks += ci.clicks;
+      }
+      return acc;
+    },
+    { spend: 0, impressions: 0, clicks: 0 }
+  );
+
+  const avgFilteredCtr = filteredTotals.impressions > 0
+    ? (filteredTotals.clicks / filteredTotals.impressions) * 100
+    : 0;
+
+  const avgFilteredCpc = filteredTotals.clicks > 0
+    ? filteredTotals.spend / filteredTotals.clicks
+    : 0;
+
+  // Expandir/colapsar campanha → carregar ad sets lazy
+  const toggleCampaign = async (campaignId: string) => {
+    const next = new Set(expandedCampaigns);
+    if (next.has(campaignId)) {
+      next.delete(campaignId);
+    } else {
+      next.add(campaignId);
+      if (!adSets.has(campaignId) && !loadingAdSets.has(campaignId)) {
+        setLoadingAdSets((prev) => new Set(prev).add(campaignId));
+        try {
+          const res = await fetch(
+            `${API_URL}/api/traffic/adsets?campaignId=${campaignId}&workspace=${selectedWorkspace}`
+          );
+          const data = await res.json();
+          setAdSets((prev) => new Map(prev).set(campaignId, Array.isArray(data) ? data : []));
+        } catch {
+          setAdSets((prev) => new Map(prev).set(campaignId, []));
+        } finally {
+          setLoadingAdSets((prev) => { const s = new Set(prev); s.delete(campaignId); return s; });
+        }
+      }
+    }
+    setExpandedCampaigns(next);
+  };
+
+  // Expandir/colapsar ad set → carregar ads lazy
+  const toggleAdSet = async (adSetId: string) => {
+    const next = new Set(expandedAdSets);
+    if (next.has(adSetId)) {
+      next.delete(adSetId);
+    } else {
+      next.add(adSetId);
+      if (!ads.has(adSetId) && !loadingAds.has(adSetId)) {
+        setLoadingAds((prev) => new Set(prev).add(adSetId));
+        try {
+          const res = await fetch(
+            `${API_URL}/api/traffic/ads?adsetId=${adSetId}&workspace=${selectedWorkspace}`
+          );
+          const data = await res.json();
+          setAds((prev) => new Map(prev).set(adSetId, Array.isArray(data) ? data : []));
+        } catch {
+          setAds((prev) => new Map(prev).set(adSetId, []));
+        } finally {
+          setLoadingAds((prev) => { const s = new Set(prev); s.delete(adSetId); return s; });
+        }
+      }
+    }
+    setExpandedAdSets(next);
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -309,6 +765,20 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
             </select>
           )}
 
+          {/* Botão Atlas AI */}
+          {initialized && (
+            <button
+              onClick={() => setChatOpen((v) => !v)}
+              title="Abrir Atlas AI"
+              className={`p-1.5 rounded-lg transition-colors ${chatOpen
+                ? 'bg-orange-500/30 text-orange-300'
+                : 'hover:bg-white/10 text-white/60 hover:text-orange-300'
+                }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Botão de refresh */}
           <button
             onClick={loadDashboard}
@@ -327,245 +797,587 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
           <button
             key={p.value}
             onClick={() => setDatePreset(p.value)}
-            className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-              datePreset === p.value
-                ? 'bg-orange-500/25 text-orange-300 border border-orange-500/40'
-                : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'
-            }`}
+            className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-all ${datePreset === p.value
+              ? 'bg-orange-500/25 text-orange-300 border border-orange-500/40'
+              : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'
+              }`}
           >
             {p.label}
           </button>
         ))}
       </div>
 
-      {/* ── Conteúdo principal ── */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Loading inicial */}
-        {loading && !initialized ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
-              <p className="text-white/40 text-sm">Carregando dados do Meta ADS…</p>
-            </div>
-          </div>
-        ) : error ? (
-          /* Error state */
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3 text-center px-8 max-w-sm">
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-400" />
-              </div>
-              <p className="text-white/60 text-sm leading-relaxed">{error}</p>
-              <button
-                onClick={loadDashboard}
-                className="text-xs px-4 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-colors"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          </div>
-        ) : !selectedAccount ? (
-          /* Sem conta selecionada */
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3 text-center px-8">
-              <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <Activity className="w-6 h-6 text-orange-400" />
-              </div>
-              <p className="text-white/50 text-sm">Selecione uma conta para ver o dashboard</p>
-            </div>
-          </div>
-        ) : (
-          /* Dashboard */
-          <div className="p-4 space-y-4">
+      {/* ── Conteúdo principal + chat ── */}
+      <div className="flex flex-1 overflow-hidden">
 
-            {/* KPI Grid */}
-            {insights && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-                <KpiCard
-                  label="Gasto Total"
-                  value={formatCurrency(insights.total_spend, currency)}
-                  icon={DollarSign}
-                  color="orange"
-                  loading={loading}
-                />
-                <KpiCard
-                  label="Impressões"
-                  value={formatNumber(insights.total_impressions)}
-                  icon={Eye}
-                  color="blue"
-                  loading={loading}
-                />
-                <KpiCard
-                  label="Cliques"
-                  value={formatNumber(insights.total_clicks)}
-                  icon={MousePointer}
-                  color="purple"
-                  loading={loading}
-                />
-                <KpiCard
-                  label="CTR Médio"
-                  value={`${insights.avg_ctr.toFixed(2)}%`}
-                  icon={TrendingUp}
-                  color="green"
-                  loading={loading}
-                />
-                <KpiCard
-                  label="CPM Médio"
-                  value={formatCurrency(insights.avg_cpm, currency)}
-                  icon={BarChart2}
-                  color="yellow"
-                  loading={loading}
-                />
-                <KpiCard
-                  label="CPC Médio"
-                  value={formatCurrency(insights.avg_cpc, currency)}
-                  icon={Target}
-                  color="pink"
-                  loading={loading}
-                />
+        {/* Dashboard */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Loading inicial */}
+          {loading && !initialized ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+                <p className="text-white/40 text-sm">Carregando dados do Meta ADS…</p>
               </div>
-            )}
-
-            {/* Tabela de Campanhas */}
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white/80 flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-orange-400" />
-                  Campanhas
-                </h3>
-                <span className="text-xs text-white/30 px-2 py-0.5 bg-white/5 rounded-full">
-                  {campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''}
-                </span>
+            </div>
+          ) : error ? (
+            /* Error state */
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3 text-center px-8 max-w-sm">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-red-400" />
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed">{error}</p>
+                <button
+                  onClick={loadDashboard}
+                  className="text-xs px-4 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-colors"
+                >
+                  Tentar novamente
+                </button>
               </div>
+            </div>
+          ) : !selectedAccount ? (
+            /* Sem conta selecionada */
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3 text-center px-8">
+                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-orange-400" />
+                </div>
+                <p className="text-white/50 text-sm">Selecione uma conta para ver o dashboard</p>
+              </div>
+            </div>
+          ) : (
+            /* Dashboard */
+            <div className="p-4 space-y-4">
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-white/5 text-white/30">
-                      <th className="text-left px-4 py-2.5 font-medium">Campanha</th>
-                      <th className="text-center px-3 py-2.5 font-medium">Status</th>
-                      <th className="text-right px-3 py-2.5 font-medium">Gasto</th>
-                      <th className="text-right px-3 py-2.5 font-medium">Impressões</th>
-                      <th className="text-right px-3 py-2.5 font-medium">Cliques</th>
-                      <th className="text-right px-3 py-2.5 font-medium">CTR</th>
-                      <th className="text-right px-3 py-2.5 font-medium">CPC</th>
-                      <th className="text-center px-3 py-2.5 font-medium">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {campaigns.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-10 text-center text-white/25 text-sm">
-                          Nenhuma campanha encontrada nessa conta
-                        </td>
+              {/* KPI Grid */}
+              {insights && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                  <KpiCard
+                    label="Gasto Total"
+                    value={formatCurrency(insights.total_spend, currency)}
+                    icon={DollarSign}
+                    color="orange"
+                    loading={loading}
+                  />
+                  <KpiCard
+                    label="Impressões"
+                    value={formatNumber(insights.total_impressions)}
+                    icon={Eye}
+                    color="blue"
+                    loading={loading}
+                  />
+                  <KpiCard
+                    label="Cliques"
+                    value={formatNumber(insights.total_clicks)}
+                    icon={MousePointer}
+                    color="purple"
+                    loading={loading}
+                  />
+                  <KpiCard
+                    label="CTR Médio"
+                    value={`${insights.avg_ctr.toFixed(2)}%`}
+                    icon={TrendingUp}
+                    color="green"
+                    loading={loading}
+                  />
+                  <KpiCard
+                    label="CPM Médio"
+                    value={formatCurrency(insights.avg_cpm, currency)}
+                    icon={BarChart2}
+                    color="yellow"
+                    loading={loading}
+                  />
+                  <KpiCard
+                    label="CPC Médio"
+                    value={formatCurrency(insights.avg_cpc, currency)}
+                    icon={Target}
+                    color="pink"
+                    loading={loading}
+                  />
+                </div>
+              )}
+
+              {/* Tabela de Campanhas */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
+                {/* Header + Filtros */}
+                <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
+                  <h3 className="text-sm font-semibold text-white/80 flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-orange-400" />
+                    Campanhas
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {/* Filtro de status */}
+                    {(['all', 'active', 'paused'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setStatusFilter(f)}
+                        className={`text-[10px] px-2.5 py-1 rounded-full transition-all ${statusFilter === f
+                          ? f === 'active'
+                            ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                            : f === 'paused'
+                              ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                              : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                          : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                          }`}
+                      >
+                        {f === 'all' ? 'Todas' : f === 'active' ? 'Ativas' : 'Pausadas'}
+                      </button>
+                    ))}
+                    <span className="text-xs text-white/30 px-2 py-0.5 bg-white/5 rounded-full ml-1">
+                      {filteredCampaigns.length}/{campaigns.length}
+                    </span>
+                    {/* Colunas button */}
+                    <button
+                      onClick={() => setColumnPickerOpen((v) => !v)}
+                      title="Gerenciar colunas"
+                      className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full transition-all border ${columnPickerOpen
+                        ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                        : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/70'
+                        }`}
+                    >
+                      <Columns className="w-3 h-3" />
+                      Colunas
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/5 text-white/30">
+                        <th className="w-6 px-2 py-2.5" />
+                        <th className="text-left px-3 py-2.5 font-medium">Campanha</th>
+                        <th className="text-center px-3 py-2.5 font-medium">Status</th>
+                        {activeColDefs.map((col) => (
+                          <th key={col.id} className="text-right px-3 py-2.5 font-medium whitespace-nowrap">{col.label}</th>
+                        ))}
+                        <th className="text-center px-3 py-2.5 font-medium">Ação</th>
                       </tr>
-                    ) : (
-                      campaigns.map((campaign) => {
-                        const ci = insights?.campaigns.find(
-                          (c) => c.campaign_id === campaign.id
-                        );
-                        const isActive = campaign.status === 'ACTIVE';
-                        const isActionable =
-                          campaign.status !== 'DELETED' && campaign.status !== 'ARCHIVED';
-                        const isLoadingThis = loadingAction === campaign.id;
+                    </thead>
+                    <tbody>
+                      {filteredCampaigns.length === 0 ? (
+                        <tr>
+                          <td colSpan={3 + activeColDefs.length + 1} className="px-4 py-10 text-center text-white/25 text-sm">
+                            Nenhuma campanha encontrada
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCampaigns.map((campaign) => {
+                          const ci = insights?.campaigns.find((c) => c.campaign_id === campaign.id);
+                          const isActive = campaign.status === 'ACTIVE';
+                          const isActionable = campaign.status !== 'DELETED' && campaign.status !== 'ARCHIVED';
+                          const isLoadingThis = loadingAction === campaign.id;
+                          const isExpanded = expandedCampaigns.has(campaign.id);
+                          const isLoadingAdSets = loadingAdSets.has(campaign.id);
+                          const campaignAdSets = adSets.get(campaign.id) ?? [];
 
-                        return (
-                          <tr
-                            key={campaign.id}
-                            className="border-b border-white/[0.04] hover:bg-white/[0.025] transition-colors"
-                          >
-                            {/* Nome */}
-                            <td className="px-4 py-3">
-                              <div className="max-w-[220px]">
-                                <p className="truncate text-white/80 font-medium">{campaign.name}</p>
-                                <p className="text-white/25 text-[10px] mt-0.5 uppercase tracking-wide">
-                                  {campaign.objective?.replace(/_/g, ' ')}
-                                </p>
-                              </div>
-                            </td>
+                          return (
+                            <React.Fragment key={campaign.id}>
+                              {/* Linha da campanha */}
+                              <tr
+                                className="border-b border-white/[0.04] hover:bg-white/[0.025] transition-colors"
+                              >
+                                {/* Expand toggle */}
+                                <td className="px-2 py-3 text-center">
+                                  <button
+                                    onClick={() => toggleCampaign(campaign.id)}
+                                    className="p-0.5 rounded text-white/30 hover:text-white/70 transition-colors"
+                                    title="Ver conjuntos de anúncios"
+                                  >
+                                    {isLoadingAdSets ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : isExpanded ? (
+                                      <ChevronDown className="w-3 h-3" />
+                                    ) : (
+                                      <ChevronRight className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </td>
 
-                            {/* Status */}
-                            <td className="px-3 py-3 text-center">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  isActive
+                                {/* Nome */}
+                                <td className="px-3 py-3">
+                                  <div className="max-w-[200px]">
+                                    <p className="truncate text-white/80 font-medium">{campaign.name}</p>
+                                    <p className="text-white/25 text-[10px] mt-0.5 uppercase tracking-wide">
+                                      {campaign.objective?.replace(/_/g, ' ')}
+                                    </p>
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${isActive
                                     ? 'bg-green-500/15 text-green-400'
                                     : campaign.status === 'PAUSED'
-                                    ? 'bg-yellow-500/15 text-yellow-400'
-                                    : 'bg-white/5 text-white/30'
-                                }`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    isActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'
-                                  }`}
-                                />
-                                {isActive ? 'Ativo' : campaign.status === 'PAUSED' ? 'Pausado' : campaign.status}
-                              </span>
-                            </td>
+                                      ? 'bg-yellow-500/15 text-yellow-400'
+                                      : 'bg-white/5 text-white/30'
+                                    }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`} />
+                                    {isActive ? 'Ativo' : campaign.status === 'PAUSED' ? 'Pausado' : campaign.status}
+                                  </span>
+                                </td>
 
-                            {/* Métricas */}
-                            <td className="px-3 py-3 text-right text-white/60">
-                              {ci ? formatCurrency(ci.spend, currency) : '—'}
-                            </td>
-                            <td className="px-3 py-3 text-right text-white/60">
-                              {ci ? formatNumber(ci.impressions) : '—'}
-                            </td>
-                            <td className="px-3 py-3 text-right text-white/60">
-                              {ci ? formatNumber(ci.clicks) : '—'}
-                            </td>
-                            <td className="px-3 py-3 text-right text-white/60">
-                              {ci ? `${ci.ctr.toFixed(2)}%` : '—'}
-                            </td>
-                            <td className="px-3 py-3 text-right text-white/60">
-                              {ci ? formatCurrency(ci.cpc, currency) : '—'}
-                            </td>
+                                {/* Métricas dinâmicas */}
+                                {activeColDefs.map((col) => (
+                                  <td key={col.id} className="px-3 py-3 text-right text-white/60 whitespace-nowrap">
+                                    {ci ? formatColValue(col, ci, currency) : '—'}
+                                  </td>
+                                ))}
 
-                            {/* Ação */}
-                            <td className="px-3 py-3 text-center">
-                              {isActionable && (
-                                <button
-                                  onClick={() =>
-                                    isActive
-                                      ? handlePause(campaign.id)
-                                      : handleEnable(campaign.id)
-                                  }
-                                  disabled={isLoadingThis}
-                                  title={isActive ? 'Pausar campanha' : 'Ativar campanha'}
-                                  className={`p-1.5 rounded-lg transition-all disabled:opacity-40 ${
-                                    isActive
-                                      ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/25'
-                                      : 'bg-green-500/10 text-green-400 hover:bg-green-500/25'
-                                  }`}
-                                >
-                                  {isLoadingThis ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : isActive ? (
-                                    <Pause className="w-3.5 h-3.5" />
-                                  ) : (
-                                    <Play className="w-3.5 h-3.5" />
+                                {/* Ação */}
+                                <td className="px-3 py-3 text-center">
+                                  {isActionable && (
+                                    <button
+                                      onClick={() => isActive ? handlePause(campaign.id) : handleEnable(campaign.id)}
+                                      disabled={isLoadingThis}
+                                      title={isActive ? 'Pausar campanha' : 'Ativar campanha'}
+                                      className={`p-1.5 rounded-lg transition-all disabled:opacity-40 ${isActive
+                                        ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/25'
+                                        : 'bg-green-500/10 text-green-400 hover:bg-green-500/25'
+                                        }`}
+                                    >
+                                      {isLoadingThis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                                    </button>
                                   )}
-                                </button>
+                                </td>
+                              </tr>
+
+                              {/* Ad Sets expandidos */}
+                              {isExpanded && (
+                                <>
+                                  {campaignAdSets.length === 0 && !isLoadingAdSets ? (
+                                    <tr className="bg-white/[0.015]">
+                                      <td colSpan={9} className="pl-10 pr-4 py-2 text-[11px] text-white/25 italic">
+                                        Nenhum conjunto encontrado
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    campaignAdSets.map((adSet) => {
+                                      const isAdSetExpanded = expandedAdSets.has(adSet.id);
+                                      const isLoadingAdsNow = loadingAds.has(adSet.id);
+                                      const adSetAds = ads.get(adSet.id) ?? [];
+                                      const adSetActive = adSet.status === 'ACTIVE';
+
+                                      return (
+                                        <React.Fragment key={adSet.id}>
+                                          {/* Linha do ad set */}
+                                          <tr className="bg-white/[0.02] border-b border-white/[0.03] hover:bg-white/[0.035] transition-colors">
+                                            <td className="px-2 py-2 text-center" />
+                                            <td className="py-2 pl-8 pr-3" colSpan={1}>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  onClick={() => toggleAdSet(adSet.id)}
+                                                  className="p-0.5 rounded text-white/25 hover:text-white/60 transition-colors shrink-0"
+                                                >
+                                                  {isLoadingAdsNow ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                  ) : isAdSetExpanded ? (
+                                                    <ChevronDown className="w-3 h-3" />
+                                                  ) : (
+                                                    <ChevronRight className="w-3 h-3" />
+                                                  )}
+                                                </button>
+                                                <Layers className="w-3 h-3 text-blue-400/60 shrink-0" />
+                                                <span className="text-white/60 text-[11px] truncate max-w-[160px]">{adSet.name}</span>
+                                              </div>
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${adSetActive ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'
+                                                }`}>
+                                                {adSetActive ? 'Ativo' : 'Pausado'}
+                                              </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-white/30 text-[10px]">
+                                              {adSet.daily_budget
+                                                ? formatCurrency(parseInt(adSet.daily_budget) / 100, currency) + '/dia'
+                                                : adSet.lifetime_budget
+                                                  ? formatCurrency(parseInt(adSet.lifetime_budget) / 100, currency) + ' total'
+                                                  : '—'}
+                                            </td>
+                                            <td colSpan={5} className="px-3 py-2 text-white/25 text-[10px]">
+                                              {adSet.optimization_goal?.replace(/_/g, ' ')}
+                                            </td>
+                                          </tr>
+
+                                          {/* Ads expandidos */}
+                                          {isAdSetExpanded && (
+                                            <>
+                                              {adSetAds.length === 0 && !isLoadingAdsNow ? (
+                                                <tr className="bg-white/[0.01]">
+                                                  <td colSpan={9} className="pl-16 pr-4 py-2 text-[11px] text-white/20 italic">
+                                                    Nenhum anúncio encontrado
+                                                  </td>
+                                                </tr>
+                                              ) : (
+                                                adSetAds.map((ad) => {
+                                                  const creative = ad.creative;
+                                                  const adActive = ad.status === 'ACTIVE';
+                                                  return (
+                                                    <tr key={ad.id} className="bg-white/[0.01] border-b border-white/[0.02]">
+                                                      <td colSpan={2} className="pl-14 pr-3 py-2.5">
+                                                        <div className="flex items-start gap-2.5">
+                                                          {/* Thumbnail do criativo */}
+                                                          <div className="w-10 h-10 rounded-md bg-white/5 border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
+                                                            {creative?.thumbnail_url || creative?.image_url ? (
+                                                              // eslint-disable-next-line @next/next/no-img-element
+                                                              <img
+                                                                src={creative.thumbnail_url ?? creative.image_url}
+                                                                alt="criativo"
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => {
+                                                                  (e.target as HTMLImageElement).style.display = 'none';
+                                                                }}
+                                                              />
+                                                            ) : (
+                                                              <ImageIcon className="w-4 h-4 text-white/20" />
+                                                            )}
+                                                          </div>
+                                                          {/* Texto do criativo */}
+                                                          <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                              <FileText className="w-2.5 h-2.5 text-purple-400/60 shrink-0" />
+                                                              <p className="text-white/55 text-[11px] font-medium truncate">{ad.name}</p>
+                                                            </div>
+                                                            {creative?.title && (
+                                                              <p className="text-white/70 text-[11px] font-semibold truncate">{creative.title}</p>
+                                                            )}
+                                                            {creative?.body && (
+                                                              <p className="text-white/35 text-[10px] line-clamp-2 leading-relaxed mt-0.5">{creative.body}</p>
+                                                            )}
+                                                            {creative?.call_to_action_type && (
+                                                              <span className="inline-block mt-1 text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">
+                                                                {creative.call_to_action_type.replace(/_/g, ' ')}
+                                                              </span>
+                                                            )}
+                                                          </div>
+                                                        </div>
+                                                      </td>
+                                                      <td className="px-3 py-2 text-center">
+                                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${adActive ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'
+                                                          }`}>
+                                                          {adActive ? 'Ativo' : 'Pausado'}
+                                                        </span>
+                                                      </td>
+                                                      <td colSpan={6} className="px-3 py-2 text-white/20 text-[10px]">
+                                                        ID: {ad.id}
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })
+                                              )}
+                                            </>
+                                          )}
+                                          </React.Fragment>
+                                      );
+                                    })
+                                  )}
+                                </>
                               )}
-                            </td>
-                          </tr>
-                        );
-                      })
+                              </React.Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                    {filteredCampaigns.length > 0 && insights && (
+                      <tfoot className="border-t border-white/10 bg-white/[0.015]">
+                        <tr className="text-white/80 font-medium">
+                          <td colSpan={3} className="px-3 py-3 pl-8 text-right text-[11px] uppercase tracking-wider text-white/50">
+                            Total / Média
+                          </td>
+                          {activeColDefs.map((col) => {
+                            const ciList = filteredCampaigns
+                              .map((camp) => insights.campaigns.find((c) => c.campaign_id === camp.id))
+                              .filter(Boolean) as CampaignInsights[];
+
+                            let footerVal = '—';
+                            if (col.aggregate === 'sum') {
+                              const total = ciList.reduce((acc, c) => acc + (Number(c[col.id]) || 0), 0);
+                              footerVal = total > 0 ? formatColValue(col, { ...ciList[0], [col.id]: total } as CampaignInsights, currency) : '—';
+                            } else if (col.aggregate === 'avg') {
+                              // Weighted avg for rates, simple avg for others
+                              if (col.id === 'ctr') {
+                                const totalClicks = ciList.reduce((a, c) => a + (c.clicks || 0), 0);
+                                const totalImpr = ciList.reduce((a, c) => a + (c.impressions || 0), 0);
+                                const avg = totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0;
+                                footerVal = avg > 0 ? `${avg.toFixed(2)}%` : '—';
+                              } else if (col.id === 'cpc') {
+                                const totalSpend = ciList.reduce((a, c) => a + (c.spend || 0), 0);
+                                const totalClicks = ciList.reduce((a, c) => a + (c.clicks || 0), 0);
+                                const avg = totalClicks > 0 ? totalSpend / totalClicks : 0;
+                                footerVal = avg > 0 ? formatCurrency(avg, currency) : '—';
+                              } else if (col.id === 'cpm') {
+                                const totalSpend = ciList.reduce((a, c) => a + (c.spend || 0), 0);
+                                const totalImpr = ciList.reduce((a, c) => a + (c.impressions || 0), 0);
+                                const avg = totalImpr > 0 ? (totalSpend / totalImpr) * 1000 : 0;
+                                footerVal = avg > 0 ? formatCurrency(avg, currency) : '—';
+                              } else {
+                                const vals = ciList.map((c) => Number(c[col.id]) || 0).filter((v) => v > 0);
+                                const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+                                footerVal = avg > 0 ? formatColValue(col, { ...ciList[0], [col.id]: avg } as CampaignInsights, currency) : '—';
+                              }
+                            }
+
+                            return (
+                              <td key={col.id} className="px-3 py-3 text-right text-orange-400 whitespace-nowrap">
+                                {footerVal}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-3 text-center" />
+                        </tr>
+                      </tfoot>
                     )}
-                  </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
+
+              {/* Rodapé com timestamp */}
+              {initialized && (
+                <p className="text-center text-[10px] text-white/20 pb-2">
+                  Dados do Meta ADS • Atualizado em {new Date().toLocaleTimeString('pt-BR')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>{/* fim dashboard scroll */}
+
+        {/* ── Column Picker Panel ── */}
+        {columnPickerOpen && (
+          <ColumnPickerPanel
+            visible={visibleColumns}
+            columns={visibleColumns}
+            onClose={() => setColumnPickerOpen(false)}
+            onChange={handleColumnsChange}
+          />
+        )}
+
+        {/* ── Atlas AI Chat Panel ── */}
+        {chatOpen && (
+          <div className="w-[340px] shrink-0 flex flex-col border-l border-white/10 bg-[#0d0a0f]">
+            {/* Chat header */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 shrink-0">
+              <div className="w-6 h-6 rounded-md bg-orange-500/20 flex items-center justify-center">
+                <BrainCircuit className="w-3.5 h-3.5 text-orange-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white/90 leading-tight">Atlas AI</p>
+                <p className="text-[10px] text-white/35 leading-tight">Gerente de tráfego autônomo</p>
+              </div>
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing || !initialized}
+                title="Analisar conta completa"
+                className="text-[10px] px-2 py-1 bg-orange-500/15 text-orange-300 rounded-md hover:bg-orange-500/25 transition-colors disabled:opacity-40 flex items-center gap-1"
+              >
+                {analyzing ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Zap className="w-3 h-3" />
+                )}
+                Analisar
+              </button>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="p-1 rounded-md hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            {/* Rodapé com timestamp */}
-            {initialized && (
-              <p className="text-center text-[10px] text-white/20 pb-2">
-                Dados do Meta ADS • Atualizado em {new Date().toLocaleTimeString('pt-BR')}
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {chatMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
+                  <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                    <BrainCircuit className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-white/60">Olá! Sou o Atlas.</p>
+                    <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+                      Posso analisar suas campanhas, identificar problemas e executar otimizações automaticamente.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 w-full mt-1">
+                    {[
+                      'Quais campanhas estão com CTR baixo?',
+                      'Pause campanhas com CPC acima de R$5',
+                      'Faça uma análise completa da conta',
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => { setChatInput(suggestion); }}
+                        className="text-left text-[10px] px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                chatMessages.map((msg, i) => (
+                  <div key={i} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div
+                      className={`max-w-[90%] text-[11px] leading-relaxed rounded-xl px-3 py-2 whitespace-pre-wrap ${msg.role === 'user'
+                        ? 'bg-orange-500/20 text-orange-100 rounded-br-sm'
+                        : 'bg-white/[0.06] text-white/80 rounded-bl-sm'
+                        }`}
+                    >
+                      {msg.content}
+                    </div>
+                    {msg.actionExecuted && (
+                      <div className="flex items-center gap-1 text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-1 max-w-[90%]">
+                        <Activity className="w-3 h-3 shrink-0" />
+                        {msg.actionExecuted}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex items-start gap-2">
+                  <div className="bg-white/[0.06] rounded-xl rounded-bl-sm px-3 py-2.5 flex gap-1.5 items-center">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400/60 animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400/60 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400/60 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="px-3 py-2.5 border-t border-white/10 shrink-0">
+              <div className="flex items-end gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 focus-within:border-orange-500/40 transition-colors">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                  placeholder="Pergunte ao Atlas…"
+                  rows={1}
+                  className="flex-1 bg-transparent text-[11px] text-white/80 placeholder:text-white/25 outline-none resize-none leading-relaxed max-h-24 overflow-y-auto"
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="p-1.5 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/35 transition-colors disabled:opacity-40 shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-[9px] text-white/20 mt-1.5 text-center">
+                Enter para enviar • Shift+Enter para nova linha
               </p>
-            )}
+            </div>
           </div>
         )}
-      </div>
+
+      </div>{/* fim flex conteúdo */}
     </div>
   );
 }

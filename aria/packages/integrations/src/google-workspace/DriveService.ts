@@ -18,6 +18,21 @@ export class DriveService {
 
     // ---- READ ---------------------------------------------------------------
 
+    async listFilesInFolder(folderId: string, limit = 50): Promise<DriveFile[]> {
+        const auth = await createWorkspaceClient();
+        const drive = google.drive({ version: 'v3', auth });
+        const res = await withRetry(
+            () => drive.files.list({
+                pageSize: limit,
+                orderBy: 'modifiedTime desc',
+                fields: 'files(id,name,mimeType,modifiedTime,webViewLink,parents)',
+                q: `'${folderId}' in parents and trashed = false`,
+            }),
+            'DriveService.listFilesInFolder',
+        );
+        return (res.data.files ?? []) as DriveFile[];
+    }
+
     async listRecentFiles(limit = 10): Promise<DriveFile[]> {
         const auth = await createWorkspaceClient();
         const drive = google.drive({ version: 'v3', auth });

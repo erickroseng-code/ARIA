@@ -1055,6 +1055,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [carouselState, setCarouselState] = useState<CarouselState>({
     loading: false, carousel: null, htmlExport: null, figmaUrl: null, error: null,
   });
+  const [carouselTheme, setCarouselTheme] = useState<'dark' | 'light'>('dark');
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -1155,7 +1156,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   // Auto-gera carrossel quando scripts chegam (primeiro script)
   useEffect(() => {
     if (parsedScripts && parsedScripts.length > 0 && !carouselState.carousel && !carouselState.loading) {
-      generateCarousel(parsedScripts[0]);
+      generateCarousel(parsedScripts[0], carouselTheme);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsedScripts]);
@@ -1281,13 +1282,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   }, [rawPlan]);
 
   // Gera estrutura de carrossel para o primeiro script
-  const generateCarousel = useCallback(async (script: ScriptData) => {
+  const generateCarousel = useCallback(async (script: ScriptData, theme: 'dark' | 'light' = 'dark') => {
     setCarouselState(s => ({ ...s, loading: true, error: null }));
     try {
       const res = await fetch(`${API_URL}/api/maverick/carousel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script }),
+        body: JSON.stringify({ script, theme }),
       });
       if (!res.ok) throw new Error('Falha ao gerar carrossel');
       const data = await res.json();
@@ -1966,10 +1967,31 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                       {/* ── Seção de Carrossel (phase report) ── */}
                       {(carouselState.loading || carouselState.carousel) && (
                         <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-6 space-y-4 mt-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🎨</span>
-                            <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
-                            {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">🎨</span>
+                              <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
+                              {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                            </div>
+                            {/* Theme toggle */}
+                            <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
+                              {(['dark', 'light'] as const).map(t => (
+                                <button
+                                  key={t}
+                                  onClick={() => {
+                                    setCarouselTheme(t);
+                                    if (parsedScripts?.[0]) generateCarousel(parsedScripts[0], t);
+                                  }}
+                                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                    carouselTheme === t
+                                      ? 'bg-purple-500/30 text-purple-200'
+                                      : 'text-white/30 hover:text-white/60'
+                                  }`}
+                                >
+                                  {t === 'dark' ? '🌑 Dark' : '☀️ Light'}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           {carouselState.loading && (
                             <p className="text-white/40 text-sm">Gerando estrutura do carrossel...</p>
@@ -2004,7 +2026,19 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                     onClick={() => downloadHtml(carouselState.htmlExport!)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-all"
                                   >
-                                    ⬇️ Exportar HTML
+                                    ⬇️ HTML
+                                  </button>
+                                )}
+                                {carouselState.carousel && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(JSON.stringify(carouselState.carousel, null, 2));
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/10 border border-white/10 rounded-lg text-white/50 hover:text-white/80 text-xs font-medium transition-all"
+                                    title="Copie e cole no plugin Figma"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    JSON Figma
                                   </button>
                                 )}
                                 {carouselState.figmaUrl && (
@@ -2171,10 +2205,31 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
               {/* ── Seção de Carrossel ── */}
               {(carouselState.loading || carouselState.carousel) && (
                 <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🎨</span>
-                    <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
-                    {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🎨</span>
+                      <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
+                      {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                    </div>
+                    {/* Theme toggle */}
+                    <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
+                      {(['dark', 'light'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            setCarouselTheme(t);
+                            if (parsedScripts?.[0]) generateCarousel(parsedScripts[0], t);
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                            carouselTheme === t
+                              ? 'bg-purple-500/30 text-purple-200'
+                              : 'text-white/30 hover:text-white/60'
+                          }`}
+                        >
+                          {t === 'dark' ? '🌑 Dark' : '☀️ Light'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   {carouselState.loading && (
                     <p className="text-white/40 text-sm">Gerando estrutura do carrossel...</p>

@@ -3,6 +3,7 @@ import { TrafficService } from './traffic.service';
 import { atlasChat, atlasAutoAnalyze, atlasSchedulerRun } from './agents/atlas-orchestrator';
 import { getAuditLogs } from './agents/atlas-audit';
 import { sendAtlasNotification, sendAtlasErrorAlert } from './agents/atlas-notifier';
+import { listCreativesFromDrive, generateCreativeCopy } from './agents/atlas-creative-service';
 
 const trafficService = new TrafficService();
 
@@ -295,4 +296,93 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(500).send({ error: error.message });
     }
   });
+
+  // GET /api/traffic/atlas/creatives — list creatives from Google Drive folder
+  fastify.get('/atlas/creatives', async (_req, reply) => {
+    try {
+      const files = await listCreativesFromDrive();
+      return reply.send({ files, folderId: process.env.ATLAS_CREATIVE_DRIVE_FOLDER_ID ?? null });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  // POST /api/traffic/atlas/swap-creative — manual creative swap (web interface)
+  fastify.post<{
+    Body: {
+      adId: string;
+      adName?: string;
+      driveFileId: string;
+      workspace: string;
+      accountId: string;
+      newCopy?: boolean;
+      productContext?: string;
+      confirm?: boolean;
+      proposedCopy?: { primaryText: string; title: string; description: string };
+    };
+  }>('/atlas/swap-creative', async (req, reply) => {
+    const {
+      adId, adName = 'Anúncio', driveFileId, workspace, accountId,
+      newCopy = true, productContext, confirm = false, proposedCopy,
+    } = req.body;
+
+    if (!adId || !driveFileId || !workspace || !accountId) {
+      return reply.status(400).send({ error: 'adId, driveFileId, workspace e accountId são obrigatórios' });
+    }
+
+    try {
+      // 1. Fetch the creative file from Drive
+      const allCreatives = await listCreativesFromDrive();
+      const file = allCreatives.find(f => f.id === driveFileId);
+      if (!file) {
+        return reply.status(404).send({ error: 'Criativo não encontrado na pasta do Drive configurada' });
+      }
+
+      // 2. Generate copy if requested and not already proposed
+      let copy = proposedCopy;
+      if (!copy && newCopy) {
+        copy = await generateCreativeCopy({
+          adName,
+          productContext,
+          reason: 'Troca manual solicitada pela interface web',
+        });
+      } else if (!copy) {
+        copy = { primaryText: '(manter copy atual)', title: '(manter)', description: '(manter)' };
+      }
+
+      // 3. If not confirmed, return the proposal for review
+      if (!confirm) {
+        return reply.send({
+          proposal: {
+            adId, adName, file,
+            copy,
+            status: 'pending_approval',
+            message: 'Envie confirm:true com os mesmos parâmetros e proposedCopy para executar a troca.',
+          },
+        });
+      }
+
+      // 4. Execute the swap (requires ATLAS_WRITE_ENABLED=true)
+      if (process.env.ATLAS_WRITE_ENABLED !== 'true') {
+        return reply.send({
+          executed: false,
+          dryRun: true,
+          message: '[MODO SEGURO] Troca registrada mas não aplicada. Defina ATLAS_WRITE_ENABLED=true para executar.',
+          adId, file, copy,
+        });
+      }
+
+      // Production: execute via TrafficService (update_ad_creative requires pageId/link)
+      // This is a placeholder for the full creative upload flow (Story 8.6)
+      return reply.send({
+        executed: true,
+        adId, adName, file, copy,
+        message: `Criativo "${file.name}" proposto para o anúncio "${adName}". Integração completa com Meta Creative API em desenvolvimento (Story 8.6).`,
+      });
+
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
 };
+

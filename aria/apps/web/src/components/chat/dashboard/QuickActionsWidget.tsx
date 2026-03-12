@@ -16,7 +16,6 @@ interface QuickAction {
     description: string;
     logo: string;
     color: string;
-    gradient: string;
     href?: string;
     ariaCommand?: string;
     toastMessage: string;
@@ -29,7 +28,6 @@ const ACTIONS: QuickAction[] = [
         description: 'ClickUp',
         logo: clickupLogo,
         color: '#7B68EE',
-        gradient: 'from-[#7B68EE]/20 to-[#7B68EE]/5',
         href: 'https://app.clickup.com/new/task',
         toastMessage: 'Abrindo ClickUp para criar tarefa…',
     },
@@ -39,7 +37,6 @@ const ACTIONS: QuickAction[] = [
         description: 'Telegram',
         logo: telegramLogo,
         color: '#2AABEE',
-        gradient: 'from-[#2AABEE]/20 to-[#2AABEE]/5',
         href: 'https://t.me',
         toastMessage: 'Abrindo Telegram…',
     },
@@ -49,7 +46,6 @@ const ACTIONS: QuickAction[] = [
         description: 'Notion',
         logo: notionLogo,
         color: '#ffffff',
-        gradient: 'from-white/10 to-white/5',
         href: 'https://notion.new',
         toastMessage: 'Abrindo Notion para criar documento…',
     },
@@ -59,7 +55,6 @@ const ACTIONS: QuickAction[] = [
         description: 'Figma',
         logo: figmaLogo,
         color: '#F24E1E',
-        gradient: 'from-[#F24E1E]/20 to-[#F24E1E]/5',
         href: 'https://www.figma.com/design',
         toastMessage: 'Abrindo Figma para criar design…',
     },
@@ -75,47 +70,37 @@ function ActionButton({ action, onAction }: ActionButtonProps) {
         <button
             onClick={() => onAction(action)}
             className={cn(
-                'group relative flex flex-col items-center gap-3 p-4 rounded-2xl border border-white/[0.05] transition-all duration-200',
-                'bg-gradient-to-b', action.gradient,
-                'hover:scale-[1.03] hover:shadow-xl hover:border-white/[0.10] active:scale-[0.98]',
-                'focus:outline-none focus:ring-2 focus:ring-white/20',
+                'group relative flex items-center gap-3 p-3 rounded-xl border border-white/[0.05] transition-all duration-200',
+                'bg-[#0d0d0f] hover:bg-white/[0.02] hover:border-white/[0.10] active:scale-[0.98]',
+                'focus:outline-none focus:ring-1 focus:ring-white/10',
             )}
-            style={{
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ['--shadow-color' as any]: action.color,
-            }}
         >
-            {/* Glow on hover */}
+            {/* Icon Container */}
             <div
-                className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                className="w-10 h-10 rounded-lg flex items-center justify-center border border-white/[0.06] overflow-hidden p-2 relative z-10"
                 style={{
-                    boxShadow: `0 0 24px -4px ${action.color}40`,
+                    backgroundColor: `${action.color}10`,
+                    boxShadow: `0 4px 12px ${action.color}10`
                 }}
-            />
-
-            {/* Logo */}
-            <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/[0.06] bg-black/20 overflow-hidden p-1.5 relative z-10"
-                style={{ boxShadow: `0 4px 12px ${action.color}20` }}
             >
                 <img
                     src={action.logo}
                     alt={action.description}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain filter drop-shadow-sm"
                     onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
                 />
             </div>
 
             {/* Labels */}
-            <div className="text-center relative z-10">
-                <p className="text-xs font-semibold text-white/85 leading-tight">{action.label}</p>
-                <p className="text-[10px] text-white/35 mt-0.5">{action.description}</p>
+            <div className="text-left relative z-10 flex-1 overflow-hidden">
+                <p className="text-[13px] font-medium text-white/90 leading-tight truncate">{action.label}</p>
+                <p className="text-[10px] text-white/30 mt-0.5 font-medium uppercase tracking-wider truncate">{action.description}</p>
             </div>
 
-            {/* "New" ripple indicator */}
+            {/* Bottom glow bar on hover */}
             <div
-                className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                style={{ backgroundColor: action.color }}
+                className="absolute bottom-0 left-3 right-3 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                style={{ background: `linear-gradient(90deg, transparent, ${action.color}50, transparent)` }}
             />
         </button>
     );
@@ -132,17 +117,17 @@ export function QuickActionsWidget() {
     };
 
     return (
-        <div className="bg-[#0B0B0C] border border-white/[0.05] rounded-2xl p-5">
+        <div className="bg-[#0B0B0C] border border-white/[0.05] rounded-2xl p-5 mb-6">
             {/* Header */}
-            <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                    <Zap className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center gap-2.5 mb-5 ps-1">
+                <div className="p-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
                 </div>
-                <h3 className="text-sm font-semibold text-white">Ações Rápidas</h3>
+                <h3 className="text-[11px] font-bold text-white/25 uppercase tracking-[0.15em]">Ações Rápidas</h3>
             </div>
 
             {/* Action grid */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {ACTIONS.map(action => (
                     <ActionButton key={action.id} action={action} onAction={handleAction} />
                 ))}
