@@ -188,34 +188,29 @@ export class TrafficService {
 
     const raw: any[] = data.data ?? [];
 
-    const RESULT_ACTION_TYPES = [
-      'purchase',
-      'lead',
-      'onsite_conversion.messaging_conversation_started_7d',
-      'onsite_conversion.messaging_first_reply',
-      'contact',
-      'complete_registration',
-    ];
+    const getVal = (arr: any[] | undefined, type: string) => 
+      parseFloat(arr?.find((a: any) => a.action_type === type)?.value || '0');
 
     const campaigns: CampaignInsights[] = raw.map((c) => {
+      // Prioritization list: Purchases > Leads > Messages > Contacts > Registrations
+      const purchases = getVal(c.actions, 'purchase');
+      const leads = getVal(c.actions, 'lead');
+      const msgStarted = 
+        getVal(c.actions, 'onsite_conversion.messaging_conversation_started_7d') || 
+        getVal(c.actions, 'onsite_conversion.total_messaging_connection') || 
+        getVal(c.actions, 'onsite_conversion.messaging_first_reply');
+      const contacts = getVal(c.actions, 'contact');
+      const registrations = getVal(c.actions, 'complete_registration');
+      
       let resultCount = 0;
-      let resultValue = 0;
+      if (purchases > 0) resultCount = purchases;
+      else if (leads > 0) resultCount = leads;
+      else if (msgStarted > 0) resultCount = msgStarted;
+      else if (contacts > 0) resultCount = contacts;
+      else if (registrations > 0) resultCount = registrations;
 
-      if (c.actions) {
-        for (const action of c.actions) {
-          if (RESULT_ACTION_TYPES.includes(action.action_type)) {
-            resultCount += parseFloat(action.value || '0');
-          }
-        }
-      }
-
-      if (c.action_values) {
-        for (const action of c.action_values) {
-          if (RESULT_ACTION_TYPES.includes(action.action_type)) {
-            resultValue += parseFloat(action.value || '0');
-          }
-        }
-      }
+      // For value, mainly prioritize purchases
+      let resultValue = getVal(c.action_values, 'purchase');
 
       const postEngagement = c.actions?.find((a: any) => a.action_type === 'post_engagement')?.value;
       
