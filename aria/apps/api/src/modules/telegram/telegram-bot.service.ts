@@ -187,20 +187,6 @@ async function handleCallbackQuery(cb: any, trafficService: TrafficService): Pro
     return;
   }
 
-  // Daily optimization trigger — selects account AND immediately runs optimization
-  if (data.startsWith('dailyopt:')) {
-    const sel = pendingSel.get(data.slice(9));
-    if (!sel) { await send(chatId, '❌ Seleção expirada. Use /otimizar para rodar manualmente.'); return; }
-    const session = sessions.get(chatId);
-    sessions.set(chatId, {
-      workspaceId: sel.workspaceId, accountId: sel.accountId, accountName: sel.name,
-      mode: 'atlas', history: session?.history ?? [],
-    });
-    pendingSel.delete(data.slice(9));
-    await editMsg(chatId, messageId, `🧠 <b>Atlas analisando ${sel.name}...</b>\n⏳ Aguarde ~30 segundos.`);
-    await handleOtimizar(chatId, trafficService);
-    return;
-  }
 
   // Agent mode selection
   if (data.startsWith('mode:')) {
@@ -815,26 +801,79 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
   if (!chatIdStr) { console.warn('[Atlas] TELEGRAM_CHAT_ID not set — skipping daily prompt'); return; }
   const chatId = Number(chatIdStr);
 
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  await send(chatId, `🕘 <b>Atlas — Análise Diária (${now})</b>\n\n⏳ Buscando contas e analisando campanhas ativas...`);
+
+  // 1. Fetch all accounts
   let accounts: any[] = [];
   try {
     accounts = await trafficService.getAccounts('erick');
   } catch (err: any) {
-    await send(chatId, `❌ Atlas: erro ao buscar contas para análise diária.\n${err.message}`);
+    await send(chatId, `❌ Atlas: erro ao buscar contas.\n${err.message}`);
     return;
   }
 
-  const active = accounts.filter((a: any) => a.account_status === 1).slice(0, 10);
-  if (active.length === 0) {
-    await send(chatId, '⚠️ Atlas: nenhuma conta Meta ativa encontrada para análise.');
+  const activeAccounts = accounts.filter((a: any) => a.account_status === 1);
+  if (activeAccounts.length === 0) {
+    await send(chatId, '⚠️ Atlas: nenhuma conta Meta ativa encontrada.');
     return;
   }
 
-  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-  const keyboard: any[][] = active.map((acc: any) => {
-    const selId = Math.random().toString(36).slice(2, 10);
-    pendingSel.set(selId, { workspaceId: 'erick', accountId: acc.id, name: acc.name });
-    return [{ text: `📊 ${acc.name}`, callback_data: `dailyopt:${selId}` }];
-  });
+  // 2. For each account, check for active campaigns and collect proposals
+  let totalProposals = 0;
 
-  await send(chatId, `🕘 <b>Atlas — Análise Diária (${now})</b>\n\nSelecione a conta que deseja otimizar:`, { inline_keyboard: keyboard });
+  for (const acc of activeAccounts) {
+    try {
+      const [insights, campaigns] = await Promise.all([
+        trafficService.getAccountInsights(acc.id, 'erick', 'last_7d'),
+        trafficService.getCampaigns(acc.id, 'erick'),
+      ]);
+
+      const activeCampaigns = campaigns.filter((c: any) => c.status === 'ACTIVE');
+      if (activeCampaigns.length === 0) continue; // skip accounts with no active campaigns
+
+      const ctx: AtlasContext = { workspace: 'erick', accountId: acc.id, accountName: acc.name, insights, campaigns };
+      const { proposals, analysis } = await atlasGetProposedActions(ctx, trafficService);
+
+      if (proposals.length === 0) {
+        await send(chatId, `✅ <b>${acc.name}</b> — Nenhuma ação necessária.`);
+        continue;
+      }
+
+      // 3. Send proposals for this account with approve/reject buttons
+      await send(chatId, `📊 <b>${acc.name}</b> — ${activeCampaigns.length} campanha(s) ativa(s)\n🎯 <b>${proposals.length} proposta(s):</b>`);
+
+      for (const proposal of proposals) {
+        const actionId = Math.random().toString(36).slice(2, 14);
+        pendingActions.set(actionId, {
+          action: proposal.action,
+          ctx: { workspaceId: 'erick', accountId: acc.id, campaigns, insights },
+          chatId,
+          expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+        });
+        const name   = proposal.entityName ? ` <b>"${proposal.entityName}"</b>` : '';
+        const reason = proposal.action.reason ? `\n└ <i>${proposal.action.reason}</i>` : '';
+        await send(chatId,
+          `${proposal.label}${name}${reason}`,
+          { inline_keyboard: [[
+            { text: '✅ Executar', callback_data: `ok:${actionId}` },
+            { text: '❌ Pular',    callback_data: `no:${actionId}` },
+          ]] }
+        );
+        totalProposals++;
+      }
+
+      // Brief pause between accounts to avoid Telegram rate limits
+      await new Promise(r => setTimeout(r, 500));
+
+    } catch (err: any) {
+      await send(chatId, `⚠️ <b>${acc.name}</b> — Erro na análise: ${err.message}`);
+    }
+  }
+
+  if (totalProposals === 0) {
+    await send(chatId, '✅ <b>Atlas — Análise concluída.</b>\n\nNenhuma ação necessária em nenhuma conta.');
+  } else {
+    await send(chatId, `📋 <b>Total: ${totalProposals} proposta(s) acima.</b>\nAprove ou pule cada uma — as ações expiram em 6h.`);
+  }
 }
