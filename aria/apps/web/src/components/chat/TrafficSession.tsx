@@ -134,9 +134,9 @@ const COLUMN_CATALOG: ColDef[] = [
   { id: 'frequency', label: 'Frequência', description: 'Média de exibições por pessoa', type: 'text', aggregate: 'avg' },
   { id: 'unique_clicks', label: 'Cliques Únicos', description: 'Usuários únicos que clicaram', type: 'number', aggregate: 'sum' },
   { id: 'roas', label: 'ROAS', description: 'Retorno sobre gasto em anúncio', type: 'multiplier', aggregate: 'avg' },
-  { id: 'conversions', label: 'Conversões', description: 'Número de compras registradas', type: 'number', aggregate: 'sum' },
+  { id: 'conversions', label: 'Resultados (Conv.)', description: 'Número de resultados/compras registradas', type: 'number', aggregate: 'sum' },
   { id: 'conversion_value', label: 'Valor Conv.', description: 'Receita total das compras (R$)', type: 'currency', aggregate: 'sum' },
-  { id: 'cost_per_conversion', label: 'Custo/Conv.', description: 'Custo médio por compra', type: 'currency', aggregate: 'avg' },
+  { id: 'cost_per_conversion', label: 'Custo/Resultado', description: 'Custo médio por resultado', type: 'currency', aggregate: 'avg' },
   { id: 'engagement', label: 'Engajamento', description: 'Total de engajamentos no post', type: 'number', aggregate: 'sum' },
   { id: 'video_views_25', label: 'Vídeo 25%', description: 'Reproduzões até 25% do vídeo', type: 'number', aggregate: 'sum' },
   { id: 'video_views_50', label: 'Vídeo 50%', description: 'Reproduzões até 50% do vídeo', type: 'number', aggregate: 'sum' },
@@ -144,8 +144,8 @@ const COLUMN_CATALOG: ColDef[] = [
   { id: 'video_views_100', label: 'Vídeo 100%', description: 'Reproduzões completas do vídeo', type: 'number', aggregate: 'sum' },
 ];
 
-const DEFAULT_COLUMNS: Array<keyof CampaignInsights> = ['spend', 'impressions', 'clicks', 'ctr', 'cpc'];
-const COL_STORAGE_KEY = 'atlas_columns_v1';
+const DEFAULT_COLUMNS: Array<keyof CampaignInsights> = ['spend', 'conversions', 'cost_per_conversion', 'clicks', 'cpc', 'ctr', 'roas'];
+const COL_STORAGE_KEY = 'atlas_columns_v2';
 
 function loadSavedColumns(): Array<keyof CampaignInsights> {
   try {
