@@ -1,15 +1,15 @@
-﻿# Required GitHub Secrets (configure em Settings > Secrets > Actions):
-# ARIA_API_URL     ÔÇö URL p├║blica da Aria no Render (ex: https://aria-api.onrender.com)
-# SCHEDULER_SECRET ÔÇö mesmo valor de SCHEDULER_SECRET no .env da Aria
+# Required GitHub Secrets (configure em Settings > Secrets > Actions):
+# ARIA_API_URL    — URL pública da Aria no Render (ex: https://aria-api.onrender.com)
+# SCHEDULER_SECRET — mesmo valor de SCHEDULER_SECRET no .env da Aria
 #
 # IMPORTANTE: Antes de ativar dryRun: false, confirmar que ATLAS_WRITE_ENABLED=true
-# est├í configurado no servidor. Por padr├úo fica em modo seguro (dry-run).
+# está configurado no servidor. Por padrão fica em modo seguro (dry-run).
 
-name: Aria ÔÇö Atlas Daily Optimization
+name: Aria — Atlas Daily Optimization
 
 on:
   schedule:
-    - cron: '0 10 * * *'  # diariamente às 07:00 BRT (10:00 UTC) — com buffer para chegar às 09h
+    - cron: '0 10 * * *'  # diariamente às 07:00 BRT (10:00 UTC) — buffer para chegar ~09h
   workflow_dispatch:       # disparo manual pelo GitHub UI
 
 jobs:
