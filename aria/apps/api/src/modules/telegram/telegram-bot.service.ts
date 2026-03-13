@@ -158,6 +158,10 @@ export async function handleTelegramUpdate(update: any, trafficService: TrafficS
     case '/graham':   await handleSetMode(chatId, 'graham'); break;
     case '/maverick':   await handleSetMode(chatId, 'maverick'); break;
     case '/workspace':  await handleSetMode(chatId, 'workspace'); break;
+    case '/email':      await handleWorkspaceCmd(chatId, 'email ' + parts.slice(1).join(' ')); break;
+    case '/agenda':     await handleWorkspaceCmd(chatId, 'agenda ' + parts.slice(1).join(' ')); break;
+    case '/planilha':   await handleWorkspaceCmd(chatId, 'planilha ' + parts.slice(1).join(' ')); break;
+    case '/doc':        await handleWorkspaceCmd(chatId, 'doc ' + parts.slice(1).join(' ')); break;
     case '/conta':
     case '/contas':   await handleSelectAccount(chatId, trafficService); break;
     case '/status':   await handleStatus(chatId, trafficService); break;
@@ -725,6 +729,17 @@ async function handleMaverickChat(chatId: number, text: string): Promise<void> {
   );
 }
 
+// ── Workspace chat ────────────────────────────────────────────────────────────
+
+async function handleWorkspaceCmd(chatId: number, text: string): Promise<void> {
+  try {
+    const response = await handleWorkspaceMessage(text.trim());
+    await send(chatId, response);
+  } catch (err: any) {
+    await send(chatId, `❌ Erro no Workspace: ${err.message}`);
+  }
+}
+
 // ── ARIA general chat (routes by active mode) ─────────────────────────────────
 
 async function handleAgentChat(chatId: number, text: string, trafficService: TrafficService): Promise<void> {
@@ -741,16 +756,9 @@ async function handleAgentChat(chatId: number, text: string, trafficService: Tra
     case 'maverick':
       await handleMaverickChat(chatId, text);
       break;
-    case 'workspace': {
-      await send(chatId, '⏳ Acessando Google Workspace...');
-      try {
-        const response = await handleWorkspaceMessage(text);
-        await send(chatId, response);
-      } catch (err: any) {
-        await send(chatId, `❌ Erro ao acessar o Workspace: ${err.message}`);
-      }
+    case 'workspace':
+      await handleWorkspaceCmd(chatId, text);
       break;
-    }
     default:
       // ARIA mode — route by content heuristics
       if (/tráfego|campanha|anúncio|meta|ctr|cpc|roas|cpa|ads/i.test(text)) {
