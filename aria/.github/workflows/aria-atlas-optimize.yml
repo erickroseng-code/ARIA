@@ -1,0 +1,34 @@
+﻿# Required GitHub Secrets (configure em Settings > Secrets > Actions):
+# ARIA_API_URL     ÔÇö URL p├║blica da Aria no Render (ex: https://aria-api.onrender.com)
+# SCHEDULER_SECRET ÔÇö mesmo valor de SCHEDULER_SECRET no .env da Aria
+#
+# IMPORTANTE: Antes de ativar dryRun: false, confirmar que ATLAS_WRITE_ENABLED=true
+# est├í configurado no servidor. Por padr├úo fica em modo seguro (dry-run).
+
+name: Aria ÔÇö Atlas Daily Optimization
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # diariamente às 09:00 BRT (12:00 UTC)
+  workflow_dispatch:       # disparo manual pelo GitHub UI
+
+jobs:
+  atlas-optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Atlas optimization
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.ARIA_API_URL }}/api/tasks/atlas-optimize" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dryRun": false}' \
+            --max-time 90)
+
+          echo "Response: $(cat /tmp/response.json)"
+          echo "HTTP Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Atlas optimize endpoint returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
