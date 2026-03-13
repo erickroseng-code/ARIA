@@ -9,7 +9,7 @@ name: Aria ÔÇö Atlas Daily Optimization
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # diariamente às 09:00 BRT (12:00 UTC)
+    - cron: '0 10 * * *'  # diariamente às 07:00 BRT (10:00 UTC) — com buffer para chegar às 09h
   workflow_dispatch:       # disparo manual pelo GitHub UI
 
 jobs:
