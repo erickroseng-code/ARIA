@@ -2,7 +2,7 @@
 // Gera frames de carrossel 1080×1080px no Figma a partir do JSON do Maverick.
 // Design system extraído de referências reais do Instagram.
 
-figma.showUI(__html__, { width: 360, height: 520 });
+figma.showUI(__html__, { width: 360, height: 580 });
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -308,10 +308,10 @@ figma.ui.onmessage = async (msg) => {
       figma.currentPage.selection = frames;
       figma.viewport.scrollAndZoomIntoView(frames);
 
-      figma.ui.postMessage({ type: 'done', count: frames.length });
+      figma.ui.postMessage({ type: 'done', count: frames.length, _queueId: msg._queueId || null, _nextIndex: msg._nextIndex || null });
 
     } catch (err) {
-      figma.ui.postMessage({ type: 'error', message: err.message || String(err) });
+      figma.ui.postMessage({ type: 'error', message: err.message || String(err), _queueId: msg._queueId || null });
     }
   }
 };

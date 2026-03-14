@@ -35,6 +35,27 @@ function sendEvent(raw: any, type: string, data: Record<string, unknown>) {
   raw.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
 }
 
+// ─── Figma Queue (in-memory, max 50 items) ────────────────────────────────────
+
+interface FigmaQueueItem {
+  id: string;
+  carousel: ReturnType<typeof generateCarouselStructure>;
+  theme: 'dark' | 'light';
+  addedAt: string;
+}
+
+const figmaQueue: FigmaQueueItem[] = [];
+
+function addToFigmaQueue(carousel: ReturnType<typeof generateCarouselStructure>, theme: 'dark' | 'light') {
+  figmaQueue.push({
+    id: `figma-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    carousel,
+    theme,
+    addedAt: new Date().toISOString(),
+  });
+  if (figmaQueue.length > 50) figmaQueue.splice(0, figmaQueue.length - 50);
+}
+
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
   // PrismaClient requires an adapter in Prisma v7 (DATABASE_URL + adapter config).
   // If not configured, register stub routes returning 503 so the server starts cleanly.
@@ -509,6 +530,9 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     const carousel = generateCarouselStructure(script);
     const htmlExport = generateCarouselHtml(carousel, theme);
 
+    // Auto-add to Figma queue so the plugin can fetch without copy-paste
+    addToFigmaQueue(carousel, theme);
+
     let figmaUrl: string | undefined;
 
     if (exportToFigma && process.env.FIGMA_API_TOKEN && process.env.FIGMA_FILE_KEY) {
@@ -516,6 +540,38 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     }
 
     return reply.send({ carousel, htmlExport, figmaUrl });
+  });
+
+  // ─── Figma Queue endpoints ─────────────────────────────────────────────────
+
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  // OPTIONS preflight for Figma plugin CORS
+  fastify.options('/figma-queue', async (_req, reply) => {
+    return reply.headers(corsHeaders).send();
+  });
+  fastify.options('/figma-queue/:id', async (_req, reply) => {
+    return reply.headers(corsHeaders).send();
+  });
+
+  // GET /api/maverick/figma-queue — Retorna carrosséis pendentes para o plugin
+  fastify.get('/figma-queue', async (_req, reply) => {
+    return reply.headers(corsHeaders).send({ items: figmaQueue, count: figmaQueue.length });
+  });
+
+  // DELETE /api/maverick/figma-queue/:id — Plugin confirma que gerou o item
+  fastify.delete('/figma-queue/:id', async (
+    req: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const idx = figmaQueue.findIndex(i => i.id === req.params.id);
+    if (idx === -1) return reply.headers(corsHeaders).status(404).send({ error: 'Item not found' });
+    figmaQueue.splice(idx, 1);
+    return reply.headers(corsHeaders).send({ ok: true, remaining: figmaQueue.length });
   });
 
   // GET /api/maverick/stats — Estatísticas do histórico

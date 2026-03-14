@@ -25,9 +25,42 @@
     .subtitle {
       color: rgba(255,255,255,0.4);
       font-size: 11px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
+    /* ── Tabs ─────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 14px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 7px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(255,255,255,0.4);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .tab.active {
+      background: rgba(229, 62, 62, 0.2);
+      color: #fff;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Labels / inputs ──────────────────────────────────────────────── */
     label {
       display: block;
       font-size: 11px;
@@ -40,7 +73,7 @@
 
     textarea {
       width: 100%;
-      height: 120px;
+      height: 110px;
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
@@ -54,14 +87,25 @@
       line-height: 1.5;
     }
 
-    textarea:focus {
-      border-color: rgba(229, 62, 62, 0.5);
+    textarea:focus { border-color: rgba(229, 62, 62, 0.5); }
+    textarea::placeholder { color: rgba(255,255,255,0.2); }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 11px;
+      padding: 7px 10px;
+      outline: none;
+      margin-bottom: 10px;
     }
 
-    textarea::placeholder {
-      color: rgba(255,255,255,0.2);
-    }
+    input[type="text"]:focus { border-color: rgba(229,62,62,0.5); }
+    input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
 
+    /* ── Theme row ────────────────────────────────────────────────────── */
     .theme-row {
       display: flex;
       gap: 6px;
@@ -70,7 +114,7 @@
 
     .theme-btn {
       flex: 1;
-      padding: 8px;
+      padding: 7px;
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
       background: rgba(255,255,255,0.03);
@@ -88,20 +132,15 @@
       color: #fff;
     }
 
+    /* ── Unsplash toggle ──────────────────────────────────────────────── */
     .unsplash-row {
       display: flex;
       gap: 8px;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
-    .toggle {
-      position: relative;
-      width: 32px;
-      height: 18px;
-      flex-shrink: 0;
-    }
-
+    .toggle { position: relative; width: 32px; height: 18px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; }
 
     .slider {
@@ -126,34 +165,12 @@
     input:checked + .slider { background: #E53E3E; }
     input:checked + .slider:before { transform: translateX(14px); }
 
-    .toggle-label {
-      font-size: 12px;
-      color: rgba(255,255,255,0.6);
-      flex: 1;
-    }
+    .toggle-label { font-size: 12px; color: rgba(255,255,255,0.6); flex: 1; }
 
-    input[type="text"] {
-      width: 100%;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
-      color: #fff;
-      font-size: 11px;
-      padding: 6px 10px;
-      outline: none;
-      margin-top: 6px;
-      margin-bottom: 12px;
-    }
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn-row { display: flex; gap: 8px; margin-bottom: 0; }
 
-    input[type="text"]:focus { border-color: rgba(229,62,62,0.5); }
-    input[type="text"]::placeholder { color: rgba(255,255,255,0.2); }
-
-    .btn-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    .btn-generate {
+    .btn-primary {
       flex: 1;
       padding: 10px;
       background: #E53E3E;
@@ -166,19 +183,26 @@
       transition: opacity 0.15s;
     }
 
-    .btn-generate:hover { opacity: 0.85; }
-    .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn-close {
+    .btn-secondary {
       padding: 10px 14px;
       background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
-      color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.6);
       font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
     }
 
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Status ───────────────────────────────────────────────────────── */
     .status {
       margin-top: 12px;
       padding: 8px 12px;
@@ -191,87 +215,406 @@
     .status.ok    { background: rgba(72,187,120,0.1);  color: #68d391; display: block; }
     .status.error { background: rgba(229,62,62,0.1);   color: #fc8181; display: block; }
 
-    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 12px 0; }
+
+    /* ── Queue list ───────────────────────────────────────────────────── */
+    .queue-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .queue-count {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      flex: 1;
+    }
+
+    .queue-empty {
+      text-align: center;
+      padding: 28px 16px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .queue-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+
+    .queue-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .queue-item-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-item-meta {
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 10px;
+    }
+
+    .queue-item-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .mini-theme-btn {
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+
+    .mini-theme-btn.active {
+      background: rgba(229, 62, 62, 0.15);
+      border-color: rgba(229, 62, 62, 0.35);
+      color: #fff;
+    }
+
+    .btn-gen-item {
+      flex: 1;
+      padding: 6px 10px;
+      background: #E53E3E;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-gen-item:hover { opacity: 0.85; }
+    .btn-gen-item:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-discard-item {
+      padding: 6px 10px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.3);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .btn-discard-item:hover { color: #fc8181; border-color: rgba(229,62,62,0.3); }
+
+    .api-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .api-row input[type="text"] {
+      margin-bottom: 0;
+      flex: 1;
+    }
   </style>
 </head>
 <body>
   <h1>🎨 Aria Carousel</h1>
-  <p class="subtitle">Gera slides no Figma a partir do JSON do Maverick</p>
+  <p class="subtitle">Gera slides 1080×1080 no Figma a partir do Maverick</p>
 
-  <label>JSON do Carrossel</label>
-  <textarea id="json-input" placeholder='Cole aqui o JSON do carrossel gerado pela Aria...
-{"title":"...","slides":[...]}'></textarea>
-
-  <label>Tema</label>
-  <div class="theme-row">
-    <button class="theme-btn active" data-theme="dark" onclick="selectTheme('dark')">🌑 Dark</button>
-    <button class="theme-btn" data-theme="light" onclick="selectTheme('light')">☀️ Light</button>
+  <!-- ── Tabs ──────────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('queue')">📥 Buscar do Maverick</button>
+    <button class="tab" onclick="switchTab('manual')">✏️ JSON Manual</button>
   </div>
 
-  <hr class="divider">
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: QUEUE                                                         -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="panel active" id="panel-queue">
 
-  <div class="unsplash-row">
-    <label class="toggle">
-      <input type="checkbox" id="use-images" onchange="toggleImages(this.checked)">
-      <span class="slider"></span>
-    </label>
-    <span class="toggle-label">Adicionar imagens via Unsplash</span>
+    <label>URL da API Aria</label>
+    <div class="api-row">
+      <input type="text" id="api-url" placeholder="https://aria-api.onrender.com">
+      <button class="btn-secondary" onclick="fetchQueue()">🔄 Buscar</button>
+    </div>
+
+    <div class="queue-header">
+      <span class="queue-count" id="queue-count">Clique em Buscar para ver os carrosséis pendentes</span>
+      <button class="btn-secondary" id="btn-gen-all" onclick="generateAll()" style="display:none;padding:6px 10px;font-size:11px;">⚡ Gerar Todos</button>
+    </div>
+
+    <div class="queue-list" id="queue-list">
+      <div class="queue-empty">
+        Nenhum carrossel na fila.<br>
+        Gere um roteiro no Maverick e ele<br>aparecerá aqui automaticamente.
+      </div>
+    </div>
+
+    <div class="status" id="status-queue"></div>
   </div>
 
-  <div id="unsplash-key-section" style="display:none">
-    <label>Unsplash Access Key</label>
-    <input type="text" id="unsplash-key" placeholder="Obtenha em unsplash.com/developers">
-  </div>
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: MANUAL                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="panel" id="panel-manual">
 
-  <div class="btn-row">
-    <button class="btn-generate" id="btn-generate" onclick="generate()">Gerar no Figma →</button>
-    <button class="btn-close" onclick="cancel()">✕</button>
-  </div>
+    <label>JSON do Carrossel</label>
+    <textarea id="json-input" placeholder='Cole aqui o JSON do carrossel gerado pela Aria...
+{"title":"...","slides":[]}'></textarea>
 
-  <div class="status" id="status"></div>
+    <label>Tema</label>
+    <div class="theme-row">
+      <button class="theme-btn active" data-theme="dark" onclick="selectThemeManual('dark')">🌑 Dark</button>
+      <button class="theme-btn" data-theme="light" onclick="selectThemeManual('light')">☀️ Light</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="unsplash-row">
+      <label class="toggle">
+        <input type="checkbox" id="use-images" onchange="toggleImages(this.checked)">
+        <span class="slider"></span>
+      </label>
+      <span class="toggle-label">Adicionar imagens via Unsplash</span>
+    </div>
+
+    <div id="unsplash-key-section" style="display:none">
+      <label>Unsplash Access Key</label>
+      <input type="text" id="unsplash-key" placeholder="Obtenha em unsplash.com/developers">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="btn-generate" onclick="generateManual()">Gerar no Figma →</button>
+      <button class="btn-secondary" onclick="cancel()">✕</button>
+    </div>
+
+    <div class="status" id="status-manual"></div>
+  </div>
 
   <script>
-    let selectedTheme = 'dark';
+    // ── State ──────────────────────────────────────────────────────────────────
+    var selectedThemeManual = 'dark';
+    var queueItems = [];
+    var generatingAll = false;
+    var generatingItemId = null;
 
-    function selectTheme(t) {
-      selectedTheme = t;
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+    // ── Init ───────────────────────────────────────────────────────────────────
+    (function init() {
+      var saved = localStorage.getItem('aria_api_url');
+      document.getElementById('api-url').value = saved || 'https://aria-api.onrender.com';
+    })();
+
+    // ── Tabs ───────────────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(function(b, i) {
+        b.classList.toggle('active', (i === 0 && name === 'queue') || (i === 1 && name === 'manual'));
+      });
+      document.getElementById('panel-queue').classList.toggle('active', name === 'queue');
+      document.getElementById('panel-manual').classList.toggle('active', name === 'manual');
+    }
+
+    // ── Theme (manual tab) ─────────────────────────────────────────────────────
+    function selectThemeManual(t) {
+      selectedThemeManual = t;
+      document.querySelectorAll('#panel-manual .theme-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.theme === t);
+      });
     }
 
     function toggleImages(checked) {
       document.getElementById('unsplash-key-section').style.display = checked ? 'block' : 'none';
     }
 
-    function setStatus(type, msg) {
-      const el = document.getElementById('status');
+    // ── Status helpers ─────────────────────────────────────────────────────────
+    function setStatus(panelId, type, msg) {
+      var el = document.getElementById('status-' + panelId);
       el.className = 'status ' + type;
       el.textContent = msg;
     }
 
-    function generate() {
-      const raw = document.getElementById('json-input').value.trim();
-      if (!raw) return setStatus('error', 'Cole o JSON do carrossel primeiro.');
+    // ── Fetch queue from API ───────────────────────────────────────────────────
+    function fetchQueue() {
+      var apiUrl = document.getElementById('api-url').value.trim().replace(/\/$/, '');
+      if (!apiUrl) return setStatus('queue', 'error', 'Informe a URL da API Aria.');
 
-      let carousel;
-      try { carousel = JSON.parse(raw); }
-      catch (e) { return setStatus('error', 'JSON inválido — verifique o formato.'); }
+      localStorage.setItem('aria_api_url', apiUrl);
+      setStatus('queue', 'info', 'Buscando carrosséis...');
 
-      if (!carousel.slides || !Array.isArray(carousel.slides)) {
-        return setStatus('error', 'JSON não contém "slides". Copie o campo "carousel" da resposta da API.');
+      fetch(apiUrl + '/api/maverick/figma-queue')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          queueItems = data.items || [];
+          renderQueue();
+          if (queueItems.length === 0) {
+            setStatus('queue', 'info', 'Nenhum carrossel pendente. Gere um roteiro no Maverick!');
+          } else {
+            setStatus('queue', 'ok', queueItems.length + ' carrossel(is) pronto(s) para gerar.');
+          }
+        })
+        .catch(function(err) {
+          setStatus('queue', 'error', 'Erro ao conectar com a API: ' + err.message);
+        });
+    }
+
+    // ── Render queue list ──────────────────────────────────────────────────────
+    function renderQueue() {
+      var list = document.getElementById('queue-list');
+      var count = document.getElementById('queue-count');
+      var btnAll = document.getElementById('btn-gen-all');
+
+      if (queueItems.length === 0) {
+        count.textContent = 'Nenhum carrossel pendente';
+        btnAll.style.display = 'none';
+        list.innerHTML = '<div class="queue-empty">Nenhum carrossel na fila.<br>Gere um roteiro no Maverick e ele<br>aparecerá aqui automaticamente.</div>';
+        return;
       }
 
-      const useImages = document.getElementById('use-images').checked;
-      const unsplashKey = document.getElementById('unsplash-key').value.trim();
+      count.textContent = queueItems.length + ' carrossel(is) pendente(s)';
+      btnAll.style.display = '';
+
+      list.innerHTML = queueItems.map(function(item) {
+        var slides = item.carousel.slides ? item.carousel.slides.length : 0;
+        var added = new Date(item.addedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        var defaultTheme = item.theme || 'dark';
+        return (
+          '<div class="queue-item" id="item-' + item.id + '">' +
+            '<div class="queue-item-title">' + escapeHtml(item.carousel.title) + '</div>' +
+            '<div class="queue-item-meta">' + slides + ' slides · adicionado às ' + added + '</div>' +
+            '<div class="queue-item-actions">' +
+              '<button class="mini-theme-btn' + (defaultTheme === 'dark' ? ' active' : '') + '" ' +
+                'id="theme-dark-' + item.id + '" ' +
+                'onclick="toggleItemTheme(\'' + item.id + '\', \'dark\')">🌑</button>' +
+              '<button class="mini-theme-btn' + (defaultTheme === 'light' ? ' active' : '') + '" ' +
+                'id="theme-light-' + item.id + '" ' +
+                'onclick="toggleItemTheme(\'' + item.id + '\', \'light\')">☀️</button>' +
+              '<button class="btn-gen-item" id="gen-' + item.id + '" ' +
+                'onclick="generateItem(\'' + item.id + '\')">Gerar no Figma →</button>' +
+              '<button class="btn-discard-item" onclick="discardItem(\'' + item.id + '\')">✕</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function getItemTheme(itemId) {
+      var darkBtn = document.getElementById('theme-dark-' + itemId);
+      return darkBtn && darkBtn.classList.contains('active') ? 'dark' : 'light';
+    }
+
+    function toggleItemTheme(itemId, theme) {
+      document.getElementById('theme-dark-' + itemId).classList.toggle('active', theme === 'dark');
+      document.getElementById('theme-light-' + itemId).classList.toggle('active', theme === 'light');
+    }
+
+    // ── Generate single item ───────────────────────────────────────────────────
+    function generateItem(itemId) {
+      var item = queueItems.find(function(i) { return i.id === itemId; });
+      if (!item) return;
+
+      generatingItemId = itemId;
+      var btn = document.getElementById('gen-' + itemId);
+      if (btn) btn.disabled = true;
+      setStatus('queue', 'info', 'Gerando "' + item.carousel.title + '"...');
+
+      var theme = getItemTheme(itemId);
+
+      parent.postMessage({
+        pluginMessage: { type: 'generate', carousel: item.carousel, theme: theme, unsplashKey: null, _queueId: itemId }
+      }, '*');
+    }
+
+    // ── Generate all ───────────────────────────────────────────────────────────
+    function generateAll() {
+      if (queueItems.length === 0) return;
+      generatingAll = true;
+      generateNext(0);
+    }
+
+    function generateNext(index) {
+      if (index >= queueItems.length) {
+        generatingAll = false;
+        setStatus('queue', 'ok', 'Todos os carrosséis gerados!');
+        return;
+      }
+      var item = queueItems[index];
+      setStatus('queue', 'info', 'Gerando ' + (index + 1) + '/' + queueItems.length + ': "' + item.carousel.title + '"...');
+      generatingItemId = item.id;
+
+      parent.postMessage({
+        pluginMessage: {
+          type: 'generate',
+          carousel: item.carousel,
+          theme: item.theme || 'dark',
+          unsplashKey: null,
+          _queueId: item.id,
+          _nextIndex: index + 1,
+        }
+      }, '*');
+    }
+
+    // ── Discard item (remove from queue on server) ─────────────────────────────
+    function discardItem(itemId) {
+      var apiUrl = document.getElementById('api-url').value.trim().replace(/\/$/, '');
+      fetch(apiUrl + '/api/maverick/figma-queue/' + itemId, { method: 'DELETE' })
+        .catch(function() {});
+      queueItems = queueItems.filter(function(i) { return i.id !== itemId; });
+      renderQueue();
+    }
+
+    // ── After plugin generates a frame, consume item from queue ───────────────
+    function consumeQueueItem(itemId, nextIndex) {
+      var apiUrl = document.getElementById('api-url').value.trim().replace(/\/$/, '');
+      fetch(apiUrl + '/api/maverick/figma-queue/' + itemId, { method: 'DELETE' })
+        .catch(function() {});
+      queueItems = queueItems.filter(function(i) { return i.id !== itemId; });
+
+      if (generatingAll && typeof nextIndex === 'number') {
+        renderQueue();
+        setTimeout(function() { generateNext(nextIndex); }, 600);
+      } else {
+        renderQueue();
+      }
+    }
+
+    // ── Manual generate ────────────────────────────────────────────────────────
+    function generateManual() {
+      var raw = document.getElementById('json-input').value.trim();
+      if (!raw) return setStatus('manual', 'error', 'Cole o JSON do carrossel primeiro.');
+
+      var carousel;
+      try { carousel = JSON.parse(raw); }
+      catch (e) { return setStatus('manual', 'error', 'JSON inválido — verifique o formato.'); }
+
+      if (!carousel.slides || !Array.isArray(carousel.slides)) {
+        return setStatus('manual', 'error', 'JSON não contém "slides". Copie o campo "carousel" da resposta da API.');
+      }
+
+      var useImages = document.getElementById('use-images').checked;
+      var unsplashKey = document.getElementById('unsplash-key').value.trim();
 
       if (useImages && !unsplashKey) {
-        return setStatus('error', 'Informe o Unsplash Access Key para usar imagens.');
+        return setStatus('manual', 'error', 'Informe o Unsplash Access Key para usar imagens.');
       }
 
       document.getElementById('btn-generate').disabled = true;
-      setStatus('info', `Gerando ${carousel.slides.length} slides...`);
+      setStatus('manual', 'info', 'Gerando ' + carousel.slides.length + ' slides...');
 
       parent.postMessage({
-        pluginMessage: { type: 'generate', carousel, theme: selectedTheme, unsplashKey: useImages ? unsplashKey : null }
+        pluginMessage: { type: 'generate', carousel: carousel, theme: selectedThemeManual, unsplashKey: useImages ? unsplashKey : null }
       }, '*');
     }
 
@@ -279,19 +622,36 @@
       parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
     }
 
-    window.onmessage = (event) => {
-      const msg = event.data.pluginMessage;
+    // ── Messages from code.js ─────────────────────────────────────────────────
+    window.onmessage = function(event) {
+      var msg = event.data.pluginMessage;
       if (!msg) return;
+
       if (msg.type === 'done') {
+        // Re-enable manual button
         document.getElementById('btn-generate').disabled = false;
-        setStatus('ok', `✅ ${msg.count} slides criados com sucesso!`);
+
+        if (msg._queueId) {
+          // Queue flow: consume item and maybe continue
+          consumeQueueItem(msg._queueId, msg._nextIndex);
+          if (!generatingAll) {
+            setStatus('queue', 'ok', msg.count + ' slides criados com sucesso!');
+          }
+        } else {
+          setStatus('manual', 'ok', msg.count + ' slides criados com sucesso!');
+        }
       }
+
       if (msg.type === 'error') {
         document.getElementById('btn-generate').disabled = false;
-        setStatus('error', '❌ ' + msg.message);
+        generatingAll = false;
+        var panel = msg._queueId ? 'queue' : 'manual';
+        setStatus(panel, 'error', '❌ ' + msg.message);
       }
+
       if (msg.type === 'progress') {
-        setStatus('info', msg.message);
+        var panel = generatingItemId ? 'queue' : 'manual';
+        setStatus(panel, 'info', msg.message);
       }
     };
   </script>
