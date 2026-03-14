@@ -1,6 +1,6 @@
 // Arquivo: src/services/api.ts
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:3010/api';
 
 export interface AnalysisSection {
   title: string;
@@ -23,8 +23,9 @@ interface ScriptResult {
 export const MaverickAPI = {
   /**
    * Realiza o 'Raio-X' do perfil (Simulado ou Real)
+   * Retorna analysis + nicheKeywords para uso no gerador de roteiros
    */
-  async analyzeProfile(handle: string): Promise<AnalysisResult> {
+  async analyzeProfile(handle: string): Promise<{ analysis: AnalysisResult; nicheKeywords: string[] }> {
     try {
       const response = await fetch(`${API_BASE_URL}/analyze-profile`, {
         method: 'POST',
@@ -35,29 +36,40 @@ export const MaverickAPI = {
       if (!response.ok) throw new Error('Falha na análise do perfil');
 
       const data = await response.json();
-      return data.analysis;
+      return { analysis: data.analysis, nicheKeywords: data.nicheKeywords || [] };
     } catch (error) {
       console.error('Erro na API analyzeProfile:', error);
-      // Fallback para dados de exemplo em caso de erro
       return {
-        bio: { title: "Erro na Análise", description: "Não conseguimos conectar com o agente de análise." },
-        conteudo: { title: "Tente novamente", description: "Verifique sua conexão." },
-        posicionamento: { title: "Sem dados", description: "..." },
-        pontos_melhoria: ["Erro de conexão"],
-        pontos_fortes: ["Tente novamente mais tarde"]
+        analysis: {
+          bio: { title: "Erro na Análise", description: "Não conseguimos conectar com o agente de análise." },
+          conteudo: { title: "Tente novamente", description: "Verifique sua conexão." },
+          posicionamento: { title: "Sem dados", description: "..." },
+          pontos_melhoria: ["Erro de conexão"],
+          pontos_fortes: ["Tente novamente mais tarde"]
+        },
+        nicheKeywords: []
       };
     }
   },
 
   /**
-   * Gera roteiros via Copywriter Master Agent (2-Pass Pipeline)
+   * Gera roteiros via Copywriter Master Agent (3-Layer Pipeline)
+   * trendInsights: dados virais do nicho (opcional, passados do Scout/Strategist)
    */
-  async generateScript(topic: string, angle: string, tone: string, creatorProfile: string, awarenessLevel: number, referencePost: string = ""): Promise<any> {
+  async generateScript(
+    topic: string,
+    angle: string,
+    tone: string,
+    creatorProfile: string,
+    awarenessLevel: number,
+    referencePost: string = "",
+    trendInsights: any[] = []
+  ): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, angle, tone, creatorProfile, awarenessLevel, referencePost })
+        body: JSON.stringify({ topic, angle, tone, creatorProfile, awarenessLevel, referencePost, trendInsights })
       });
       if (!response.ok) throw new Error('Falha ao gerar roteiro');
       return await response.json();
@@ -77,6 +89,7 @@ export const MaverickAPI = {
     analysisContext: any;
     awarenessLevel?: number;
     referencePost?: string;
+    trendInsights?: any[];
   }): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/generate-content`, {
@@ -173,6 +186,38 @@ export const MaverickAPI = {
       console.error('Erro na API deleteSnapshot:', error);
       return false;
     }
-  }
+  },
+
+  /**
+   * Verifica se o Canva está autenticado e o template configurado
+   */
+  async checkCanvaStatus(): Promise<{ authenticated: boolean; templateConfigured: boolean }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/canva/status`);
+      if (!response.ok) return { authenticated: false, templateConfigured: false };
+      return await response.json();
+    } catch {
+      return { authenticated: false, templateConfigured: false };
+    }
+  },
+
+  /**
+   * Gera imagens de carrossel via Canva Connect API
+   * @param slides Array de slides com title, body e cta opcionais
+   */
+  async generateCarouselImages(slides: { title: string; body: string; cta?: string }[]): Promise<{ success: boolean; images?: string[]; count?: number; authUrl?: string; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate-carousel-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Erro na API generateCarouselImages:', error);
+      return { success: false, error: 'Falha de comunicação com a API de imagens.' };
+    }
+  },
 };
+
 

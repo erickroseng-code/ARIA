@@ -3,8 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import { generateWithFallback } from './utils/ai';
+import { generateWithFallback, extractJSON } from './utils/ai';
 import { FrameworkLoader } from './services/copywriter';
+import { BriefGenerator, matchPattern, AnalysisData, HookPattern } from './services/brief-generator';
+import { validate as viralValidate } from './services/brief-generator/viral-validator';
 
 dotenv.config();
 
@@ -20,104 +22,214 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'Maverick API' });
 });
 
-// Rota: Gerar Roteiro (@maverick-copywriter — 2-Pass Master Pipeline)
+// Rota: Gerar Roteiro (@maverick-copywriter — 3-Layer Master Pipeline)
 app.post('/api/generate-script', async (req, res) => {
   try {
-    const { topic, angle, tone, creatorProfile, awarenessLevel, referencePost } = req.body;
+    const { topic, angle, tone, creatorProfile, awarenessLevel, referencePost, trendInsights, analysisContext } = req.body;
     console.log(`[Maverick Copywriter] Generating script for: "${topic}"`);
 
-    // ── Layer 1: Framework Selection & Config ─────────────────────────────
+    // ── Layer 1: Framework + Knowledge Assets ─────────────────────────────
     const loader = new FrameworkLoader();
     const framework = loader.selectFramework(topic, angle || '');
     const frameworkBlock = framework ? loader.toPromptBlock(framework, creatorProfile, awarenessLevel, referencePost) : null;
     const masterBlock = loader.getMasterPrinciplesBlock();
+    const copyDirectives = loader.loadCopyDirectives();
+    const goldenScripts = loader.loadGoldenScripts(framework?.name);
     const approvedExamples = framework ? loader.loadApprovedExamples(framework.name) : '';
+
     if (framework) {
-      console.log(`[Maverick Copywriter] Selected framework: ${framework.full_name}`);
+      console.log(`[Maverick Copywriter] Framework: ${framework.full_name} | Directives: ${copyDirectives ? 'OK' : 'missing'} | Golden: ${goldenScripts ? 'OK' : 'empty'}`);
     }
 
-    // ── Layer 2: Scholar RAG — Book enrichment ─────────────────────────────
-    let ragContext = '';
+    // ── Layer 2: Trend Insights (passados pelo frontend ou buscados via Scholar) ──
+    let trendBlock = '';
+    if (trendInsights && Array.isArray(trendInsights) && trendInsights.length > 0) {
+      // Frontend passed trend data from Scout/Strategist phase
+      trendBlock = `CONTEÚDO VIRAL DE REFERÊNCIA DO NICHO (pesquisa real — use como calibração de qualidade do gancho):
+${trendInsights.slice(0, 3).map((ins: any, i: number) =>
+  `Ref ${i + 1}: "${ins.example_hook || ins.hook}" → Padrão: ${ins.hook_pattern || ins.pattern} | Sinal: ${ins.engagement_signal || ins.signal}`
+).join('\n')}
+
+INSTRUÇÃO: Não copie esses ganchos. Adapte o PADRÃO deles ao tema específico do roteiro.`;
+      console.log(`[Maverick Copywriter] Trend insights: ${trendInsights.length} viral refs injected.`);
+    } else {
+      // Fallback: search Scholar for viral hook patterns
+      try {
+        const { ScholarAgent } = await import('./services/scholar');
+        const scholar = new ScholarAgent();
+        const hookChunks = await scholar.searchKnowledge(`gancho viral hook pattern ${topic} ${angle || ''}`, 2, 'copywriting');
+        if (hookChunks.length > 0) {
+          trendBlock = `PADRÕES DE GANCHO (base de conhecimento):\n${hookChunks.map(c => `[${c.source}]: ${c.text}`).join('\n---\n')}`;
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Stage 0: Signal Synthesis — Brief Generator ───────────────────────
+    let briefText = '';
+    let selectedPattern: HookPattern | null = null;
+    let viralScore = 0;
+    let validationIssues: string[] = [];
+
     try {
-      const { ScholarAgent } = await import('./services/scholar');
-      const scholar = new ScholarAgent();
-      const ragQuery = framework
-        ? `${framework.name} ${framework.full_name} técnica para: ${topic} ${angle || ''}`
-        : `copywriting persuasão gancho para: ${topic}`;
-      const chunks = await scholar.searchKnowledge(ragQuery, 3, 'copywriting');
-      if (chunks.length > 0) {
-        ragContext = chunks.map(c => `[${c.source}]: ${c.text}`).join('\n\n---\n\n');
-        console.log(`[Maverick Copywriter] RAG: ${chunks.length} book chunks retrieved.`);
-      }
-    } catch (ragErr: any) {
-      console.warn('[Maverick Copywriter] RAG unavailable:', ragErr.message);
+      const analysisData: AnalysisData | undefined = analysisContext
+        ? {
+            pilares_conteudo: analysisContext.pilares_conteudo,
+            pontos_melhoria: analysisContext.pontos_melhoria,
+            content_tilt: analysisContext.content_tilt,
+            top_posts: analysisContext.top_posts,
+          }
+        : undefined;
+
+      selectedPattern = matchPattern(topic, analysisData);
+      console.log(`[BriefGenerator] Pattern selected: ${selectedPattern.name}`);
+
+      // 1 Scholar RAG chunk focado no padrão
+      let scholarChunk = '';
+      try {
+        const { ScholarAgent } = await import('./services/scholar');
+        const scholar = new ScholarAgent();
+        const chunks = await scholar.searchKnowledge(
+          `${selectedPattern.name} gancho ${topic}`,
+          1,
+          'copywriting'
+        );
+        scholarChunk = chunks[0]?.text || '';
+      } catch { /* non-fatal */ }
+
+      const generator = new BriefGenerator();
+      briefText = await generator.generate({
+        topic,
+        angle,
+        tone,
+        pattern: selectedPattern,
+        analysisData,
+        scholarChunk,
+      });
+      console.log(`[BriefGenerator] Brief gerado: ${briefText.split(' ').length} palavras`);
+    } catch (e: any) {
+      console.warn('[BriefGenerator] Falhou, continuando sem brief:', e.message);
     }
 
-    // ── Layer 3: Pass 1 — Generate First Draft ─────────────────────────────
-    console.log(`[Maverick Copywriter] Pass 1: Generating initial draft...`);
-    const prompt1 = `Você é o @maverick-copywriter — o maior especialista em copywriting para criadores de conteúdo digital do Brasil.
-Sua escrita é específica, visceral, e converte. Você NUNCA escreve genérico.
+    // ── Layer 3: Pass 1 — Structure Draft (framework-first) ───────────────
+    console.log(`[Maverick Copywriter] Pass 1: Building structured draft...`);
 
-${masterBlock ? `╔══════════════════════════════════════════════╗
-${masterBlock}
-╚══════════════════════════════════════════════╝
+    // Pick the single best golden example for this framework to anchor Pass 1
+    const bestExample = goldenScripts
+      ? goldenScripts.split('━━━')[1]?.trim() || ''
+      : '';
 
-` : ''}${frameworkBlock ? `═══════════════════════════════════════════════
-${frameworkBlock}
-═══════════════════════════════════════════════
+    const frameworkStages = framework
+      ? Object.values(framework.structure)
+          .map((s: any, i: number) => `${i + 1}. ${s.label.toUpperCase()}${s.duration ? ` (${s.duration})` : ''}: ${s.instruction}`)
+          .join('\n')
+      : '';
 
-` : ''}${approvedExamples ? `${approvedExamples}
----
-` : ''}${ragContext ? `TEORIA DE APOIO (extraída dos livros da base de conhecimento — use para enriquecer a escrita):
-${ragContext}
----
-` : ''}TAREFA: Escreva a PRIMEIRA VERSÃO do roteiro completo para Instagram Reels/TikTok.
+    const prompt1 = `Você é um roteirista especialista em conteúdo viral para Instagram Reels e TikTok.
 
-Tópico: "${topic}"
-Ângulo: ${angle || 'Contra-intuitivo e provocativo'}
-Tom: ${tone || 'Autoridade direta — sem enrolação, sem linguagem de guru'}
-${creatorProfile ? `Perfil do Criador: ${creatorProfile}` : ''}
+TAREFA: Escreva um roteiro estruturado para o tema abaixo, seguindo EXATAMENTE o framework indicado.
 
-REGRAS CRÍTICAS:
-- Siga EXATAMENTE a estrutura do framework acima, seção por seção
-- Aplique os princípios dos mestres
-- Seja ESPECÍFICO
-- NÃO adicione explicações sobre o roteiro — apenas o roteiro
+TEMA: "${topic}"
+ÂNGULO: ${angle || 'Contra-intuitivo e provocativo'}
+TOM: ${tone || 'Direto, coloquial, sem linguagem de guru'}
+${creatorProfile ? `CONTEXTO DO CRIADOR: ${creatorProfile}\n` : ''}${briefText ? `\nBRIEF CRIATIVO (síntese do público e padrão de gancho — USE COMO BASE):\n${briefText}\n` : trendBlock ? `\n${trendBlock}\n` : ''}
+${frameworkStages ? `ESTRUTURA OBRIGATÓRIA (siga cada etapa em ordem):
+${frameworkStages}
+` : ''}${bestExample ? `REFERÊNCIA DE QUALIDADE (estude o padrão: especificidade, gancho, ritmo):
+${bestExample}
+` : ''}${approvedExamples ? `\nEXEMPLOS APROVADOS PELO CRIADOR:
+${approvedExamples}\n` : ''}
+FORMATO DE SAÍDA — use exatamente esses rótulos:
 
-Escreva a primeira versão agora:`;
+[GANCHO]
+(primeiros 3 segundos — frase que para o scroll)
+
+[DESENVOLVIMENTO]
+(corpo do roteiro seguindo a estrutura do framework)
+
+[CTA]
+(chamada para ação única e específica)
+
+REGRAS:
+- Mínimo 220 palavras, máximo 400
+- Sem clichês, sem linguagem de coach/guru
+- Hiper-específico: use números, nomes, situações reais
+- Escreva APENAS o roteiro — sem explicações ou comentários
+
+Escreva agora:`;
 
     const completion1 = await generateWithFallback([{ role: 'user', content: prompt1 }]);
     const draft = completion1.choices[0]?.message?.content || '';
 
     if (!draft) throw new Error('Failed to generate initial draft.');
 
-    // ── Layer 4: Pass 2 — Creative Director Critique & Rewrite ─────────────
-    console.log(`[Maverick Copywriter] Pass 2: Creative Director rewriting...`);
-    const prompt2 = `Você é o Diretor de Criação Sênior da maior agência de resposta direta do mundo.
-Seu trabalho é pegar o primeiro rascunho de um roteiro e torná-lo 10x mais magnético, coloquial e invisivelmente persuasivo, garantindo que ele mimetize o tom real de um humano.
+    // ── Layer 4: Pass 2 — Quality Polish (directives + masters) ────────────
+    console.log(`[Maverick Copywriter] Pass 2: Applying quality polish...`);
+    const prompt2 = `Você é o Diretor de Criação de uma agência de copywriting de resposta direta.
+Receba o rascunho abaixo e aplique os princípios dos mestres para torná-lo irresistível.
 
-RASCUNHO INICIAL:
+RASCUNHO:
 ${draft}
 
-${referencePost ? `
-REFERÊNCIA DE VOZ EXIGIDA (O RASCUNHO TEM QUE SOAR ASSIM):
+${copyDirectives ? `PRINCÍPIOS DOS MESTRES (aplique cada um):
+${copyDirectives}
+` : ''}${masterBlock ? `${masterBlock}
+` : ''}${referencePost ? `VOZ DE REFERÊNCIA (faça o roteiro soar EXATAMENTE assim):
 ${referencePost}
+` : ''}${goldenScripts ? `NÍVEL DE QUALIDADE EXIGIDO (estude estes roteiros virais reais):
+${goldenScripts}
 ` : ''}
+REESCREVA aplicando obrigatoriamente:
+1. GANCHO mais forte — teste: para o scroll em 2 segundos?
+2. ESPECIFICIDADE — substitua qualquer generalidade por número/nome/situação real
+3. TOM HUMANO — linguagem de WhatsApp, frases curtas, sem adjetivos vazios
+4. FLUXO — transições invisíveis, conversa não palestra
+5. CTA — uma ação, com palavra-gatilho clara
+6. TAMANHO — mínimo 220 palavras; se curto, expanda com agitação e detalhes
+${framework ? `\nMantenha as seções [GANCHO] / [DESENVOLVIMENTO] / [CTA] do framework ${framework.name}.\n` : ''}
+Responda APENAS com o roteiro final polido. Sem metadados, sem comentários.
 
-CRITÉRIOS DE AVALIAÇÃO E REESCRITA (APLIQUE AGORA):
-1. O gancho (primeira frase) é impossível de ignorar? Se for fraco ou clichê, corte e comece com um soco no estômago.
-2. A linguagem soa como um "guru" ou IA? Troque palavras difíceis/poéticas pela forma crua como as pessoas falam no WhatsApp. Reduza adjetivos.
-3. As transições são invisíveis? O roteiro tem que fluir como uma conversa de bar com um amigo muito foda, não como uma palestra.
-4. O final pede uma ação clara? Se a promessa de CTA for genérica, force clareza cirúrgica ("comenta X", "clica no link da bio", etc).
-${framework ? `\nLembre-se: preserve a estrutura de etapas do framework '${framework.name}'.\n` : ''}
-
-Sua resposta NÃO DEVE conter críticas ou metadados de diretor de criação.
-Sua resposta DEVE SER EXATAMENTE E SOMENTE O ROTEIRO REESCRITO FINAL, pronto para o ator gravar.
-
-Escreva o roteiro polido agora:`;
+Escreva o roteiro final agora:`;
 
     const completion2 = await generateWithFallback([{ role: 'user', content: prompt2 }]);
-    const finalScript = completion2.choices[0]?.message?.content || draft;
+    let finalScript = completion2.choices[0]?.message?.content || draft;
+
+    // ── Stage 3: Viral Validator ──────────────────────────────────────────
+    const validation = viralValidate(finalScript);
+    viralScore = validation.score;
+    validationIssues = validation.issues;
+    console.log(`[ViralValidator] Score: ${validation.score}/5 — issues: ${validation.issues.join(' | ') || 'nenhum'}`);
+
+    if (!validation.passed && validation.score < 3) {
+      console.log('[ViralValidator] Score < 3, aplicando correção...');
+      const fixPrompt = `O roteiro abaixo tem problemas de qualidade. Corrija-os sem alterar o tema.
+
+ROTEIRO ATUAL:
+${finalScript}
+
+PROBLEMAS A CORRIGIR:
+${validation.issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
+
+REGRAS:
+- Mantenha exatamente as seções [GANCHO] / [DESENVOLVIMENTO] / [CTA]
+- Gancho: máximo 15 palavras, ultra-específico
+- Adicione pelo menos 1 número concreto se ausente
+- Mínimo 220 palavras, máximo 400
+- Sem palavras: transformação, jornada, incrível, poderoso, revolucionário, guru
+
+Escreva o roteiro corrigido agora:`;
+
+      try {
+        const completion3 = await generateWithFallback([{ role: 'user', content: fixPrompt }]);
+        const corrected = completion3.choices[0]?.message?.content || finalScript;
+        const reValidation = viralValidate(corrected);
+        console.log(`[ViralValidator] Após correção — Score: ${reValidation.score}/5`);
+        if (reValidation.score >= validation.score) {
+          finalScript = corrected;
+          viralScore = reValidation.score;
+          validationIssues = reValidation.issues;
+        }
+      } catch { /* non-fatal, usa finalScript original */ }
+    }
 
     res.json({
       success: true,
@@ -125,12 +237,17 @@ Escreva o roteiro polido agora:`;
       meta: {
         framework: framework?.full_name || 'base',
         frameworkId: framework?.name || '',
-        ragChunks: ragContext ? 3 : 0,
-        masterPrinciples: masterBlock ? true : false,
-        approvedExamplesUsed: approvedExamples ? true : false,
+        copyDirectivesLoaded: !!copyDirectives,
+        goldenScriptsLoaded: !!goldenScripts,
+        trendInsightsUsed: !!trendBlock,
+        approvedExamplesUsed: !!approvedExamples,
         twoPassPipeline: true,
         awarenessLevel: awarenessLevel || 3,
-        voiceCalibrated: !!referencePost
+        voiceCalibrated: !!referencePost,
+        briefGenerated: !!briefText,
+        hookPattern: selectedPattern?.name || '',
+        viralScore,
+        validationIssues,
       }
     });
 
@@ -143,34 +260,46 @@ Escreva o roteiro polido agora:`;
 // Rota: Gerar roteiros e conteúdos estendidos (Carrossel, Post, Roteiro curto, Roteiro longo)
 app.post('/api/generate-content', async (req, res) => {
   try {
-    const { type, pillar, analysisContext, awarenessLevel, referencePost, topic, angle } = req.body;
+    const { type, pillar, analysisContext, awarenessLevel, referencePost, topic, angle, trendInsights } = req.body;
     console.log(`[Maverick Copywriter] Generating ${type} for pillar: "${pillar}"`);
 
-    // ── Layer 1: Context & RAG Enrichment ─────────────────────────────
-    let ragContext = '';
-    try {
-      const { ScholarAgent } = await import('./services/scholar');
-      const scholar = new ScholarAgent();
-
-      const searchTerms = type === 'carousel_slides'
-        ? 'carrossel instigante, retenção de slides, conteúdo denso'
-        : type === 'caption'
-          ? 'legenda engajadora, storytelling curto, CTA'
-          : type === 'stories_sequence'
-            ? 'sequência de stories, engajamento, vulnerabilidade, venda'
-            : 'copywriting persuasão gancho retenção';
-
-      const ragQuery = `${searchTerms} ${pillar || topic || ''} ${angle || ''}`;
-      const chunks = await scholar.searchKnowledge(ragQuery, 3, 'copywriting');
-      if (chunks.length > 0) {
-        ragContext = chunks.map(c => `[${c.source}]: ${c.text}`).join('\n\n---\n\n');
-      }
-    } catch (ragErr: any) {
-      console.warn('[Maverick Copywriter] RAG unavailable:', ragErr.message);
-    }
-
+    // ── Layer 1: Knowledge Assets ─────────────────────────────────────
     const loader = new FrameworkLoader();
     const masterBlock = loader.getMasterPrinciplesBlock();
+    const copyDirectives = loader.loadCopyDirectives();
+
+    // Golden scripts: for reel_script use general examples, for others use framework-matched
+    const frameworkForType = type === 'reel_script' ? 'PAS'
+      : type === 'carousel_slides' ? 'VENDAS'
+      : undefined;
+    const goldenScripts = loader.loadGoldenScripts(frameworkForType);
+
+    // ── Layer 2: Trend Insights ───────────────────────────────────────
+    let trendBlock = '';
+    if (trendInsights && Array.isArray(trendInsights) && trendInsights.length > 0) {
+      trendBlock = `PALAVRAS-CHAVE DO NICHO (extraídas da análise do perfil):\n${trendInsights.map((t: any) => `- ${t.example_hook || t}`).join('\n')}\n\nAdapte o conteúdo para resonar com esse nicho específico.`;
+    }
+
+    // ── Layer 3: Scholar RAG — apenas para conteúdos não-reel (reel usa directives) ──
+    let ragContext = '';
+    if (type !== 'reel_script') {
+      try {
+        const { ScholarAgent } = await import('./services/scholar');
+        const scholar = new ScholarAgent();
+        const searchTerms = type === 'carousel_slides'
+          ? 'carrossel instigante, retenção de slides, conteúdo denso'
+          : type === 'caption'
+            ? 'legenda engajadora, storytelling curto, CTA'
+            : 'sequência de stories, engajamento, vulnerabilidade, venda';
+        const ragQuery = `${searchTerms} ${pillar || topic || ''} ${angle || ''}`;
+        const chunks = await scholar.searchKnowledge(ragQuery, 3, 'copywriting');
+        if (chunks.length > 0) {
+          ragContext = chunks.map(c => `[${c.source}]: ${c.text}`).join('\n\n---\n\n');
+        }
+      } catch (ragErr: any) {
+        console.warn('[Maverick Copywriter] RAG unavailable:', ragErr.message);
+      }
+    }
 
     // ── Layer 2: Formatting instructions based on type ──────────────────
     let structuralInstructions = '';
@@ -209,24 +338,27 @@ Stories do meio: Desenvolvimento rápido e vulnerável.
       ? `\nCALIBRAÇÃO DE VOZ (Referência do Criador - MIMETIZE ESSE TOM):\n${referencePost}\n`
       : '';
 
-    // ── Layer 3: Generation ─────────────────────────────────────────────
+    // ── Layer 4: Generation ─────────────────────────────────────────────
     const prompt = `Você é o @maverick-copywriter — o maior especialista em copywriting estratégico.
 Sua escrita é específica, visceral, e converte. Zero papinho de IA, zero jargões genéricos.
 
-CONFRONTE ESTES DADOS (OFERTA & CONTEXTO DA ANÁLISE):
-${JSON.stringify(analysisContext?.brief_estrategico || analysisContext?.resumo_executivo || 'Sem análise, crie com base na pauta.', null, 2)}
+${masterBlock ? `PRINCÍPIOS DOS MESTRES:\n${masterBlock}\n` : ''}${copyDirectives ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DIRETIVAS DE COPYWRITING (aplique todas):
+${copyDirectives}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}${goldenScripts ? `${goldenScripts}\n` : ''}CONTEXTO DA ANÁLISE:
+${JSON.stringify(analysisContext?.brief_estrategico || analysisContext?.resumo_executivo || 'Crie com base na pauta.', null, 2)}
 
 PAUTA / PILAR: "${pillar || topic}"
 FORMATO EXIGIDO: ${type.toUpperCase().replace('_', ' ')}
 
 ${structuralInstructions}
 
-${masterBlock ? `\n\nPRINCÍPIOS:\n${masterBlock}` : ''}
-${ragContext ? `\n\nTEORIA (Enriqueça o texto baseando-se nisto):\n${ragContext}` : ''}
-${awarenessBlock}
+${ragContext ? `REFERÊNCIAS (Enriqueça com estes dados):\n${ragContext}\n` : ''}${trendBlock ? `${trendBlock}\n` : ''}${awarenessBlock}
 ${voiceBlock}
+${type === 'reel_script' ? '\nTAMANHO OBRIGATÓRIO: mínimo 220 palavras, máximo 400 palavras.' : ''}
 
-TAREFA FINAL: Entrega o texto/roteiro pronto para uso. Não coloque saudações de IA (ex: "Aqui está o roteiro"). Vá direto para o conteúdo.
+TAREFA FINAL: Entrega o conteúdo pronto para uso. Sem saudações de IA. Vá direto para o conteúdo.
 `;
 
     const completion = await generateWithFallback([{ role: 'user', content: prompt }]);
@@ -546,13 +678,7 @@ Regras críticas:
         { response_format: { type: "json_object" } }
       );
       content = completion.choices[0]?.message?.content || "{}";
-
-      // Remove markdown formatting if the model leaked it despite instructions
-      if (content.startsWith("\`\`\`json")) {
-        content = content.replace(/^\`\`\`json/g, "").replace(/\`\`\`$/g, "");
-      }
-
-      analysisData = JSON.parse(content);
+      analysisData = JSON.parse(extractJSON(content));
     } catch (parseErr: any) {
       console.error("[Maverick API] Fatal JSON Parse Error:", parseErr.message);
       console.error("[Maverick API] Raw Content was:", content);
@@ -569,15 +695,143 @@ Regras críticas:
       console.warn('[Maverick Storage] Failed to save snapshot:', saveErr.message);
     }
 
+    // Extract niche keywords from analysis to be used in script generation
+    const nicheKeywords: string[] = [];
+    try {
+      const pillars = (analysisData as any)?.brief_estrategico?.pilares_conteudo || [];
+      pillars.forEach((p: any) => { if (p.nome) nicheKeywords.push(p.nome); });
+      const contentTilt = (analysisData as any)?.brief_estrategico?.content_tilt;
+      if (contentTilt) nicheKeywords.push(contentTilt);
+      const pontosMelhoria = (analysisData as any)?.pontos_melhoria || [];
+      pontosMelhoria.slice(0, 2).forEach((p: string) => { if (p) nicheKeywords.push(p); });
+    } catch { /* non-fatal */ }
+
     res.json({
       success: true,
       analysis: analysisData,
       source,
-      snapshotId
+      snapshotId,
+      nicheKeywords: nicheKeywords.slice(0, 5)
     });
 
   } catch (error: any) {
     console.error("Error analyzing profile:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+import { CanvaService, CarouselSlide } from './services/canva';
+
+// Instância única para manter estado PKCE entre /auth e /callback
+const canvaService = new CanvaService();
+
+// Rota: Iniciar OAuth com o Canva
+app.get('/api/canva/auth', (req, res) => {
+  try {
+    if (!process.env.CANVA_CLIENT_ID || !process.env.CANVA_CLIENT_SECRET) {
+      return res.status(500).json({ success: false, error: 'CANVA_CLIENT_ID e CANVA_CLIENT_SECRET não configurados no .env' });
+    }
+    const authUrl = canvaService.buildAuthUrl();
+    console.log('[Canva OAuth] Redirecting to Canva authorization page...');
+    res.redirect(authUrl);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Rota: Callback OAuth do Canva
+app.get('/api/canva/callback', async (req, res) => {
+  try {
+    const { code, state, error } = req.query as Record<string, string>;
+    if (error) return res.status(400).send(`Canva OAuth error: ${error}`);
+    if (!code) return res.status(400).send('Missing code from Canva OAuth callback.');
+
+    await canvaService.exchangeCode(code, state);
+    console.log('[Canva OAuth] Access token obtained and saved successfully!');
+
+    // Redireciona para o frontend com sucesso
+    res.send(`
+      <html><body style="font-family:sans-serif; text-align:center; padding-top:80px; background:#0f0f0f; color:#fff;">
+        <h2>✅ Canva conectado com sucesso!</h2>
+        <p>Você já pode fechar esta janela e voltar ao Maverick.</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body></html>
+    `);
+  } catch (error: any) {
+    console.error('[Canva OAuth] Callback error:', error);
+    res.status(500).send(`Erro ao conectar Canva: ${error.message}`);
+  }
+});
+
+// Rota: Status da conexão com o Canva
+app.get('/api/canva/status', (req, res) => {
+  res.json({
+    success: true,
+    authenticated: canvaService.isAuthenticated(),
+    templateConfigured: !!process.env.CANVA_BRAND_TEMPLATE_ID,
+  });
+});
+
+// Rota: Exportar design existente direto (sem autofill) — para testes e plano free
+app.post('/api/export-design', async (req, res) => {
+  try {
+    const { design_id } = req.body as { design_id: string };
+
+    if (!design_id) {
+      return res.status(400).json({ success: false, error: 'design_id é obrigatório.' });
+    }
+
+    if (!canvaService.isAuthenticated()) {
+      return res.status(401).json({ success: false, error: 'Não autenticado com o Canva.', authUrl: '/api/canva/auth' });
+    }
+
+    console.log(`[Maverick Canva] Exporting design ${design_id} directly...`);
+
+    // Move to folder first (non-fatal)
+    await canvaService.moveToFolder(design_id);
+
+    const imageUrls = await canvaService.exportDesign(design_id);
+    res.json({ success: true, images: imageUrls, count: imageUrls.length });
+  } catch (error: any) {
+    console.error('[Maverick Canva] Error exporting design:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Rota: Gerar imagens de carrossel via Canva
+// - Se informar design_id: exporta direto (sem autofill, plano free)
+// - Se não informar: usa autofill com Brand Template (requer Canva Teams)
+app.post('/api/generate-carousel-images', async (req, res) => {
+  try {
+    const { slides, design_id } = req.body as { slides: CarouselSlide[]; design_id?: string };
+
+    if (!canvaService.isAuthenticated()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Não autenticado com o Canva.',
+        authUrl: '/api/canva/auth',
+      });
+    }
+
+    let imageUrls: string[];
+
+    if (design_id) {
+      // ── Modo direto: export sem autofill ─────────────────────────────
+      console.log(`[Maverick Canva] Direct export mode for design ${design_id}`);
+      await canvaService.moveToFolder(design_id);
+      imageUrls = await canvaService.exportDesign(design_id);
+    } else {
+      // ── Modo autofill: requer Brand Template (Canva Teams) ────────────
+      if (!slides || !Array.isArray(slides) || slides.length === 0) {
+        return res.status(400).json({ success: false, error: 'Informe slides[] para autofill ou design_id para export direto.' });
+      }
+      console.log(`[Maverick Canva] Autofill mode — ${slides.length} slide(s)...`);
+      imageUrls = await canvaService.generateCarouselImages(slides);
+    }
+
+    res.json({ success: true, images: imageUrls, count: imageUrls.length });
+  } catch (error: any) {
+    console.error('[Maverick Canva] Error generating carousel images:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

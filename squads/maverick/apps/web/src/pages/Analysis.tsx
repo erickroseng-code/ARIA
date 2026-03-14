@@ -83,6 +83,7 @@ export default function Analysis() {
   const [creatorProfile, setCreatorProfile] = useState("");
   const [awarenessLevel, setAwarenessLevel] = useState<number>(3);
   const [referencePost, setReferencePost] = useState("");
+  const [nicheKeywords, setNicheKeywords] = useState<string[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<{ id: number; role: "user" | "assistant"; content: string }[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -111,15 +112,17 @@ export default function Analysis() {
             setIsCached(true);
           } else {
             // Fallback if snapshot not found
-            const raw = await MaverickAPI.analyzeProfile(handle);
+            const { analysis: raw, nicheKeywords: kw } = await MaverickAPI.analyzeProfile(handle);
             setAnalysisData(raw as unknown as RichAnalysis);
+            setNicheKeywords(kw);
             const stratResponse = await MaverickAPI.generateStrategy(raw);
             if (stratResponse.success && stratResponse.strategies) setStrategiesData(stratResponse.strategies);
           }
         } else {
           // Normal flow (new analysis)
-          const raw = await MaverickAPI.analyzeProfile(handle);
+          const { analysis: raw, nicheKeywords: kw } = await MaverickAPI.analyzeProfile(handle);
           setAnalysisData(raw as unknown as RichAnalysis);
+          setNicheKeywords(kw);
           const stratResponse = await MaverickAPI.generateStrategy(raw);
           if (stratResponse.success && stratResponse.strategies) setStrategiesData(stratResponse.strategies);
         }
@@ -139,13 +142,21 @@ export default function Analysis() {
     const strategy = strategiesData.find((s: any) => s.id === strategyId);
     if (!strategy) { setIsGenerating(false); return; }
 
+    // Build trend insights from niche keywords + strategy pillars
+    const trendInsights = nicheKeywords.map(kw => ({
+      example_hook: kw,
+      hook_pattern: 'keyword do nicho',
+      engagement_signal: 'extraído da análise de perfil'
+    }));
+
     const result = await MaverickAPI.generateContent({
       type: contentType,
-      pillar: strategy.title, // using the strategy title as the main pillar/topic
+      pillar: strategy.title,
       topic: strategy.title,
       analysisContext: analysisData,
       awarenessLevel,
-      referencePost
+      referencePost,
+      trendInsights
     });
 
     setIsGenerating(false);

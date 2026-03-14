@@ -7,6 +7,16 @@ const FRAMEWORKS_DIR = path.resolve(
     '../../../../../data/knowledge/copywriting/frameworks'
 );
 
+const GOLDEN_SCRIPTS_PATH = path.resolve(
+    __dirname,
+    '../../../../../data/knowledge/copywriting/scripts/golden/penoni-scripts.json'
+);
+
+const COPY_DIRECTIVES_PATH = path.resolve(
+    __dirname,
+    '../../../../../data/knowledge/copywriting/frameworks/copy-directives.md'
+);
+
 export interface CopyFramework {
     name: string;
     full_name: string;
@@ -169,6 +179,71 @@ ${framework.few_shot_example}`;
         const winner = scores[0];
         if (winner.score > 0) return winner.fw;
         return frameworks.find(f => f.name === 'PAS') || frameworks[0];
+    }
+
+    // Load distilled copywriting directives (always injected — replaces raw RAG chunks)
+    loadCopyDirectives(): string {
+        try {
+            if (fs.existsSync(COPY_DIRECTIVES_PATH)) {
+                return fs.readFileSync(COPY_DIRECTIVES_PATH, 'utf-8');
+            }
+        } catch (e) {
+            console.warn('[FrameworkLoader] Could not load copy-directives.md:', e);
+        }
+        return '';
+    }
+
+    // Load golden scripts as few-shot examples, prioritizing framework match
+    // Strategy: up to 3 from the matched framework type + 1-2 from other types as contrast
+    loadGoldenScripts(frameworkName?: string, maxTotal = 4): string {
+        try {
+            if (!fs.existsSync(GOLDEN_SCRIPTS_PATH)) return '';
+            const data = JSON.parse(fs.readFileSync(GOLDEN_SCRIPTS_PATH, 'utf-8'));
+            const scripts: any[] = data.scripts || [];
+            if (scripts.length === 0) return '';
+
+            const frameworkMap: Record<string, string[]> = {
+                'PAS':             ['AIDA', 'VENDAS'],
+                'AIDA':            ['AIDA', 'VENDAS'],
+                'BAB':             ['STORYTELLING', 'ROTINA'],
+                'HOOK_STORY_OFFER':['STORYTELLING'],
+                'OPEN_LOOP':       ['STORYTELLING', 'TREND'],
+                'VOSS':            ['VENDAS', 'AIDA'],
+            };
+
+            const fwUpper = (frameworkName || '').toUpperCase();
+            const primaryTypes = frameworkMap[fwUpper] || [];
+
+            // Primary: all scripts matching the framework type (max 3)
+            const primary = primaryTypes.length > 0
+                ? scripts.filter(s => primaryTypes.includes(s.framework)).slice(0, 3)
+                : scripts.slice(0, 3);
+
+            // Secondary: fill remaining slots from other types (diversity of style)
+            const primaryIds = new Set(primary.map((s: any) => s.id));
+            const secondary = scripts
+                .filter(s => !primaryIds.has(s.id))
+                .slice(0, maxTotal - primary.length);
+
+            const selected = [...primary, ...secondary];
+            if (selected.length === 0) return '';
+
+            return `ROTEIROS VIRAIS VALIDADOS — ${selected.length} exemplos reais com performance comprovada
+(Analise: especificidade dos números, ritmo das frases, tom coloquial, força do gancho, precisão do CTA)
+
+${selected.map((s: any, i: number) => `━━━ Exemplo ${i + 1}/${selected.length} — ${s.framework} | ${s.topic}
+🎣 GANCHO: "${s.hook}"
+📐 PADRÃO: ${s.hook_pattern}
+📝 ROTEIRO:
+${s.full_script}
+📣 CTA: ${s.cta}
+💡 POR QUE FUNCIONA: ${s.notes}
+`).join('\n')}
+INSTRUÇÃO CRÍTICA: Esses roteiros viralizaram de verdade. Estude o nível de especificidade (números exatos, nomes reais, situações concretas), o ritmo conversacional e a estrutura. Seu roteiro DEVE atingir esse mesmo nível — ou superar.`
+        } catch (e) {
+            console.warn('[FrameworkLoader] Could not load golden scripts:', e);
+            return '';
+        }
     }
 
     // Save an approved script as a new few-shot example
