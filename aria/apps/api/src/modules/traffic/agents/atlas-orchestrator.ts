@@ -304,7 +304,7 @@ Ao recomendar testes ou novos criativos:
 - ❌ Pausar conjunto completo sem antes verificar anúncios individuais
 
 ## Formato de resposta com ações:
-Quando o usuário pedir para executar uma ação, responda com JSON no exato formato abaixo. Se houver mais de uma ação, retorne apenas a principal ou a primeira, o sistema executará uma por vez.
+Quando o usuário pedir para executar uma ação via chat, responda com JSON no exato formato abaixo. Na análise autônoma diária (quando solicitado a fazer análise em passos), emita TODOS os JSONs de proposta identificados (até o limite especificado no pedido).
 
 **Campanhas:**
 \`\`\`json
@@ -388,10 +388,34 @@ function buildContextSummary(ctx: AtlasContext): string {
         lines.push(`  ↳ [AdSet: ${as.status}] ${as.name} (ID: ${as.id}) | Orçamento: ${as.daily_budget ? fmt(parseInt(as.daily_budget) / 100) + '/dia' : 'N/A'}`);
         if (as.ads?.length > 0) {
           for (const ad of as.ads) {
-            lines.push(`    ↳ [Ad: ${ad.status}] ${ad.name} (ID: ${ad.id})`);
+            const adI = (ctx as any).adInsights?.find((i: any) => i.ad_id === ad.id);
+            const adStats = adI
+              ? ` | CTR: ${adI.ctr.toFixed(2)}% | Gasto: ${fmt(adI.spend)} | Impressões: ${adI.impressions.toLocaleString('pt-BR')}${adI.ctr < 1 ? ' ⚠️ CTR BAIXO' : ''}`
+              : '';
+            lines.push(`    ↳ [Ad: ${ad.status}] ${ad.name} (ID: ${ad.id})${adStats}`);
           }
         }
       }
+    }
+  }
+
+  // Ad-level insights section — shown whenever adInsights are available,
+  // regardless of whether the campaign hierarchy includes adsets/ads.
+  const adInsights: any[] = (ctx as any).adInsights ?? [];
+  if (adInsights.length > 0) {
+    lines.push('', `## Insights por Anúncio — nível ad (last_7d)`);
+    for (const ad of adInsights) {
+      const flags: string[] = [];
+      if (ad.impressions >= 800 && ad.ctr < 1.5) flags.push('⚠️ CTR BAIXO');
+      if (ad.impressions >= 800 && ad.ctr < 1.0) flags.push('🔴 POSSÍVEL FADIGA');
+      lines.push(
+        `- ${ad.ad_name} (ID: ${ad.ad_id})` +
+        ` | CTR: ${ad.ctr.toFixed(2)}%` +
+        ` | CPC: ${fmt(ad.cpc)}` +
+        ` | Gasto: ${fmt(ad.spend)}` +
+        ` | Impressões: ${ad.impressions.toLocaleString('pt-BR')}` +
+        (flags.length > 0 ? ` ${flags.join(' ')}` : '')
+      );
     }
   }
 

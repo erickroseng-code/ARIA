@@ -16,6 +16,7 @@ import {
 } from '../traffic/agents/atlas-creative-service';
 import { processFinanceMessage } from '../finance/agents/orchestrator';
 import { handleWorkspaceMessage } from './workspace-handler';
+import { routeByNlp, transcribeVoice } from './nlp-router';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -140,10 +141,30 @@ export async function handleTelegramUpdate(update: any, trafficService: TrafficS
   }
 
   const msg = update.message;
-  if (!msg?.text || !msg?.chat?.id) return;
+  if (!msg?.chat?.id) return;
 
   const chatId: number = msg.chat.id;
   if (!isAuthorized(chatId)) return;
+
+  // ── Voice message: transcribe then process as text ────────────────────────
+  if (msg.voice?.file_id) {
+    try {
+      await send(chatId, '🎙️ <i>Transcrevendo áudio...</i>');
+      const transcribed = await transcribeVoice(msg.voice.file_id, botToken());
+      if (!transcribed) {
+        await send(chatId, '❌ Não consegui entender o áudio. Tente novamente.');
+        return;
+      }
+      await send(chatId, `🎙️ <b>Você disse:</b> <i>"${transcribed}"</i>`);
+      // Process transcribed text as if it were a regular message
+      await handleAgentChat(chatId, transcribed, trafficService);
+    } catch (err: any) {
+      await send(chatId, `❌ Erro na transcrição: ${err.message}`);
+    }
+    return;
+  }
+
+  if (!msg.text) return;
 
   const text = msg.text.trim();
   const parts = text.split(/\s+/);
@@ -759,20 +780,41 @@ async function handleAgentChat(chatId: number, text: string, trafficService: Tra
     case 'workspace':
       await handleWorkspaceCmd(chatId, text);
       break;
-    default:
-      // ARIA mode — route by content heuristics
-      if (/tráfego|campanha|anúncio|meta|ctr|cpc|roas|cpa|ads/i.test(text)) {
-        await handleAtlasChat(chatId, text, trafficService);
-      } else if (/gastei|paguei|saldo|orçamento|recebi|dívida|finanças|grana/i.test(text)) {
-        await handleGrahamChat(chatId, text);
-      } else {
-        await send(chatId,
-          `🤖 <b>ARIA</b> — Olá! Use /menu para selecionar um agente:\n\n` +
-          `🎯 /atlas — Tráfego & Meta Ads\n` +
-          `💰 /graham — Finanças pessoais\n` +
-          `🚀 /maverick — Geração de conteúdo`
-        );
+    default: {
+      // ARIA mode — use NLP router to understand natural language
+      const intent = await routeByNlp(text);
+      switch (intent.agent) {
+        case 'atlas':
+          await handleAtlasChat(chatId, text, trafficService);
+          break;
+        case 'graham':
+          await handleGrahamChat(chatId, text);
+          break;
+        case 'workspace_email':
+          await handleWorkspaceCmd(chatId, 'email ' + intent.command);
+          break;
+        case 'workspace_agenda':
+          await handleWorkspaceCmd(chatId, 'agenda ' + intent.command);
+          break;
+        case 'workspace_planilha':
+          await handleWorkspaceCmd(chatId, 'planilha ' + intent.command);
+          break;
+        case 'workspace_doc':
+          await handleWorkspaceCmd(chatId, 'doc ' + intent.command);
+          break;
+        default:
+          await send(chatId,
+            `🤖 <b>ARIA</b> — Olá! Posso ajudar com:\n\n` +
+            `🎯 Tráfego & Meta Ads → fale sobre campanhas\n` +
+            `💰 Finanças pessoais → registre gastos ou veja saldo\n` +
+            `📧 Gmail → "mostra meus emails"\n` +
+            `📅 Agenda → "quero ver minha agenda"\n` +
+            `📊 Planilhas → "planilha ID_AQUI"\n\n` +
+            `Ou use /menu para navegar entre agentes.`
+          );
       }
+      break;
+    }
   }
 }
 
@@ -909,15 +951,16 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
 
   for (const acc of activeAccounts) {
     try {
-      const [insights, campaigns] = await Promise.all([
+      const [insights, campaigns, adInsights] = await Promise.all([
         trafficService.getAccountInsights(acc.id, 'erick', 'last_7d'),
         trafficService.getCampaigns(acc.id, 'erick'),
+        trafficService.getAdInsights(acc.id, 'erick', 'last_7d'),
       ]);
 
       const activeCampaigns = campaigns.filter((c: any) => c.status === 'ACTIVE');
       if (activeCampaigns.length === 0) continue;
 
-      const ctx: AtlasContext = { workspace: 'erick', accountId: acc.id, accountName: acc.name, insights, campaigns };
+      const ctx: AtlasContext = { workspace: 'erick', accountId: acc.id, accountName: acc.name, insights, campaigns, ...(adInsights.length > 0 ? { adInsights } : {}) };
       const { proposals } = await atlasGetProposedActions(ctx, trafficService);
 
       if (proposals.length === 0) {
@@ -928,10 +971,36 @@ export async function sendDailyOptimizationPrompt(trafficService: TrafficService
       await send(chatId, `📊 <b>${acc.name}</b> — ${activeCampaigns.length} campanha(s) ativa(s)\n🎯 <b>${proposals.length} proposta(s):</b>`);
 
       for (const proposal of proposals) {
-        // Creative fatigue: auto-fetch replacement from Drive + generate copy
-        if (isCreativeFatigue(proposal) && driveFiles.length > 0) {
-          const sent = await sendCreativeSwapProposal(chatId, proposal, acc.id, campaigns, insights, driveFiles);
-          if (sent) { totalProposals++; continue; }
+        // Creative fatigue detected
+        if (isCreativeFatigue(proposal)) {
+          if (driveFiles.length > 0) {
+            // Drive has files — offer to swap the creative
+            const sent = await sendCreativeSwapProposal(chatId, proposal, acc.id, campaigns, insights, driveFiles);
+            if (sent) { totalProposals++; continue; }
+          } else {
+            // No Drive files — alert and offer to pause to stop budget waste
+            const actionId = Math.random().toString(36).slice(2, 14);
+            pendingActions.set(actionId, {
+              action: { action: 'pause_ad', adId: proposal.action.adId, reason: proposal.action.reason },
+              ctx: { workspaceId: 'erick', accountId: acc.id, campaigns, insights },
+              chatId,
+              expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+            });
+            const name = proposal.entityName ? ` <b>"${proposal.entityName}"</b>` : '';
+            const reason = proposal.action.reason ? `\n└ <i>${proposal.action.reason}</i>` : '';
+            await send(chatId,
+              `🎨 <b>Fadiga de Criativo Detectada</b>${name}${reason}\n\n` +
+              `⚠️ Não há criativos disponíveis no Drive para substituição automática.\n` +
+              `📁 Adicione novos vídeos/imagens à pasta Drive (<code>ATLAS_CREATIVE_DRIVE_FOLDER_ID</code>) e então use /criativo para trocar.\n\n` +
+              `Deseja pausar o anúncio agora para parar o desperdício de budget?`,
+              { inline_keyboard: [[
+                { text: '⏸ Pausar anúncio', callback_data: `ok:${actionId}` },
+                { text: '❌ Pular',          callback_data: `no:${actionId}` },
+              ]] }
+            );
+            totalProposals++;
+            continue;
+          }
         }
 
         // Standard proposal (pause, budget change, etc.)
