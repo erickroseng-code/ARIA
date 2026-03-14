@@ -64,6 +64,25 @@ export class DriveService {
         return (res.data.files ?? []) as DriveFile[];
     }
 
+    /** Search files by name (partial match), optionally filtered by mimeType */
+    async searchByName(name: string, mimeType?: string, limit = 5): Promise<DriveFile[]> {
+        const auth = await createWorkspaceClient();
+        const drive = google.drive({ version: 'v3', auth });
+        const safeName = name.replace(/'/g, "\\'");
+        let q = `name contains '${safeName}' and trashed = false`;
+        if (mimeType) q += ` and mimeType = '${mimeType}'`;
+        const res = await withRetry(
+            () => drive.files.list({
+                pageSize: limit,
+                orderBy: 'modifiedTime desc',
+                fields: 'files(id,name,mimeType,modifiedTime,webViewLink)',
+                q,
+            }),
+            'DriveService.searchByName',
+        );
+        return (res.data.files ?? []) as DriveFile[];
+    }
+
     async getFileById(fileId: string): Promise<DriveFile | null> {
         const auth = await createWorkspaceClient();
         const drive = google.drive({ version: 'v3', auth });
