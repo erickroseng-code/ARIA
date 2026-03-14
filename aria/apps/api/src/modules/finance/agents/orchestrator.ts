@@ -19,30 +19,75 @@ export type FinanceIntent =
   | 'general_question';
 
 async function detectIntent(message: string): Promise<FinanceIntent> {
-  // Heurísticas rápidas antes de chamar LLM
-  const lower = message.toLowerCase();
-
-  if (/gastei|paguei|comprei|fui ao|fui n[ao]|almocei|jantei|tomei|uber|ifood|mercado|supermercado|luz|água|aluguel|parcela|boleto/.test(lower)) return 'record_transaction';
-  if (/recebi|salário|freela|entrou|depósito/.test(lower)) return 'record_transaction';
-  if (/saldo|quanto gastei|quanto tenho|balanço|resumo do mês|quanto sobrou|receitas|despesas do mês/.test(lower)) return 'query_balance';
-  if (/transaç|extrato|histórico|lista/.test(lower)) return 'query_transactions';
-  if (/orçamento de|budget de|limite para|definir limite|meu orçamento/.test(lower)) return 'set_budget';
-  if (/ver orçamento|como está meu orçamento|situação do orçamento/.test(lower)) return 'query_budget';
-  if (/relatório|report|gerar relatório|pdf/.test(lower)) return 'generate_report';
-  if (/dívida|parcela|empréstimo|cartão|financiamento/.test(lower)) return 'debt_query';
-
-  // Fallback LLM (Groq — rápido e gratuito)
+  // LLM-first: classifica com full context (Groq é ultra-rápido e gratuito)
   try {
+    const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const result = await llmChat(
-      message,
-      `Classifique a intenção em uma destas categorias: record_transaction, query_balance, query_transactions, set_budget, query_budget, generate_report, debt_query, goal_update, general_question. Responda APENAS com a categoria, sem mais nada.`,
+      `Mensagem do usuário: "${message}"`,
+      `Hoje é ${today}. Classifique a intenção financeira em UMA destas categorias e responda SOMENTE com ela, sem explicações:
+
+record_transaction — registrar gasto, receita, compra, pagamento, transferência (ex: "gastei 50 no uber", "recebi salário", "paguei boleto")
+query_balance — ver saldo, resumo do mês, receitas vs despesas (ex: "como estão meus gastos?", "quanto gastei esse mês?")
+query_transactions — listar transações, extrato, histórico (ex: "me mostra minhas transações", "extrato de fevereiro", "gastos em alimentação")
+set_budget — definir ou alterar limite/orçamento de categoria (ex: "coloca 500 de orçamento em alimentação", "limite de 200 para lazer")
+query_budget — ver situação do orçamento atual (ex: "como está meu orçamento?", "ver limites")
+generate_report — gerar relatório ou PDF (ex: "gera relatório do mês", "quero o PDF")
+debt_query — consultar dívidas, parcelas, financiamentos (ex: "minhas dívidas", "quanto devo no cartão")
+goal_update — atualizar metas financeiras
+general_question — qualquer outra pergunta ou conversa geral
+
+Categorias: record_transaction, query_balance, query_transactions, set_budget, query_budget, generate_report, debt_query, goal_update, general_question`,
       0,
     );
-    const intent = result.trim() as FinanceIntent;
+    const intent = result.trim().split(/\s/)[0] as FinanceIntent;
     const valid: FinanceIntent[] = ['record_transaction', 'query_balance', 'query_transactions', 'set_budget', 'query_budget', 'generate_report', 'debt_query', 'goal_update', 'general_question'];
     return valid.includes(intent) ? intent : 'general_question';
   } catch {
     return 'general_question';
+  }
+}
+
+/** Extrai categoria e valor de uma mensagem de orçamento via LLM */
+async function extractBudgetParams(message: string): Promise<{ category: string | null; amount: number | null }> {
+  try {
+    const raw = await llmChat(
+      `Mensagem: "${message}"`,
+      `Extraia a categoria de orçamento e o valor desta mensagem. Responda SOMENTE com JSON válido:
+{"category": "nome da categoria", "amount": 123.45}
+
+Categorias válidas: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Vestuário, Tecnologia, Assinaturas, Outros
+Se não encontrar algum campo, use null. Valores monetários devem ser números (não strings).`,
+      0,
+    );
+    const match = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : raw);
+    return {
+      category: parsed.category ?? null,
+      amount: parsed.amount != null ? parseFloat(String(parsed.amount).replace(',', '.')) : null,
+    };
+  } catch {
+    return { category: null, amount: null };
+  }
+}
+
+/** Extrai mês de referência e categoria opcional de uma mensagem via LLM */
+async function extractQueryParams(message: string): Promise<{ month: string | null; category: string | null }> {
+  const today = new Date().toISOString().substring(0, 7);
+  try {
+    const raw = await llmChat(
+      `Mensagem: "${message}"`,
+      `Hoje é ${today}. Extraia o mês de referência e a categoria desta mensagem. Responda SOMENTE com JSON válido:
+{"month": "YYYY-MM" ou null, "category": "nome da categoria" ou null}
+
+- Se o usuário não mencionar mês específico, use null (não o mês atual).
+- Categorias válidas: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Vestuário, Tecnologia, Assinaturas, Outros.
+- Se o usuário não mencionar categoria, use null.`,
+      0,
+    );
+    const match = raw.match(/\{[\s\S]*\}/);
+    return JSON.parse(match ? match[0] : raw);
+  } catch {
+    return { month: null, category: null };
   }
 }
 
@@ -99,27 +144,22 @@ export async function processFinanceMessage(userMessage: string): Promise<Orches
       }
 
       case 'query_balance': {
-        reply = await queryBalance();
+        const { month: balanceMonth } = await extractQueryParams(userMessage);
+        reply = await queryBalance(balanceMonth ?? undefined);
         action = 'balance_queried';
         break;
       }
 
       case 'query_transactions': {
-        reply = await queryTransactions();
+        const { month: txMonth, category: txCategory } = await extractQueryParams(userMessage);
+        reply = await queryTransactions(txMonth ?? undefined, txCategory ?? undefined);
         action = 'transactions_listed';
         break;
       }
 
       case 'set_budget': {
-        // Extrair categoria e valor via heurística simples
-        const match = userMessage.match(/(\d+(?:[.,]\d+)?)\s*(?:reais|r\$)?.*?(?:de|para|em)\s+([a-záàâãéèêíïóôõöúüçñ\s]+)/i)
-          || userMessage.match(/([a-záàâãéèêíïóôõöúüçñ\s]+).*?(\d+(?:[.,]\d+)?)/i);
-
-        if (match) {
-          // Precisamos determinar qual é categoria e qual é valor
-          const hasNum1 = !isNaN(parseFloat(match[1]?.replace(',', '.')));
-          const amount = hasNum1 ? parseFloat(match[1].replace(',', '.')) : parseFloat(match[2].replace(',', '.'));
-          const category = hasNum1 ? match[2].trim() : match[1].trim();
+        const { category, amount } = await extractBudgetParams(userMessage);
+        if (category && amount != null && !isNaN(amount)) {
           reply = await setBudget(category, amount);
         } else {
           reply = await getBudgetSummary();
