@@ -1,0 +1,33 @@
+name: PAS
+full_name: "Problem → Agitate → Solution"
+source: "Dan Kennedy / Persuasive Copywriting / Adweek Handbook"
+best_for:
+  - Vender solução para uma dor clara
+  - Conteúdo educativo com oferta no final
+  - Persona com problema consciente
+
+structure:
+  problem:
+    label: "GANCHO — O Problema (0-3s)"
+    instruction: "Nomeie a dor exata em 1 frase. Seja específico — não 'você não vende', mas 'você posta 3x por dia e a última venda foi há 2 semanas'."
+    duration: "0-3s"
+  agitate:
+    label: "AGITAÇÃO — A Ferida (3-20s)"
+    instruction: "Aprofunde a dor. Mostre as consequências emocionais e práticas de NÃO resolver. Use perguntas retóricas, dados, ou indignação controlada. NÃO ofereça solução ainda."
+    duration: "3-20s"
+  solution:
+    label: "SOLUÇÃO — A Saída (20-50s)"
+    instruction: "Apresente a solução como inevitável — não como oferta, mas como conclusão lógica. Mostre o mecanismo específico que resolve o problema."
+    duration: "20-50s"
+  cta:
+    label: "CTA — Ação Clara (Final)"
+    instruction: "1 ação específica. Use urgência ou comprometimento mínimo ('comentar', 'salvar', 'responder')."
+
+few_shot_example: |
+  🎣 GANCHO: "Você está postando 3 vezes por dia e a última venda que você fez foi há 15 dias. Eu sei disso porque já fui você."
+  
+  🔥 AGITAÇÃO: "A sensagem do Instagram chegou. Você abre animado... é um 'amei seu conteúdo!' E aí vem a pergunta que você teme: 'quanto custa?' Você responde. Silêncio. Notificação nunca chega. E você fica se perguntando o que está errado — você posta, você é consistente, você segue todas as dicas dos gurus... e nada."
+  
+  💡 SOLUÇÃO: "O problema não é frequência, é arquitetura. Conteúdo sem uma estrutura de autoridade→confiança→oferta é barulho bonito. O que muda o jogo é publicar cada post dentro de uma sequência calculada — onde cada um prepara o terreno para o próximo, e no final a venda é a conclusão óbvia, não uma interrupção."
+  
+  📣 CTA: "Me manda 'ARQUITETURA' nos comentários que eu te explico como estruturar isso pro seu nicho."

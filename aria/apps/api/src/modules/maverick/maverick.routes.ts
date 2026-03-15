@@ -1,12 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
-import { spawn } from 'child_process';
 import * as path from 'path';
-import * as os from 'os';
-import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
 import { generateScriptsFromPlan } from './copywriter.service';
+import { generatePlan, ICP } from './plan.service';
 import { sendTelegram, sendTelegramDocument } from '../../shared/telegram';
 import { PdfService } from '../../services/pdf/pdf.service';
 import type { ReportLayoutData } from '../../services/pdf/pdf.service';
@@ -17,10 +15,6 @@ import { generateCarouselStructure, ScriptInput } from './carousel-designer/inde
 import { generateCarouselHtml } from './carousel-designer/html-export';
 import { runWeeklyBatch, getBatch, BatchResult, BatchTopic } from './weekly-batch.service';
 import { createBatchZip, getBatchFilename } from './zip.service';
-
-const MAVERICK_ROOT = path.resolve(__dirname, '../../../../../../squads/maverick');
-const MAVERICK_PLAN_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-plan.ts');
-const MAVERICK_SCRIPTS_SCRIPT = path.join(MAVERICK_ROOT, 'src', 'maverick-scripts.ts');
 
 function writeSseHeaders(raw: any, origin: string) {
   raw.writeHead(200, {
@@ -122,75 +116,33 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
 
     sendEvent(raw, 'step', { message: `⏳ O time do Maverick está trabalhando na análise...` });
 
-    const planArgs = ['ts-node', MAVERICK_PLAN_SCRIPT, username];
-    if (icp) planArgs.push(JSON.stringify(icp));
+    try {
+      const planJson = await generatePlan(
+        username,
+        icp as ICP | undefined,
+        (msg) => sendEvent(raw, 'step', { message: msg }),
+      );
 
-    const child = spawn('npx', planArgs, {
-      cwd: MAVERICK_ROOT,
-      env: { ...process.env },
-      shell: process.platform === 'win32',
-    });
+      sendEvent(raw, 'plan', { content: planJson });
 
-    let planBuffer = '';
-    let inPlan = false;
-    let lineBuffer = '';
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      lineBuffer += chunk.toString();
-      const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (line.trim() === '[PLAN_START]') {
-          inPlan = true;
-          continue;
-        }
-        if (line.trim() === '[PLAN_END]') {
-          inPlan = false;
-          sendEvent(raw, 'plan', { content: planBuffer.trim() });
-
-          // Salvar análise no banco de dados
-          try {
-            const report = JSON.parse(planBuffer.trim());
-            maverickService.saveAnalysis(report).then(saved => {
-              // Envia o analysisId ao frontend para vincular os roteiros depois
-              sendEvent(raw, 'analysis_id', { analysisId: saved.id });
-            }).catch(err => {
-              console.error('[ERROR] Erro ao salvar análise:', err);
-            });
-          } catch (err) {
-            console.error('[ERROR] Erro ao parsear report JSON:', err);
-          }
-          continue;
-        }
-        if (inPlan) {
-          planBuffer += line + '\n';
-        }
+      try {
+        const report = JSON.parse(planJson);
+        maverickService.saveAnalysis(report).then(saved => {
+          sendEvent(raw, 'analysis_id', { analysisId: saved.id });
+        }).catch(err => {
+          console.error('[ERROR] Erro ao salvar análise:', err);
+        });
+      } catch (err) {
+        console.error('[ERROR] Erro ao parsear report JSON:', err);
       }
-    });
 
-    child.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      process.stderr.write(`[maverick/plan] ${text}`); // visível no PM2 logs
-      if (text.includes('[ERROR]')) {
-        const msg = text.replace('[ERROR]', '').trim();
-        sendEvent(raw, 'error', { message: msg });
-      }
-    });
+      sendEvent(raw, 'done', {});
+    } catch (err: any) {
+      console.error('[maverick/plan] erro:', err);
+      sendEvent(raw, 'error', { message: err.message || 'Scout/Strategist falhou.' });
+    }
 
-    child.on('close', (code) => {
-      if (code === 0) {
-        sendEvent(raw, 'done', {});
-      } else if (!planBuffer) {
-        sendEvent(raw, 'error', { message: 'Processo encerrado com erro. Verifique o OPENROUTER_API_KEY e se o Puppeteer está instalado.' });
-      }
-      raw.end();
-    });
-
-    child.on('error', (err) => {
-      sendEvent(raw, 'error', { message: err.message });
-      raw.end();
-    });
+    raw.end();
   });
 
   // POST /api/maverick/keywords — Sugere 3 termos de busca baseados no plano (chamada direta ao LLM)

@@ -1,0 +1,40 @@
+name: HOOK_STORY_OFFER
+full_name: "Hook → Story → Offer"
+source: "StorySelling / Storybrand (Donald Miller) / Breakthrough Advertising"
+best_for:
+  - Vendas diretas sem parecer vendedor
+  - Autoridade através de experiência pessoal
+  - Ofertas high-ticket ou premium
+
+structure:
+  hook:
+    label: "GANCHO — Para o Scroll (0-3s)"
+    instruction: "1 frase que cria curiosidade ou tensão irresistível. Prefira começar com o RESULTADO ou com a CONTRADIÇÃO ('O que ninguém te diz sobre X')."
+    duration: "0-3s"
+  story:
+    label: "HISTÓRIA — Você como Guia (3-40s)"
+    instruction: |
+      Siga a estrutura do StoryBrand: VOCÊ não é o herói, o cliente é. Você é o GUIA.
+      - Apresente o herói (cliente) e sua luta
+      - Mostre que você já esteve lá
+      - Revele a virada — o que você descobriu que mudou tudo
+      - Demonstre o resultado concreto
+      NÃO: "eu sou incrível". SIM: "eu descobri algo que pode mudar o seu jogo".
+    duration: "3-40s"
+  offer:
+    label: "OFERTA — A Solução Inevitável (Final)"
+    instruction: "A oferta é a conclusão natural da história. Não apresente produto — apresente transformação. Especifique o próximo passo simples."
+    duration: "40-55s"
+
+few_shot_example: |
+  🎣 GANCHO: "Eu estava prestes a desistir do digital quando descobri a coisa mais contraintuitiva sobre vender no Instagram."
+  
+  📖 HISTÓRIA: "Era 2022. Eu já tinha 8 mil seguidores — não era micro, não era grande. Investia todo dia em conteúdo. Resultado? R$1.200 no mês. Menos que meu estágio na faculdade.
+  
+  Aí um mentor meu olhou pro meu feed e falou uma coisa que mudou tudo: 'Você está narrando sua vida. Mas seu cliente não quer saber da sua vida — ele quer saber se você entende o problema DELE.'
+  
+  Passei 3 dias reescrevendo a forma como eu me comunicava. Não o que eu postava — como eu falava. Coloquei o cliente como herói da história, e eu como o guia que já passou pelo caminho.
+  
+  Mês seguinte: R$11.400. Mesmos 8 mil seguidores. Zero anúncios."
+  
+  💰 OFERTA: "Se você tem mais de 1.000 seguidores e ainda não está vendendo o que deveria, o problema é quase certamente esse. Me manda 'GUIA' no direct que eu te mando o framework que usei pra fazer essa virada."
