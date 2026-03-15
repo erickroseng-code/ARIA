@@ -10,16 +10,27 @@ const BRAIN_DIR = path.join(__dirname, 'brain');
 function loadBrainPrinciples(): { hook: string; body: string; cta: string } {
   const load = (filename: string): string => {
     const p = path.join(BRAIN_DIR, filename);
-    if (!fs.existsSync(p)) return '';
-    try { return fs.readFileSync(p, 'utf-8').replace(/^---[\s\S]*?---\n/, '').trim(); }
-    catch { return ''; }
+    if (!fs.existsSync(p)) {
+      console.warn(`[BRAIN] arquivo não encontrado: ${p}`);
+      return '';
+    }
+    try {
+      const content = fs.readFileSync(p, 'utf-8').replace(/^---[\s\S]*?---\n/, '').trim();
+      console.log(`[BRAIN] carregado: ${filename} (${content.length} chars)`);
+      return content;
+    } catch (err) {
+      console.error(`[BRAIN] erro ao ler ${filename}:`, err);
+      return '';
+    }
   };
-  return {
+  const result = {
     hook: load('hooks.md'),
     body: [load('storytelling.md'), load('persuasion.md'), load('audience.md'), load('virality.md')]
       .filter(Boolean).join('\n\n---\n\n'),
     cta: load('closing.md'),
   };
+  console.log(`[BRAIN] princípios carregados — hook: ${result.hook.length}c, body: ${result.body.length}c, cta: ${result.cta.length}c`);
+  return result;
 }
 
 async function llmChat(prompt: string, system?: string): Promise<string> {
