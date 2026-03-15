@@ -1,6 +1,7 @@
 import { LLMService } from '../core/llm';
 import { InstagramScraper } from '../tools/instagramScraper';
 import { PatternAnalyzer } from '../tools/patternAnalyzer';
+import { transcribeReels } from '../tools/transcriber';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -463,6 +464,15 @@ ${plan.slice(0, 2500)}`,
         // Filtra por relevância ao ICP (remove posts fora do nicho)
         const topPosts = this.filterByICPRelevance(viralPosts, keywords);
 
+        // Transcreve hooks dos Reels via Groq Whisper (se GROQ_API_KEY configurada)
+        const reelsForTranscription = topPosts
+            .filter(p => p.type === 'Video' || p.type === 'Reels')
+            .map(p => ({ url: p.url || '', videoUrl: p.videoUrl || p.videoPlaybackUrl || undefined }))
+            .filter(p => p.url && p.videoUrl);
+        const transcriptions = reelsForTranscription.length > 0
+            ? await transcribeReels(reelsForTranscription)
+            : new Map<string, string>();
+
         // ✅ SE JÁ HÁ ANÁLISE (novo scraper), usar conversão direta
         const hasAnalysis = topPosts.some(p => p.analysis);
         if (hasAnalysis) {
@@ -487,14 +497,20 @@ ${plan.slice(0, 2500)}`,
                 ? `Principais temas: ${Array.from(themes).slice(0, 3).join(', ')}. Emoções que convertem: ${Array.from(triggers).slice(0, 2).join(', ')}.`
                 : 'Análise disponível nos padrões extraídos.';
 
-            const referencePosts = topPosts.map(p => ({
-                url: p.url || '',
-                caption_preview: p.caption || p.analysis?.hook || '',
-                likes: p.likesCount || undefined,
-                comments: p.commentsCount || undefined,
-                views: p.videoPlayCount,
-                type: p.type || 'Video',
-            })).filter(r => r.url);
+            const referencePosts = topPosts.map(p => {
+                const url = p.url || '';
+                const transcript = transcriptions.get(url);
+                return {
+                    url,
+                    caption_preview: transcript
+                        ? `[hook]: ${transcript.slice(0, 120)}`
+                        : (p.caption || p.analysis?.hook || ''),
+                    likes: p.likesCount || undefined,
+                    comments: p.commentsCount || undefined,
+                    views: p.videoPlayCount,
+                    type: p.type || 'Video',
+                };
+            }).filter(r => r.url);
 
             return {
                 keywords_searched: keywords,
@@ -535,9 +551,12 @@ ${plan.slice(0, 2500)}`,
                 process.stderr.write(`[DEBUG] Post sem URL encontrado: ${(p.caption || '').slice(0, 50)}... | Campos: ${Object.keys(p).join(', ')}\n`);
             }
 
+            const transcript = transcriptions.get(url);
             return {
                 url,
-                caption_preview: (p.caption || '').slice(0, 120),
+                caption_preview: transcript
+                    ? `[hook]: ${transcript.slice(0, 120)}`
+                    : (p.caption || '').slice(0, 120),
                 likes: p.likesCount || undefined,
                 comments: p.commentsCount || undefined,
                 views: p.videoPlayCount || p.videoViewCount || p.videoViews || undefined,
@@ -552,7 +571,11 @@ ${plan.slice(0, 2500)}`,
             const type = p.type === 'Video' ? 'Reels' : (p.images?.length > 1 ? 'Carrossel' : 'Imagem');
             const viewsStr = views ? ` / ${views.toLocaleString('pt-BR')} views` : '';
             const viralScore = p._viralScore || 0;
-            return `[Post ${i + 1}][${type}][Viral Score: ${viralScore}] ${likes.toLocaleString('pt-BR')} likes / ${comments.toLocaleString('pt-BR')} comentários${viewsStr}\n"${(p.caption || '').slice(0, 280)}"`;
+            const transcript = transcriptions.get(p.url || '');
+            const hookText = transcript
+                ? `[HOOK TRANSCRITO]: "${transcript}"`
+                : `[LEGENDA]: "${(p.caption || '').slice(0, 280)}"`;
+            return `[Post ${i + 1}][${type}][Viral Score: ${viralScore}] ${likes.toLocaleString('pt-BR')} likes / ${comments.toLocaleString('pt-BR')} comentários${viewsStr}\n${hookText}`;
         }).join('\n\n');
 
         // Log: quantas URLs conseguimos extrair
