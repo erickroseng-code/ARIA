@@ -317,15 +317,6 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     }
 
     raw.end();
-    });
-
-    child.on('error', (err) => {
-      try { fs.unlinkSync(tempFile); } catch { /* ignora */ }
-      if (keywordsFile) try { fs.unlinkSync(keywordsFile); } catch { /* ignora */ }
-      try { fs.unlinkSync(maxAgeDaysFile); } catch { /* ignora */ }
-      sendEvent(raw, 'error', { message: err.message });
-      raw.end();
-    });
   });
 
   // GET /api/maverick/history/:username — Histórico de análises
