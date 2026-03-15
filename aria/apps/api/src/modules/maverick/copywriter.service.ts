@@ -68,6 +68,7 @@ export interface GeneratedScript {
   cta: string;
   framework: string;
   funnel_stage: string;
+  hook_technique?: string;
 }
 
 export async function generateScriptsFromPlan(
@@ -111,25 +112,26 @@ BRIEFING:
 - Framework: ${idea.framework}
 - Funil: ${idea.funnel_stage}
 
-PRINCÍPIOS POR SEÇÃO (aplique obrigatoriamente):
+PRINCÍPIOS DO BRAIN (estude e aplique — não ignore nenhum):
 
-[GANCHO] — máximo 15 palavras, afirmação com número concreto:
-${brain.hook ? brain.hook.slice(0, 500) : ''}
+[TÉCNICAS DE HOOK disponíveis — escolha a mais adequada para este ângulo e aplique:]
+${brain.hook || ''}
 
-[DESENVOLVIMENTO] — mínimo 200 palavras, inclua microresultado que a audiência pode testar agora:
-${brain.body ? brain.body.slice(0, 1000) : ''}
+[DESENVOLVIMENTO — princípios de storytelling, persuasão e virality:]
+${brain.body || ''}
 
-[CTA] — fechamento e conversão:
-${brain.cta ? brain.cta.slice(0, 400) : ''}
+[CTA — princípios de fechamento e conversão:]
+${brain.cta || ''}
 
-REGRAS:
-- GANCHO: MÁXIMO 15 PALAVRAS — afirmação com número, sem pergunta
+REGRAS DE EXECUÇÃO:
+- GANCHO: MÁXIMO 15 PALAVRAS — escolha UMA das técnicas do brain acima (Contraste Extremo, Mecanismo no Comando, Número Quebrado, Primazia do Perigo, Quebra de Padrão, Curiosidade Pré-Reveal, etc.) e aplique-a com precisão cirúrgica. NÃO use o padrão genérico "Você [problema]. Isso muda em X dias."
 - DESENVOLVIMENTO: mínimo 200 palavras, tom de WhatsApp, linguagem humana
 - Sem palavras: jornada, transformação, incrível, poderoso, guru, revolucionário
 - Inclua microresultado: ação simples que o viewer pode fazer agora e sentir resultado
+- No JSON de resposta, indique em "hook_technique" qual técnica do brain você usou (ex: "Ancoragem por Contraste Extremo", "Primazia do Perigo", etc.)
 
 Retorne APENAS JSON:
-{"title":"...","hook":"...","body":"...","cta":"...","framework":"${idea.framework}","funnel_stage":"${idea.funnel_stage}"}`;
+{"title":"...","hook":"...","body":"...","cta":"...","framework":"${idea.framework}","funnel_stage":"${idea.funnel_stage}","hook_technique":"nome da técnica do brain usada no hook"}`;
 
     let result: GeneratedScript | null = null;
     try {
@@ -148,7 +150,7 @@ Retorne APENAS JSON:
       if (wordCount > 15) {
         try {
           const fixed = await llmChat(
-            `Reescreva em NO MÁXIMO 15 PALAVRAS. Afirmação com número concreto.\n\nHOOK ATUAL (${wordCount} palavras): ${result.hook}\n\nResponda APENAS com a frase:`
+            `Reescreva em NO MÁXIMO 15 PALAVRAS mantendo a técnica de hook (Contraste, Perigo, Curiosidade, Mecanismo, etc.).\n\nHOOK ATUAL (${wordCount} palavras): ${result.hook}\n\nResponda APENAS com a frase corrigida:`
           );
           const cleaned = fixed.trim().replace(/^["']|["']$/g, '');
           if (cleaned && cleaned.split(/\s+/).filter(Boolean).length <= 15) {
