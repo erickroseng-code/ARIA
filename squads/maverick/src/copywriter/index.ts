@@ -3,6 +3,26 @@ import { ScholarEngine } from '../scholar/engine';
 import { loadMaverickMethodology } from '../knowledge/methodology';
 import { buildFormatMenu, buildFormatInstructions } from '../knowledge/content-formats';
 import { TrendResearch } from '../trend-researcher/index';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const BRAIN_DIR = path.resolve(__dirname, '../../data/knowledge/brain');
+
+function loadBrainPrinciples(): { hook: string; body: string; cta: string } {
+    const load = (filename: string): string => {
+        const filePath = path.join(BRAIN_DIR, filename);
+        if (!fs.existsSync(filePath)) return '';
+        try {
+            return fs.readFileSync(filePath, 'utf-8').replace(/^---[\s\S]*?---\n/, '').trim();
+        } catch { return ''; }
+    };
+    return {
+        hook: load('hooks.md'),
+        body: [load('storytelling.md'), load('persuasion.md'), load('audience.md'), load('virality.md')]
+            .filter(Boolean).join('\n\n---\n\n'),
+        cta: load('closing.md'),
+    };
+}
 
 export interface ScriptOutput {
     title: string;
@@ -185,6 +205,8 @@ INSTRUÇÃO: Use estas referências como PARÂMETRO DE QUALIDADE para o hook. N�
             }
         }
 
+        const brain = loadBrainPrinciples();
+
         const prompt = `Escreva o roteiro COMPLETO para o conteúdo abaixo. Retorne APENAS JSON.
 
 BRIEFING:
@@ -197,14 +219,52 @@ BRIEFING:
 
 ${funnelCtx}
 ${trendCtx}
-${formatInstructions ? `INSTRUÇÕES DO FORMATO:\n${formatInstructions}\n` : ''}${bookCitations ? `REFERÊNCIAS DOS LIVROS (use para embasar o copy):\n${bookCitations}\n` : ''}IMPORTANTE: Siga EXATAMENTE a estrutura de roteiro do formato selecionado.
-O campo "body" deve refletir a estrutura específica deste formato (ex: slides numerados para carrossel, marcações de tempo para reels).
-O campo "filming_tip" deve ser uma instrução prática específica para ESTE roteiro (não genérica).
-O campo "cta" deve ser coerente com o estágio de funil ${idea.funnel_stage}.
+${formatInstructions ? `INSTRUÇÕES DO FORMATO:\n${formatInstructions}\n` : ''}${bookCitations ? `REFERÊNCIAS DOS LIVROS (use para embasar o copy):\n${bookCitations}\n` : ''}
+PRINCÍPIOS POR SEÇÃO (aplique obrigatoriamente):
+
+[hook] — gancho dos primeiros 3 segundos, máximo 15 palavras:
+${brain.hook ? brain.hook.slice(0, 600) : ''}
+
+[body] — corpo do roteiro, narrativa e persuasão (mínimo 200 palavras para Reels):
+${brain.body ? brain.body.slice(0, 1200) : ''}
+
+[cta] — fechamento e conversão:
+${brain.cta ? brain.cta.slice(0, 600) : ''}
+
+REGRAS ADICIONAIS:
+- "hook": MÁXIMO 15 PALAVRAS — frase única, afirmação com número concreto, sem pergunta
+- "body": mínimo 200 palavras para Reels — desenvolva exemplos, inclua microresultado que a audiência pode testar agora
+- Tom humano: linguagem de WhatsApp, sem adjetivos vazios, sem palavras: jornada, transformação, incrível, poderoso, guru
+- Siga EXATAMENTE a estrutura do formato selecionado
 
 RETORNE APENAS O JSON COM ESTA ESTRUTURA:
 ${SCRIPT_SCHEMA}`;
 
-        return this.llm.analyzeJson<ScriptOutput>(prompt, SCRIPT_SCHEMA, systemPrompt);
+        const result = await this.llm.analyzeJson<ScriptOutput>(prompt, SCRIPT_SCHEMA, systemPrompt);
+
+        // ── GanchoGuard: corrige hook se exceder 15 palavras ──────────────
+        if (result.hook) {
+            const hookWords = result.hook.trim().split(/\s+/).filter(Boolean).length;
+            if (hookWords > 15) {
+                try {
+                    const fixedHook = await this.llm.chat(
+                        `Reescreva este hook em NO MÁXIMO 15 PALAVRAS. Uma frase com afirmação e número concreto.\n\nHOOK ATUAL (${hookWords} palavras): ${result.hook}\n\nResponda APENAS com a frase — sem rótulo, sem explicação:`
+                    );
+                    const cleaned = fixedHook.trim().replace(/^["']|["']$/g, '');
+                    if (cleaned && cleaned.split(/\s+/).filter(Boolean).length <= 15) {
+                        result.hook = cleaned;
+                    } else {
+                        // Fallback determinístico
+                        const words = result.hook.split(/\s+/).filter(Boolean);
+                        result.hook = words.slice(0, 13).join(' ') + '.';
+                    }
+                } catch {
+                    const words = result.hook.split(/\s+/).filter(Boolean);
+                    result.hook = words.slice(0, 13).join(' ') + '.';
+                }
+            }
+        }
+
+        return result;
     }
 }
