@@ -36,9 +36,10 @@ app.post('/api/generate-script', async (req, res) => {
     const copyDirectives = loader.loadCopyDirectives();
     const goldenScripts = loader.loadGoldenScripts(framework?.name);
     const approvedExamples = framework ? loader.loadApprovedExamples(framework.name) : '';
+    const brainPrinciples = loader.loadBrainPrinciples();
 
     if (framework) {
-      console.log(`[Maverick Copywriter] Framework: ${framework.full_name} | Directives: ${copyDirectives ? 'OK' : 'missing'} | Golden: ${goldenScripts ? 'OK' : 'empty'}`);
+      console.log(`[Maverick Copywriter] Framework: ${framework.full_name} | Directives: ${copyDirectives ? 'OK' : 'missing'} | Golden: ${goldenScripts ? 'OK' : 'empty'} | Brain: ${brainPrinciples ? 'OK' : 'empty'}`);
     }
 
     // ── Layer 2: Trend Insights (passados pelo frontend ou buscados via Scholar) ──
@@ -52,16 +53,6 @@ ${trendInsights.slice(0, 3).map((ins: any, i: number) =>
 
 INSTRUÇÃO: Não copie esses ganchos. Adapte o PADRÃO deles ao tema específico do roteiro.`;
       console.log(`[Maverick Copywriter] Trend insights: ${trendInsights.length} viral refs injected.`);
-    } else {
-      // Fallback: search Scholar for viral hook patterns
-      try {
-        const { ScholarAgent } = await import('./services/scholar');
-        const scholar = new ScholarAgent();
-        const hookChunks = await scholar.searchKnowledge(`gancho viral hook pattern ${topic} ${angle || ''}`, 2, 'copywriting');
-        if (hookChunks.length > 0) {
-          trendBlock = `PADRÕES DE GANCHO (base de conhecimento):\n${hookChunks.map(c => `[${c.source}]: ${c.text}`).join('\n---\n')}`;
-        }
-      } catch { /* non-fatal */ }
     }
 
     // ── Stage 0: Signal Synthesis — Brief Generator ───────────────────────
@@ -83,19 +74,6 @@ INSTRUÇÃO: Não copie esses ganchos. Adapte o PADRÃO deles ao tema específic
       selectedPattern = matchPattern(topic, analysisData);
       console.log(`[BriefGenerator] Pattern selected: ${selectedPattern.name}`);
 
-      // 1 Scholar RAG chunk focado no padrão
-      let scholarChunk = '';
-      try {
-        const { ScholarAgent } = await import('./services/scholar');
-        const scholar = new ScholarAgent();
-        const chunks = await scholar.searchKnowledge(
-          `${selectedPattern.name} gancho ${topic}`,
-          1,
-          'copywriting'
-        );
-        scholarChunk = chunks[0]?.text || '';
-      } catch { /* non-fatal */ }
-
       const generator = new BriefGenerator();
       briefText = await generator.generate({
         topic,
@@ -103,7 +81,6 @@ INSTRUÇÃO: Não copie esses ganchos. Adapte o PADRÃO deles ao tema específic
         tone,
         pattern: selectedPattern,
         analysisData,
-        scholarChunk,
       });
       console.log(`[BriefGenerator] Brief gerado: ${briefText.split(' ').length} palavras`);
     } catch (e: any) {
@@ -170,21 +147,24 @@ Receba o rascunho abaixo e aplique os princípios dos mestres para torná-lo irr
 RASCUNHO:
 ${draft}
 
-${copyDirectives ? `PRINCÍPIOS DOS MESTRES (aplique cada um):
-${copyDirectives}
-` : ''}${masterBlock ? `${masterBlock}
-` : ''}${referencePost ? `VOZ DE REFERÊNCIA (faça o roteiro soar EXATAMENTE assim):
-${referencePost}
-` : ''}${goldenScripts ? `NÍVEL DE QUALIDADE EXIGIDO (estude estes roteiros virais reais):
-${goldenScripts}
-` : ''}
+${copyDirectives ? `PRINCÍPIOS DOS MESTRES (aplique cada um):\n${copyDirectives}\n` : ''}${masterBlock ? `${masterBlock}\n` : ''}${referencePost ? `VOZ DE REFERÊNCIA (faça o roteiro soar EXATAMENTE assim):\n${referencePost}\n` : ''}${goldenScripts ? `TAMANHO E QUALIDADE DE REFERÊNCIA (estes roteiros virais reais definem o padrão — entre 220 e 320 palavras, estrutura GANCHO/DESENVOLVIMENTO/CTA):\n${goldenScripts}\n` : ''}
+PRINCÍPIOS POR SEÇÃO (aplique cada princípio na seção correta):
+
+[GANCHO] — primeiros 3 segundos, para o scroll:
+${brainPrinciples.hook}
+
+[DESENVOLVIMENTO] — corpo do roteiro, narrativa e persuasão:
+${brainPrinciples.body}
+
+[CTA] — fechamento e conversão:
+${brainPrinciples.cta}
+
 REESCREVA aplicando obrigatoriamente:
-1. GANCHO mais forte — teste: para o scroll em 2 segundos?
-2. ESPECIFICIDADE — substitua qualquer generalidade por número/nome/situação real
-3. TOM HUMANO — linguagem de WhatsApp, frases curtas, sem adjetivos vazios
-4. FLUXO — transições invisíveis, conversa não palestra
-5. CTA — uma ação, com palavra-gatilho clara
-6. TAMANHO — mínimo 220 palavras; se curto, expanda com agitação e detalhes
+1. GANCHO: máximo 15 palavras, aplique os princípios de hook acima
+2. DESENVOLVIMENTO: mínimo 215 palavras, desenvolva bem o argumento — não encurte, expanda os exemplos
+3. CTA: 1 ação única com palavra-gatilho, aplique os princípios de closing acima
+4. ESPECIFICIDADE: substitua qualquer generalidade por número/nome/situação real
+5. TOM HUMANO: linguagem de WhatsApp, frases curtas, sem adjetivos vazios
 ${framework ? `\nMantenha as seções [GANCHO] / [DESENVOLVIMENTO] / [CTA] do framework ${framework.name}.\n` : ''}
 Responda APENAS com o roteiro final polido. Sem metadados, sem comentários.
 
@@ -193,42 +173,97 @@ Escreva o roteiro final agora:`;
     const completion2 = await generateWithFallback([{ role: 'user', content: prompt2 }]);
     let finalScript = completion2.choices[0]?.message?.content || draft;
 
+    // ── Stage 2.5: Gancho Guard — corrige gancho ANTES da validação ──────
+    const ganchoMatchRaw = finalScript.match(/\[GANCHO\]([\s\S]*?)\[DESENVOLVIMENTO\]/);
+    if (ganchoMatchRaw) {
+      const ganchoTextRaw = ganchoMatchRaw[1].trim();
+      const ganchoWordCountRaw = ganchoTextRaw.split(/\s+/).filter(Boolean).length;
+      if (ganchoWordCountRaw > 15) {
+        console.log(`[GanchoGuard] Gancho longo (${ganchoWordCountRaw}) — reescrevendo...`);
+        const ganchoFixPrompt = `Tarefa: escrever 1 (UMA) frase de gancho para Instagram Reels com NO MÁXIMO 15 palavras.
+
+TEMA: ${topic}
+GANCHO ATUAL (${ganchoWordCountRaw} palavras — MUITO LONGO): ${ganchoTextRaw}
+
+ESCREVA UMA FRASE COM MÁXIMO 15 PALAVRAS:
+(Use afirmação com número. Exemplo: "90% dos empreendedores cometem este erro no primeiro ano.")
+Responda APENAS com a frase — sem rótulo, sem explicação:`;
+
+        let newGancho = '';
+        try {
+          const ganchoFix = await generateWithFallback([{ role: 'user', content: ganchoFixPrompt }]);
+          newGancho = (ganchoFix.choices[0]?.message?.content || '').trim()
+            .replace(/^\[GANCHO\]\s*/i, '').replace(/^["']|["']$/g, '').trim();
+        } catch { /* non-fatal */ }
+
+        // Fallback determinístico: truncar primeiros 13 tokens se LLM retornou longo
+        if (!newGancho || newGancho.split(/\s+/).filter(Boolean).length > 15) {
+          const firstSentence = ganchoTextRaw.split(/[.!?]/)[0].trim();
+          const truncWords = firstSentence.split(/\s+/).filter(Boolean);
+          newGancho = truncWords.slice(0, 13).join(' ') + '.';
+          console.log(`[GanchoGuard] Fallback truncamento: "${newGancho}"`);
+        }
+
+        finalScript = finalScript.replace(ganchoMatchRaw[0], `[GANCHO]\n${newGancho}\n\n[DESENVOLVIMENTO]`);
+        console.log(`[GanchoGuard] Corrigido: "${newGancho}" (${newGancho.split(/\s+/).filter(Boolean).length} palavras)`);
+      }
+    }
+
     // ── Stage 3: Viral Validator ──────────────────────────────────────────
     const validation = viralValidate(finalScript);
     viralScore = validation.score;
     validationIssues = validation.issues;
     console.log(`[ViralValidator] Score: ${validation.score}/5 — issues: ${validation.issues.join(' | ') || 'nenhum'}`);
 
-    if (!validation.passed && validation.score < 3) {
-      console.log('[ViralValidator] Score < 3, aplicando correção...');
-      const fixPrompt = `O roteiro abaixo tem problemas de qualidade. Corrija-os sem alterar o tema.
+    const hasWordCountIssue = validation.issues.some(i => i.includes('curto demais'));
+    if (!validation.passed && (validation.score < 4 || hasWordCountIssue)) {
+      console.log('[ViralValidator] Expandindo DESENVOLVIMENTO...');
+      const fixPrompt = `O roteiro abaixo está curto. Expanda o DESENVOLVIMENTO sem alterar o tema.
 
 ROTEIRO ATUAL:
 ${finalScript}
 
-PROBLEMAS A CORRIGIR:
+PROBLEMAS:
 ${validation.issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
 
 REGRAS:
 - Mantenha exatamente as seções [GANCHO] / [DESENVOLVIMENTO] / [CTA]
-- Gancho: máximo 15 palavras, ultra-específico
-- Adicione pelo menos 1 número concreto se ausente
-- Mínimo 220 palavras, máximo 400
+- Mantenha o GANCHO exatamente como está
+- DESENVOLVIMENTO: expanda com mais exemplos e detalhes — mínimo 200 palavras só nesta seção
+- Total do roteiro: mínimo 220 palavras
 - Sem palavras: transformação, jornada, incrível, poderoso, revolucionário, guru
 
-Escreva o roteiro corrigido agora:`;
+Escreva o roteiro expandido agora:`;
 
       try {
         const completion3 = await generateWithFallback([{ role: 'user', content: fixPrompt }]);
         const corrected = completion3.choices[0]?.message?.content || finalScript;
-        const reValidation = viralValidate(corrected);
-        console.log(`[ViralValidator] Após correção — Score: ${reValidation.score}/5`);
-        if (reValidation.score >= validation.score) {
+        const correctedWords = corrected.trim().split(/\s+/).length;
+        const originalWords = finalScript.trim().split(/\s+/).length;
+        if (correctedWords > originalWords) {
+          const reValidation = viralValidate(corrected);
+          console.log(`[ViralValidator] Após expansão — Score: ${reValidation.score}/5 | ${correctedWords} palavras`);
           finalScript = corrected;
           viralScore = reValidation.score;
           validationIssues = reValidation.issues;
         }
-      } catch { /* non-fatal, usa finalScript original */ }
+      } catch { /* non-fatal */ }
+    }
+
+    // Garantia final: se gancho ficou longo após Pass 3, trunca deterministicamente
+    const ganchoFinalMatch = finalScript.match(/\[GANCHO\]([\s\S]*?)\[DESENVOLVIMENTO\]/);
+    if (ganchoFinalMatch) {
+      const ganchoFinalText = ganchoFinalMatch[1].trim();
+      const ganchoFinalWords = ganchoFinalText.split(/\s+/).filter(Boolean).length;
+      if (ganchoFinalWords > 15) {
+        const truncWords = ganchoFinalText.split(/[.!?]/)[0].trim().split(/\s+/).filter(Boolean);
+        const truncated = truncWords.slice(0, 13).join(' ') + '.';
+        finalScript = finalScript.replace(ganchoFinalMatch[0], `[GANCHO]\n${truncated}\n\n[DESENVOLVIMENTO]`);
+        console.log(`[GanchoGuard Final] Truncado para ${truncated.split(/\s+/).length} palavras`);
+        const finalVal = viralValidate(finalScript);
+        viralScore = finalVal.score;
+        validationIssues = finalVal.issues;
+      }
     }
 
     res.json({
@@ -238,6 +273,7 @@ Escreva o roteiro corrigido agora:`;
         framework: framework?.full_name || 'base',
         frameworkId: framework?.name || '',
         copyDirectivesLoaded: !!copyDirectives,
+        brainPrinciplesLoaded: !!brainPrinciples,
         goldenScriptsLoaded: !!goldenScripts,
         trendInsightsUsed: !!trendBlock,
         approvedExamplesUsed: !!approvedExamples,
@@ -248,6 +284,7 @@ Escreva o roteiro corrigido agora:`;
         hookPattern: selectedPattern?.name || '',
         viralScore,
         validationIssues,
+        pipelineVersion: 'v3.5-ganchoguard',
       }
     });
 
@@ -267,6 +304,7 @@ app.post('/api/generate-content', async (req, res) => {
     const loader = new FrameworkLoader();
     const masterBlock = loader.getMasterPrinciplesBlock();
     const copyDirectives = loader.loadCopyDirectives();
+    const brainPrinciples = loader.loadBrainPrinciples();
 
     // Golden scripts: for reel_script use general examples, for others use framework-matched
     const frameworkForType = type === 'reel_script' ? 'PAS'
@@ -278,27 +316,6 @@ app.post('/api/generate-content', async (req, res) => {
     let trendBlock = '';
     if (trendInsights && Array.isArray(trendInsights) && trendInsights.length > 0) {
       trendBlock = `PALAVRAS-CHAVE DO NICHO (extraídas da análise do perfil):\n${trendInsights.map((t: any) => `- ${t.example_hook || t}`).join('\n')}\n\nAdapte o conteúdo para resonar com esse nicho específico.`;
-    }
-
-    // ── Layer 3: Scholar RAG — apenas para conteúdos não-reel (reel usa directives) ──
-    let ragContext = '';
-    if (type !== 'reel_script') {
-      try {
-        const { ScholarAgent } = await import('./services/scholar');
-        const scholar = new ScholarAgent();
-        const searchTerms = type === 'carousel_slides'
-          ? 'carrossel instigante, retenção de slides, conteúdo denso'
-          : type === 'caption'
-            ? 'legenda engajadora, storytelling curto, CTA'
-            : 'sequência de stories, engajamento, vulnerabilidade, venda';
-        const ragQuery = `${searchTerms} ${pillar || topic || ''} ${angle || ''}`;
-        const chunks = await scholar.searchKnowledge(ragQuery, 3, 'copywriting');
-        if (chunks.length > 0) {
-          ragContext = chunks.map(c => `[${c.source}]: ${c.text}`).join('\n\n---\n\n');
-        }
-      } catch (ragErr: any) {
-        console.warn('[Maverick Copywriter] RAG unavailable:', ragErr.message);
-      }
     }
 
     // ── Layer 2: Formatting instructions based on type ──────────────────
@@ -346,7 +363,12 @@ ${masterBlock ? `PRINCÍPIOS DOS MESTRES:\n${masterBlock}\n` : ''}${copyDirectiv
 DIRETIVAS DE COPYWRITING (aplique todas):
 ${copyDirectives}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-` : ''}${goldenScripts ? `${goldenScripts}\n` : ''}CONTEXTO DA ANÁLISE:
+` : ''}${goldenScripts ? `${goldenScripts}\n` : ''}PRINCÍPIOS POR SEÇÃO:
+[GANCHO]: ${brainPrinciples.hook ? brainPrinciples.hook.slice(0, 800) + '...' : ''}
+[DESENVOLVIMENTO]: ${brainPrinciples.body ? brainPrinciples.body.slice(0, 1200) + '...' : ''}
+[CTA]: ${brainPrinciples.cta ? brainPrinciples.cta.slice(0, 800) + '...' : ''}
+
+CONTEXTO DA ANÁLISE:
 ${JSON.stringify(analysisContext?.brief_estrategico || analysisContext?.resumo_executivo || 'Crie com base na pauta.', null, 2)}
 
 PAUTA / PILAR: "${pillar || topic}"
@@ -354,7 +376,7 @@ FORMATO EXIGIDO: ${type.toUpperCase().replace('_', ' ')}
 
 ${structuralInstructions}
 
-${ragContext ? `REFERÊNCIAS (Enriqueça com estes dados):\n${ragContext}\n` : ''}${trendBlock ? `${trendBlock}\n` : ''}${awarenessBlock}
+${trendBlock ? `${trendBlock}\n` : ''}${awarenessBlock}
 ${voiceBlock}
 ${type === 'reel_script' ? '\nTAMANHO OBRIGATÓRIO: mínimo 220 palavras, máximo 400 palavras.' : ''}
 
@@ -371,7 +393,7 @@ TAREFA FINAL: Entrega o conteúdo pronto para uso. Sem saudações de IA. Vá di
       content: finalContent,
       meta: {
         type,
-        ragChunks: ragContext ? 3 : 0,
+
         voiceCalibrated: !!referencePost
       }
     });
@@ -839,4 +861,5 @@ app.post('/api/generate-carousel-images', async (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Maverick API server running at http://localhost:${port}`);
 });
+
 

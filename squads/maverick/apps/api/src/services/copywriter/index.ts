@@ -17,6 +17,11 @@ const COPY_DIRECTIVES_PATH = path.resolve(
     '../../../../../data/knowledge/copywriting/frameworks/copy-directives.md'
 );
 
+const BRAIN_DIR = path.resolve(
+    __dirname,
+    '../../../../../data/knowledge/brain'
+);
+
 export interface CopyFramework {
     name: string;
     full_name: string;
@@ -271,6 +276,28 @@ INSTRUÇÃO CRÍTICA: Esses roteiros viralizaram de verdade. Estude o nível de 
             'utf-8'
         );
         console.log(`[FrameworkLoader] Saved approved script for framework: ${frameworkName}`);
+    }
+
+    // Load brain principles relevant to the current topic/angle
+    // Matches brain/ .md files by use_when frontmatter keywords
+    loadBrainPrinciples(): { hook: string; body: string; cta: string } {
+        const load = (filename: string): string => {
+            const filePath = path.join(BRAIN_DIR, filename);
+            if (!fs.existsSync(filePath)) return '';
+            try {
+                const raw = fs.readFileSync(filePath, 'utf-8');
+                return raw.replace(/^---[\s\S]*?---\n/, '').trim();
+            } catch {
+                return '';
+            }
+        };
+
+        return {
+            hook: load('hooks.md'),
+            body: [load('storytelling.md'), load('persuasion.md'), load('audience.md'), load('virality.md')]
+                .filter(Boolean).join('\n\n---\n\n'),
+            cta: load('closing.md'),
+        };
     }
 
     // Load approved scripts as additional few-shot examples (max 3)
