@@ -6,6 +6,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { MaverickService } from './maverick.service';
+import { generateScriptsFromPlan } from './copywriter.service';
 import { sendTelegram, sendTelegramDocument } from '../../shared/telegram';
 import { PdfService } from '../../services/pdf/pdf.service';
 import type { ReportLayoutData } from '../../services/pdf/pdf.service';
@@ -289,135 +290,33 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       return reply.status(400).send({ error: 'plan é obrigatório' });
     }
 
-    // Salva o plano em arquivo temporário para passar ao script filho
-    const tempFile = path.join(os.tmpdir(), `maverick-plan-${Date.now()}.txt`);
-    fs.writeFileSync(tempFile, plan, 'utf-8');
-
     reply.hijack();
     const raw = reply.raw;
     writeSseHeaders(raw, req.headers['origin'] as string);
 
     sendEvent(raw, 'step', { message: '⏳ O time do Maverick está trabalhando na análise...' });
 
-    // Escreve keywords em arquivo temp para evitar problemas de escaping no Windows
-    let keywordsFile: string | undefined;
-    if (keywords && keywords.length > 0) {
-      keywordsFile = path.join(os.tmpdir(), `maverick-kw-${Date.now()}.json`);
-      fs.writeFileSync(keywordsFile, JSON.stringify(keywords), 'utf-8');
+    try {
+      const scripts = await generateScriptsFromPlan(plan, (msg) => {
+        sendEvent(raw, 'step', { message: msg });
+      });
+
+      const scriptsJson = JSON.stringify(scripts, null, 2);
+      sendEvent(raw, 'scripts', { content: scriptsJson });
+
+      if (analysisId) {
+        maverickService.saveScripts(analysisId, scripts).catch(err => {
+          console.error('[ERROR] Erro ao salvar roteiros:', err);
+        });
+      }
+
+      sendEvent(raw, 'done', {});
+    } catch (err: any) {
+      console.error('[maverick/scripts] erro:', err);
+      sendEvent(raw, 'error', { message: err.message || 'Copywriter falhou.' });
     }
 
-    // Escreve maxAgeDays em arquivo temp
-    const maxAgeDaysFile = path.join(os.tmpdir(), `maverick-age-${Date.now()}.json`);
-    fs.writeFileSync(maxAgeDaysFile, JSON.stringify({ maxAgeDays }), 'utf-8');
-
-    const scriptArgs = ['ts-node', MAVERICK_SCRIPTS_SCRIPT, tempFile];
-    if (keywordsFile) scriptArgs.push(keywordsFile);
-    scriptArgs.push(maxAgeDaysFile);
-
-    const child = spawn('npx', scriptArgs, {
-      cwd: MAVERICK_ROOT,
-      env: { ...process.env },
-      shell: process.platform === 'win32',
-    });
-
-    let scriptsBuffer = '';
-    let inScripts = false;
-    let trendBuffer = '';
-    let inTrend = false;
-    let lineBuffer = '';
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      lineBuffer += chunk.toString();
-      const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        // Mensagens de progresso emitidas pelo processo filho
-        if (line.startsWith('[STEP]')) {
-          sendEvent(raw, 'step', { message: line.replace('[STEP]', '').trim() });
-          continue;
-        }
-        // Alerta de poucos resultados — sugere ampliar o período
-        if (line.startsWith('[LOW_RESULTS]')) {
-          const parts = line.replace('[LOW_RESULTS]', '').trim().split(':');
-          const count = parseInt(parts[0] ?? '0');
-          const nextAge = parseInt(parts[1] ?? '90');
-          sendEvent(raw, 'low_results', {
-            count,
-            suggestedMaxAge: nextAge,
-            message: `⚠️ Apenas ${count} vídeo(s) viral(is) encontrado(s). Tente ampliar para ${nextAge} dias.`,
-          });
-          continue;
-        }
-        // Captura bloco de trend research (com URLs de referência)
-        if (line.trim() === '[TREND_DATA_START]') { inTrend = true; continue; }
-        if (line.trim() === '[TREND_DATA_END]') {
-          inTrend = false;
-          try {
-            const trendData = JSON.parse(trendBuffer.trim());
-            sendEvent(raw, 'trend_research', { content: trendData });
-            // Salva no banco se houver analysisId
-            if (analysisId) {
-              maverickService.saveTrendResearch(analysisId, trendData).catch(err => {
-                console.error('[ERROR] Erro ao salvar trend research:', err);
-              });
-            }
-          } catch { /* ignora parse error */ }
-          trendBuffer = '';
-          continue;
-        }
-        if (inTrend) { trendBuffer += line + '\n'; continue; }
-
-        if (line.trim() === '[SCRIPTS_START]') {
-          inScripts = true;
-          continue;
-        }
-        if (line.trim() === '[SCRIPTS_END]') {
-          inScripts = false;
-          const scriptsContent = scriptsBuffer.trim();
-          sendEvent(raw, 'scripts', { content: scriptsContent });
-          // Salvar roteiros vinculados à análise
-          if (analysisId) {
-            try {
-              const parsed = JSON.parse(scriptsContent);
-              maverickService.saveScripts(analysisId, parsed).catch(err => {
-                console.error('[ERROR] Erro ao salvar roteiros:', err);
-              });
-            } catch { /* ignora parse error */ }
-          }
-          continue;
-        }
-        if (inScripts) {
-          scriptsBuffer += line + '\n';
-          // Streaming em tempo real linha a linha
-          sendEvent(raw, 'chunk', { content: line + '\n' });
-        }
-      }
-    });
-
-    child.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      process.stderr.write(`[maverick/scripts] ${text}`); // visível no PM2 logs
-      if (text.includes('[ERROR]')) {
-        const msg = text.replace('[ERROR]', '').trim();
-        sendEvent(raw, 'error', { message: msg });
-      } else if (text.includes('[WARN]')) {
-        // Trend research failure: send as informational step (non-blocking)
-        const msg = text.replace('[WARN]', '').trim().split('\n')[0];
-        sendEvent(raw, 'step', { message: `⚠️ ${msg}` });
-      }
-    });
-
-    child.on('close', (code) => {
-      try { fs.unlinkSync(tempFile); } catch { /* ignora */ }
-      if (keywordsFile) try { fs.unlinkSync(keywordsFile); } catch { /* ignora */ }
-      try { fs.unlinkSync(maxAgeDaysFile); } catch { /* ignora */ }
-      if (code === 0) {
-        sendEvent(raw, 'done', {});
-      } else if (!scriptsBuffer) {
-        sendEvent(raw, 'error', { message: 'Copywriter falhou. Verifique o OPENROUTER_API_KEY.' });
-      }
-      raw.end();
+    raw.end();
     });
 
     child.on('error', (err) => {
