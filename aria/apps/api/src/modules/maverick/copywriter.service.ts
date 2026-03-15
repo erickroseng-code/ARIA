@@ -189,7 +189,8 @@ TÉCNICAS DE PERSUASÃO (gatilhos a inserir em momentos específicos do corpo):
 ${brain.persuasion}
 
 INSTRUÇÃO DE DESENVOLVIMENTO:
-- Abra agitando o problema usando a Tríade do Problema (externo + interno + filosófico)
+- NUNCA mencione o nome das técnicas no texto do roteiro. Aplique-as de forma invisível — o leitor sente o efeito, não lê o manual. Proibido escrever "(Tríade do Problema)", "(Microresultado)", "(Inimigo Comum)" ou qualquer anotação técnica no corpo do roteiro.
+- Abra agitando o problema usando a Tríade do Problema (externo + interno + filosófico) — mas escreva como roteiro, não como análise
 - Use Sincronização Neural: personagem específico com emoção nomeada, não "muitos empreendedores"
 - Insira um MICRORESULTADO no meio: ação que o viewer pode fazer em < 30s e sentir resultado
 - Aplique pelo menos 2 técnicas de persuasão do brain acima nos momentos certos
