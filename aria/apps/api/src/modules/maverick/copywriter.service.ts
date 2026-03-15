@@ -7,7 +7,19 @@ import path from 'path';
 
 const BRAIN_DIR = path.join(__dirname, 'brain');
 
-function loadBrainPrinciples(): { hook: string; body: string; cta: string } {
+// ─── Brain loader ─────────────────────────────────────────────────────────────
+
+interface Brain {
+  constraints: string; // NUNCA violar — prioridade máxima
+  hooks: string;       // técnicas de gancho: qual escolher e como aplicar
+  storytelling: string; // estrutura narrativa do corpo
+  persuasion: string;  // gatilhos de persuasão a inserir em momentos específicos
+  audience: string;    // quem é a audiência, como ela pensa e que linguagem usa
+  virality: string;    // ângulos e mecânicas que maximizam compartilhamento
+  closing: string;     // técnicas de CTA e fechamento
+}
+
+function loadBrain(): Brain {
   const load = (filename: string): string => {
     const p = path.join(BRAIN_DIR, filename);
     if (!fs.existsSync(p)) {
@@ -23,15 +35,23 @@ function loadBrainPrinciples(): { hook: string; body: string; cta: string } {
       return '';
     }
   };
-  const result = {
-    hook: load('hooks.md'),
-    body: [load('storytelling.md'), load('persuasion.md'), load('audience.md'), load('virality.md')]
-      .filter(Boolean).join('\n\n---\n\n'),
-    cta: load('closing.md'),
+
+  const brain: Brain = {
+    constraints: load('constraints.md'),
+    hooks:       load('hooks.md'),
+    storytelling: load('storytelling.md'),
+    persuasion:  load('persuasion.md'),
+    audience:    load('audience.md'),
+    virality:    load('virality.md'),
+    closing:     load('closing.md'),
   };
-  console.log(`[BRAIN] princípios carregados — hook: ${result.hook.length}c, body: ${result.body.length}c, cta: ${result.cta.length}c`);
-  return result;
+
+  const total = Object.values(brain).reduce((s, v) => s + v.length, 0);
+  console.log(`[BRAIN] total carregado: ${total} chars (7 arquivos)`);
+  return brain;
 }
+
+// ─── LLM helper ───────────────────────────────────────────────────────────────
 
 async function llmChat(prompt: string, system?: string): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -61,6 +81,8 @@ async function llmChat(prompt: string, system?: string): Promise<string> {
   throw new Error('Todos os modelos falharam');
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface GeneratedScript {
   title: string;
   hook: string;
@@ -68,31 +90,56 @@ export interface GeneratedScript {
   cta: string;
   framework: string;
   funnel_stage: string;
-  hook_technique?: string;
+  hook_technique?: string; // qual técnica do brain foi usada no hook
 }
+
+// ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateScriptsFromPlan(
   plan: string,
   onStep?: (msg: string) => void,
 ): Promise<GeneratedScript[]> {
-  const brain = loadBrainPrinciples();
+  const brain = loadBrain();
 
-  onStep?.('🧠 Selecionando frameworks e ângulos...');
+  onStep?.('🧠 Selecionando ângulos e frameworks...');
 
-  // Pass 1: extrair ideias e selecionar frameworks
+  // ── Pass 1: selecionar ângulos usando virality + audience para calibrar ──────
   const ideasRaw = await llmChat(
     `Analise o plano estratégico abaixo e extraia 3-4 ideias de roteiros para Instagram Reels/Carrossel.
-Para cada ideia, defina: título, contexto, framework (PAS/AIDA/BAB/HOOK_STORY_OFFER) e estágio de funil (TOFU/MOFU/BOFU).
 
-PLANO:
+CALIBRAÇÃO DE AUDIÊNCIA (use para escolher ângulos que falem com ESTE público específico):
+${brain.audience}
+
+MECÂNICAS DE VIRALIDADE (use para escolher ângulos com maior potencial de alcance/compartilhamento):
+${brain.virality}
+
+Para cada ideia, defina:
+- title: título do roteiro
+- context: o problema/dor/desejo específico que este roteiro resolve
+- framework: PAS | AIDA | BAB | HOOK_STORY_OFFER (qual serve melhor para este ângulo)
+- funnel_stage: TOFU | MOFU | BOFU
+- virality_angle: qual mecânica de viralidade (Polarização, Ancoragem nos Extremos, High-Arousal, etc.) este ângulo ativa
+- audience_profile: qual princípio de audiência (Co-Identidade, Público Inconsciente, Filtro do Otaku, etc.) guia a linguagem
+
+PLANO ESTRATÉGICO:
 ${plan}
 
+REGRA: Priorize ângulos que combinem dor real da audiência COM mecanismo viral natural — não escolha tópicos genéricos.
+
 Retorne APENAS JSON array:
-[{"title":"...","context":"...","framework":"PAS","funnel_stage":"TOFU"}]`,
+[{"title":"...","context":"...","framework":"PAS","funnel_stage":"TOFU","virality_angle":"...","audience_profile":"..."}]`,
     'Você é um estrategista de conteúdo. Retorne APENAS JSON válido.'
   );
 
-  let ideas: Array<{ title: string; context: string; framework: string; funnel_stage: string }> = [];
+  let ideas: Array<{
+    title: string;
+    context: string;
+    framework: string;
+    funnel_stage: string;
+    virality_angle?: string;
+    audience_profile?: string;
+  }> = [];
+
   try {
     const match = ideasRaw.match(/\[[\s\S]*\]/);
     ideas = JSON.parse(match?.[0] ?? '[]');
@@ -100,42 +147,70 @@ Retorne APENAS JSON array:
     ideas = [{ title: plan.slice(0, 80), context: plan.slice(0, 200), framework: 'PAS', funnel_stage: 'TOFU' }];
   }
 
-  onStep?.('✍️ Gerando roteiros com princípios do brain/...');
+  onStep?.('✍️ Gerando roteiros com brain/ principles...');
 
-  // Pass 2: gerar cada roteiro com brain/ principles
+  // ── Pass 2: gerar cada roteiro com todos os princípios do brain ───────────
   const scripts = await Promise.all(ideas.map(async (idea) => {
-    const prompt = `Escreva um roteiro completo de Instagram Reels para o conteúdo abaixo.
+
+    const systemPrompt = `Você é o Maverick Copywriter — especialista em roteiros de Instagram que convertem.
+
+━━━ RESTRIÇÕES ÉTICAS (PRIORIDADE MÁXIMA — nunca viole, independente do objetivo) ━━━
+${brain.constraints}
+
+━━━ PERFIL DA AUDIÊNCIA (calibre voz, vocabulário e nível de consciência do problema) ━━━
+${brain.audience}
+
+Princípio de audiência indicado para este roteiro: ${idea.audience_profile || 'aplique o mais adequado ao contexto'}`;
+
+    const userPrompt = `Escreva um roteiro completo de Instagram Reels seguindo TODOS os princípios do brain abaixo.
 
 BRIEFING:
 - Título: ${idea.title}
 - Contexto: ${idea.context}
 - Framework: ${idea.framework}
 - Funil: ${idea.funnel_stage}
+- Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
 
-PRINCÍPIOS DO BRAIN (estude e aplique — não ignore nenhum):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SEÇÃO 1 — GANCHO (primeiros 1-3 segundos / máximo 15 palavras)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${brain.hooks}
 
-[TÉCNICAS DE HOOK disponíveis — escolha a mais adequada para este ângulo e aplique:]
-${brain.hook || ''}
+INSTRUÇÃO DE GANCHO: Escolha UMA técnica acima que melhor serve este ângulo e aplique com precisão cirúrgica. Indique qual técnica usou em "hook_technique". PROIBIDO o padrão genérico "Você [problema]. Isso muda em X dias." — isso sinaliza template, não expertise.
 
-[DESENVOLVIMENTO — princípios de storytelling, persuasão e virality:]
-${brain.body || ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SEÇÃO 2 — DESENVOLVIMENTO (mínimo 200 palavras)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[CTA — princípios de fechamento e conversão:]
-${brain.cta || ''}
+ESTRUTURA NARRATIVA (como construir o arco que mantém atenção do hook ao CTA):
+${brain.storytelling}
 
-REGRAS DE EXECUÇÃO:
-- GANCHO: MÁXIMO 15 PALAVRAS — escolha UMA das técnicas do brain acima (Contraste Extremo, Mecanismo no Comando, Número Quebrado, Primazia do Perigo, Quebra de Padrão, Curiosidade Pré-Reveal, etc.) e aplique-a com precisão cirúrgica. NÃO use o padrão genérico "Você [problema]. Isso muda em X dias."
-- DESENVOLVIMENTO: mínimo 200 palavras, tom de WhatsApp, linguagem humana
-- Sem palavras: jornada, transformação, incrível, poderoso, guru, revolucionário
-- Inclua microresultado: ação simples que o viewer pode fazer agora e sentir resultado
-- No JSON de resposta, indique em "hook_technique" qual técnica do brain você usou (ex: "Ancoragem por Contraste Extremo", "Primazia do Perigo", etc.)
+TÉCNICAS DE PERSUASÃO (gatilhos a inserir em momentos específicos do corpo):
+${brain.persuasion}
+
+INSTRUÇÃO DE DESENVOLVIMENTO:
+- Abra agitando o problema usando a Tríade do Problema (externo + interno + filosófico)
+- Use Sincronização Neural: personagem específico com emoção nomeada, não "muitos empreendedores"
+- Insira um MICRORESULTADO no meio: ação que o viewer pode fazer em < 30s e sentir resultado
+- Aplique pelo menos 2 técnicas de persuasão do brain acima nos momentos certos
+- Tom: WhatsApp com amigo que é expert, não aula de faculdade
+- Proibido: jornada, transformação, incrível, poderoso, guru, revolucionário, gamechanger
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SEÇÃO 3 — CTA (últimas 3-5 frases)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${brain.closing}
+
+INSTRUÇÃO DE CTA: Escolha UMA técnica de CTA acima baseada no funnel_stage (${idea.funnel_stage}) e no objetivo do roteiro. BOFU → Bifurcação da Escolha ou Sintaxe do Compromisso. MOFU → Arquitetura da Crença ou 4Rs. TOFU → Ancoragem de Página Única ou Ilusão Viral. PROIBIDO: "Gostou? Salva e compartilha!" — isso é o pior fechamento possível.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Retorne APENAS JSON:
 {"title":"...","hook":"...","body":"...","cta":"...","framework":"${idea.framework}","funnel_stage":"${idea.funnel_stage}","hook_technique":"nome da técnica do brain usada no hook"}`;
 
     let result: GeneratedScript | null = null;
     try {
-      const raw = await llmChat(prompt, 'Você é o Maverick Copywriter. Retorne APENAS JSON válido.');
+      const raw = await llmChat(userPrompt, systemPrompt);
       const match = raw.match(/\{[\s\S]*\}/);
       result = JSON.parse(match?.[0] ?? '{}');
     } catch {
@@ -144,13 +219,13 @@ Retorne APENAS JSON:
 
     if (!result) return { title: idea.title, hook: '', body: '', cta: '', framework: idea.framework, funnel_stage: idea.funnel_stage };
 
-    // GanchoGuard: corrige hook > 15 palavras
+    // ── GanchoGuard: corrige hook > 15 palavras preservando a técnica ──────
     if (result.hook) {
       const wordCount = result.hook.trim().split(/\s+/).filter(Boolean).length;
       if (wordCount > 15) {
         try {
           const fixed = await llmChat(
-            `Reescreva em NO MÁXIMO 15 PALAVRAS mantendo a técnica de hook (Contraste, Perigo, Curiosidade, Mecanismo, etc.).\n\nHOOK ATUAL (${wordCount} palavras): ${result.hook}\n\nResponda APENAS com a frase corrigida:`
+            `Reescreva em NO MÁXIMO 15 PALAVRAS mantendo a técnica de hook "${result.hook_technique || 'atual'}" e o impacto original.\n\nHOOK ATUAL (${wordCount} palavras): ${result.hook}\n\nResponda APENAS com a frase corrigida:`
           );
           const cleaned = fixed.trim().replace(/^["']|["']$/g, '');
           if (cleaned && cleaned.split(/\s+/).filter(Boolean).length <= 15) {
