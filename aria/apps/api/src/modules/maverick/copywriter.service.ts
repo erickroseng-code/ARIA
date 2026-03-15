@@ -149,98 +149,112 @@ Retorne APENAS JSON array:
 
   onStep?.('✍️ Gerando roteiros com brain/ principles...');
 
-  // ── Pass 2: gerar cada roteiro com todos os princípios do brain ───────────
+  // ── Pass 2: gerar cada roteiro com passes focados por seção ─────────────
   const scripts = await Promise.all(ideas.map(async (idea) => {
 
+    // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ──────
+    const hookRaw = await llmChat(
+      `Você receberá um briefing de roteiro e o catálogo completo de técnicas de hook.
+Sua única tarefa: escolher a técnica MAIS ADEQUADA ao ângulo e aplicar sua FÓRMULA EXATA.
+
+BRIEFING:
+- Título: ${idea.title}
+- Contexto/Dor: ${idea.context}
+- Framework: ${idea.framework}
+- Funil: ${idea.funnel_stage}
+- Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
+- Perfil de audiência: ${idea.audience_profile || 'empreendedores/gestores brasileiros'}
+
+━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
+${brain.hooks}
+
+━━━ REGRAS ESTRITAS ━━━
+1. Escolha UMA técnica do catálogo acima
+2. Copie mentalmente a FÓRMULA dessa técnica e aplique ela ao briefing
+3. O hook deve ter NO MÁXIMO 15 palavras
+4. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer..."
+5. O hook deve parecer que veio de uma pessoa real falando no WhatsApp, não de uma agência
+
+Retorne APENAS JSON:
+{"hook":"frase do hook (máx 15 palavras)","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula da técnica foi aplicada aqui (1 frase)"}`,
+      'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.'
+    );
+
+    let hookData: { hook: string; hook_technique: string; formula_applied?: string } = { hook: '', hook_technique: '' };
+    try {
+      const match = hookRaw.match(/\{[\s\S]*\}/);
+      hookData = JSON.parse(match?.[0] ?? '{}');
+    } catch { /* usa fallback abaixo */ }
+
+    // GanchoGuard inline: corta se passou de 15 palavras
+    if (hookData.hook) {
+      const wc = hookData.hook.trim().split(/\s+/).filter(Boolean).length;
+      if (wc > 15) {
+        hookData.hook = hookData.hook.split(/\s+/).filter(Boolean).slice(0, 13).join(' ') + '.';
+      }
+    }
+
+    // ── Pass 2b: corpo + CTA com hook já fixado ───────────────────────────
     const systemPrompt = `Você é o Maverick Copywriter — especialista em roteiros de Instagram que convertem.
 
-━━━ RESTRIÇÕES ÉTICAS (PRIORIDADE MÁXIMA — nunca viole, independente do objetivo) ━━━
+━━━ RESTRIÇÕES ÉTICAS (PRIORIDADE MÁXIMA) ━━━
 ${brain.constraints}
 
-━━━ PERFIL DA AUDIÊNCIA (calibre voz, vocabulário e nível de consciência do problema) ━━━
-${brain.audience}
+━━━ PERFIL DA AUDIÊNCIA ━━━
+${brain.audience}`;
 
-Princípio de audiência indicado para este roteiro: ${idea.audience_profile || 'aplique o mais adequado ao contexto'}`;
-
-    const userPrompt = `Escreva um roteiro completo de Instagram Reels seguindo TODOS os princípios do brain abaixo.
+    const userPrompt = `Escreva o DESENVOLVIMENTO e CTA de um roteiro de Instagram Reels.
+O hook já está pronto — sua missão é construir o corpo que o justifica e o CTA que converte.
 
 BRIEFING:
 - Título: ${idea.title}
 - Contexto: ${idea.context}
 - Framework: ${idea.framework}
 - Funil: ${idea.funnel_stage}
-- Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
+- Hook já definido: "${hookData.hook}"
+- Técnica do hook: ${hookData.hook_technique}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SEÇÃO 1 — GANCHO (primeiros 1-3 segundos / máximo 15 palavras)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${brain.hooks}
-
-INSTRUÇÃO DE GANCHO: Escolha UMA técnica acima que melhor serve este ângulo e aplique com precisão cirúrgica. Indique qual técnica usou em "hook_technique". PROIBIDO o padrão genérico "Você [problema]. Isso muda em X dias." — isso sinaliza template, não expertise.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SEÇÃO 2 — DESENVOLVIMENTO (mínimo 200 palavras)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ESTRUTURA NARRATIVA (como construir o arco que mantém atenção do hook ao CTA):
+━━━ ESTRUTURA NARRATIVA (construa o arco que vai do hook ao CTA) ━━━
 ${brain.storytelling}
 
-TÉCNICAS DE PERSUASÃO (gatilhos a inserir em momentos específicos do corpo):
+━━━ TÉCNICAS DE PERSUASÃO (insira nos momentos certos do corpo) ━━━
 ${brain.persuasion}
 
-INSTRUÇÃO DE DESENVOLVIMENTO:
-- NUNCA mencione o nome das técnicas no texto do roteiro. Aplique-as de forma invisível — o leitor sente o efeito, não lê o manual. Proibido escrever "(Tríade do Problema)", "(Microresultado)", "(Inimigo Comum)" ou qualquer anotação técnica no corpo do roteiro.
-- Abra agitando o problema usando a Tríade do Problema (externo + interno + filosófico) — mas escreva como roteiro, não como análise
-- Use Sincronização Neural: personagem específico com emoção nomeada, não "muitos empreendedores"
-- Insira um MICRORESULTADO no meio: ação que o viewer pode fazer em < 30s e sentir resultado
-- Aplique pelo menos 2 técnicas de persuasão do brain acima nos momentos certos
-- Tom: WhatsApp com amigo que é expert, não aula de faculdade
+━━━ INSTRUÇÃO DE DESENVOLVIMENTO ━━━
+- NUNCA mencione nomes de técnicas no texto. Aplique de forma invisível — proibido "(Tríade do Problema)", "(Microresultado)" ou qualquer anotação técnica
+- Abra agitando o problema com Tríade do Problema (externo + interno + filosófico) — escreva como roteiro, não como análise
+- Sincronização Neural: personagem específico com emoção nomeada, não "muitos empreendedores"
+- Insira MICRORESULTADO no meio: ação que o viewer faz em < 30s e sente resultado
+- Mínimo 200 palavras
+- Tom: WhatsApp com amigo expert, não aula de faculdade
 - Proibido: jornada, transformação, incrível, poderoso, guru, revolucionário, gamechanger
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SEÇÃO 3 — CTA (últimas 3-5 frases)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━ TÉCNICAS DE CTA E FECHAMENTO ━━━
 ${brain.closing}
 
-INSTRUÇÃO DE CTA: Escolha UMA técnica de CTA acima baseada no funnel_stage (${idea.funnel_stage}) e no objetivo do roteiro. BOFU → Bifurcação da Escolha ou Sintaxe do Compromisso. MOFU → Arquitetura da Crença ou 4Rs. TOFU → Ancoragem de Página Única ou Ilusão Viral. PROIBIDO: "Gostou? Salva e compartilha!" — isso é o pior fechamento possível.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━ INSTRUÇÃO DE CTA ━━━
+Funil ${idea.funnel_stage}: ${idea.funnel_stage === 'BOFU' ? 'use Bifurcação da Escolha ou Sintaxe do Compromisso' : idea.funnel_stage === 'MOFU' ? 'use Arquitetura da Crença ou 4Rs' : 'use Ancoragem de Página Única ou Ilusão Viral'}
+PROIBIDO: "Gostou? Salva e compartilha!" — isso é o pior fechamento possível.
 
 Retorne APENAS JSON:
-{"title":"...","hook":"...","body":"...","cta":"...","framework":"${idea.framework}","funnel_stage":"${idea.funnel_stage}","hook_technique":"nome da técnica do brain usada no hook"}`;
+{"body":"...","cta":"..."}`;
 
-    let result: GeneratedScript | null = null;
+    let bodyData: { body: string; cta: string } = { body: '', cta: '' };
     try {
       const raw = await llmChat(userPrompt, systemPrompt);
       const match = raw.match(/\{[\s\S]*\}/);
-      result = JSON.parse(match?.[0] ?? '{}');
-    } catch {
-      return { title: idea.title, hook: '', body: '', cta: '', framework: idea.framework, funnel_stage: idea.funnel_stage };
-    }
+      bodyData = JSON.parse(match?.[0] ?? '{}');
+    } catch { /* usa fallback */ }
 
-    if (!result) return { title: idea.title, hook: '', body: '', cta: '', framework: idea.framework, funnel_stage: idea.funnel_stage };
-
-    // ── GanchoGuard: corrige hook > 15 palavras preservando a técnica ──────
-    if (result.hook) {
-      const wordCount = result.hook.trim().split(/\s+/).filter(Boolean).length;
-      if (wordCount > 15) {
-        try {
-          const fixed = await llmChat(
-            `Reescreva em NO MÁXIMO 15 PALAVRAS mantendo a técnica de hook "${result.hook_technique || 'atual'}" e o impacto original.\n\nHOOK ATUAL (${wordCount} palavras): ${result.hook}\n\nResponda APENAS com a frase corrigida:`
-          );
-          const cleaned = fixed.trim().replace(/^["']|["']$/g, '');
-          if (cleaned && cleaned.split(/\s+/).filter(Boolean).length <= 15) {
-            result.hook = cleaned;
-          } else {
-            result.hook = result.hook.split(/\s+/).filter(Boolean).slice(0, 13).join(' ') + '.';
-          }
-        } catch {
-          result.hook = result.hook.split(/\s+/).filter(Boolean).slice(0, 13).join(' ') + '.';
-        }
-      }
-    }
-
-    return result;
+    return {
+      title: idea.title,
+      hook: hookData.hook,
+      body: bodyData.body,
+      cta: bodyData.cta,
+      framework: idea.framework,
+      funnel_stage: idea.funnel_stage,
+      hook_technique: hookData.hook_technique,
+    };
   }));
 
   return scripts.filter(s => s.hook && s.body);
