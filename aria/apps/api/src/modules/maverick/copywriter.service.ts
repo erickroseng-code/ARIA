@@ -67,7 +67,7 @@ function loadBrain(): Brain {
 
 // ─── LLM helper ───────────────────────────────────────────────────────────────
 
-async function llmChat(prompt: string, system?: string): Promise<string> {
+async function llmChat(prompt: string, system?: string, modelPriority?: string[]): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada');
 
@@ -76,7 +76,9 @@ async function llmChat(prompt: string, system?: string): Promise<string> {
     { role: 'user', content: prompt },
   ];
 
-  for (const model of ['deepseek/deepseek-v3.2', 'minimax/minimax-m2.5']) {
+  const models = modelPriority || ['deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'];
+
+  for (const model of models) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -90,7 +92,9 @@ async function llmChat(prompt: string, system?: string): Promise<string> {
       const data = await res.json() as any;
       const content = data?.choices?.[0]?.message?.content;
       if (content) return content;
-    } catch { /* try next model */ }
+    } catch (e) {
+      console.log(`[LLM] ${model} falhou, tentando próximo...`);
+    }
   }
   throw new Error('Todos os modelos falharam');
 }
@@ -121,6 +125,49 @@ export interface GeneratedScript {
   technique_plan?: TechniquePlan;
 }
 
+// ─── Merge Niche with Brain ───────────────────────────────────────────────────
+
+/**
+ * Mescla as informações do nicho/usuário com as referências do brain.
+ * Usa gpt-oss-120b como modelo primário para combinação contextual.
+ */
+async function mergeNicheWithBrain(
+  userProfile: string,
+  brain: Brain,
+  onStep?: (msg: string) => void,
+): Promise<string> {
+  onStep?.('🔗 Mesclando nicho com referências do brain...');
+
+  const mergePrompt = `Você é um estrategista de conteúdo que combina perfil de usuário com frameworks de copywriting.
+
+PERFIL DO NICHO/USUÁRIO:
+${userProfile}
+
+REFERÊNCIAS DE BRAIN DISPONÍVEIS:
+━━━ AUDIÊNCIA ━━━
+${brain.audience.slice(0, 800)}...
+
+━━━ VIRALIDADE ━━━
+${brain.virality.slice(0, 800)}...
+
+━━━ PERSUASÃO ━━━
+${brain.persuasion.slice(0, 800)}...
+
+Agora, crie uma ESTRATÉGIA MESCLADA que:
+1. Identifique os 3 principais problemas/dores do nicho específico
+2. Mapeie quais mecânicas virais mais se aplicam a este perfil
+3. Sugira os 3-4 ângulos de roteiros mais promissores
+4. Defina o tom de voz EXATO para esta audiência
+
+Retorne em um parágrafo fluido, não em listas. Deve ser usável diretamente como contexto estratégico.`;
+
+  return await llmChat(
+    mergePrompt,
+    'Você é um especialista em estratégia de conteúdo que mescla psicologia de audiência com mecânicas virais.',
+    ['openai/gpt-oss-120b', 'deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'] // gpt-oss-120b primeiro para merge
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateScriptsFromPlan(
@@ -128,6 +175,16 @@ export async function generateScriptsFromPlan(
   onStep?: (msg: string) => void,
 ): Promise<GeneratedScript[]> {
   const brain = loadBrain();
+
+  // Mescla o plano do usuário com as referências do brain usando gpt-oss-120b
+  let enrichedContext = '';
+  try {
+    enrichedContext = await mergeNicheWithBrain(plan, brain, onStep);
+    console.log(`[MERGE] Contexto enriquecido gerado (${enrichedContext.length} chars)`);
+  } catch (e) {
+    console.warn('[MERGE] Falha no merge, usando plan original:', e);
+    enrichedContext = plan; // fallback para plan original
+  }
 
   onStep?.('🧠 Selecionando ângulos e frameworks...');
 
@@ -149,8 +206,8 @@ Para cada ideia, defina:
 - virality_angle: qual mecânica de viralidade (Polarização, Ancoragem nos Extremos, High-Arousal, etc.) este ângulo ativa
 - audience_profile: qual princípio de audiência guia a linguagem
 
-PLANO ESTRATÉGICO:
-${plan}
+CONTEXTO ESTRATÉGICO (mesclado com brain):
+${enrichedContext}
 
 REGRA: Priorize ângulos que combinem dor real da audiência COM mecanismo viral natural — não escolha tópicos genéricos.
 
@@ -307,7 +364,7 @@ Retorne APENAS JSON:
     let techniquePlan: TechniquePlan = {
       storytelling: [],
       persuasion: [],
-      closing: { name: '', formula: '', application: '' },
+      closing: { name: '', formula: '', application: '', draft_sentence: '' },
     };
 
     try {
