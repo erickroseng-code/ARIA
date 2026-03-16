@@ -182,10 +182,12 @@ ${brain.hooks}
 
 ━━━ REGRAS ESTRITAS ━━━
 1. Escolha UMA técnica do catálogo acima
-2. Copie mentalmente a FÓRMULA dessa técnica e aplique ela ao briefing
-3. O hook deve ter NO MÁXIMO 15 palavras
-4. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer..."
-5. O hook deve parecer que veio de uma pessoa real falando no WhatsApp, não de uma agência
+2. Leia o campo "Exemplo bom" da técnica escolhida — é o molde de qualidade que você deve replicar
+3. Adapte a estrutura do "Exemplo bom" para o briefing acima (mesmo nível de especificidade, mesma vivacidade)
+4. O hook deve ter NO MÁXIMO 15 palavras
+5. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
+6. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
+7. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
 
 Retorne APENAS JSON:
 {"hook":"frase do hook (máx 15 palavras)","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula da técnica foi aplicada aqui (1 frase)"}`,
@@ -310,7 +312,7 @@ Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultad
 ━━━ REGRAS DE EXECUÇÃO ━━━
 - Mínimo 200 palavras no corpo
 - PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
-- PROIBIDO anotar técnicas entre parênteses ou colchetes — exceto [Visual: ...] e [Tom: ...] para direção de câmera
+- PROIBIDO qualquer anotação entre colchetes ou parênteses — sem [Visual: ...], [Tom: ...] nem nada similar
 - Tom: WhatsApp com amigo expert, não aula de faculdade
 - Proibido: jornada, transformação, incrível, poderoso, guru, revolucionário, gamechanger
 - O Microresultado (ação que o viewer faz em < 30s durante o vídeo) é OBRIGATÓRIO no meio do corpo
