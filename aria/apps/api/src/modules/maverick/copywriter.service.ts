@@ -18,6 +18,22 @@ interface Brain {
   closing: string;      // técnicas de CTA e fechamento
 }
 
+// Extrai "Exemplo bom" de cada técnica do hooks.md para uso como referência direta
+function extractHookExamples(hooksContent: string): string {
+  const examples: string[] = [];
+  const techniqueBlocks = hooksContent.split(/^## /m).slice(1); // cada bloco começa com "## NOME"
+  for (const block of techniqueBlocks) {
+    const nameMatch = block.match(/^(.+)/);
+    const exampleMatch = block.match(/Exemplo bom:\s*(.+?)(?:\nExemplo ruim:|$)/s);
+    if (nameMatch && exampleMatch) {
+      const name = nameMatch[1].trim();
+      const example = exampleMatch[1].trim().replace(/\n/g, ' ');
+      examples.push(`• ${name}:\n  ${example}`);
+    }
+  }
+  return examples.join('\n\n');
+}
+
 function loadBrain(): Brain {
   const load = (filename: string): string => {
     const p = path.join(BRAIN_DIR, filename);
@@ -180,9 +196,10 @@ Retorne APENAS JSON array:
   for (const idea of ideas) {
 
     // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ────────
+    const hookExamples = extractHookExamples(brain.hooks);
     const hookRaw = await llmChat(
       `Você receberá um briefing de roteiro e o catálogo completo de técnicas de hook.
-Sua única tarefa: escolher a técnica MAIS ADEQUADA ao ângulo e aplicar sua FÓRMULA EXATA.
+Sua única tarefa: escolher a técnica MAIS ADEQUADA ao ângulo e escrever um hook com a mesma estrutura e comprimento do "Exemplo bom" dela.
 
 BRIEFING:
 - Título: ${idea.title}
@@ -192,6 +209,9 @@ BRIEFING:
 - Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
 - Perfil de audiência: ${idea.audience_profile || 'empreendedores/gestores brasileiros'}
 
+━━━ EXEMPLOS BONS DE CADA TÉCNICA — use como molde de comprimento e estrutura ━━━
+${hookExamples}
+
 ${usedHookTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
 ${usedHookTechniques.map(t => `- ${t}`).join('\n')}
 Escolha obrigatoriamente uma técnica DIFERENTE das listadas acima.
@@ -200,13 +220,12 @@ Escolha obrigatoriamente uma técnica DIFERENTE das listadas acima.
 ${brain.hooks}
 
 ━━━ REGRAS ESTRITAS ━━━
-1. Escolha UMA técnica do catálogo acima
-2. Leia o campo "Exemplo bom" da técnica escolhida — é o molde de qualidade que você deve replicar
-3. Adapte a estrutura do "Exemplo bom" para o briefing acima (mesmo nível de especificidade, mesma vivacidade)
-4. O hook deve ter NO MÁXIMO 15 palavras
-5. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
-6. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
-7. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
+1. Escolha UMA técnica do catálogo abaixo
+2. Adapte o "Exemplo bom" da técnica escolhida para o briefing acima — mesma estrutura, mesmo comprimento, mesma vivacidade
+3. O hook deve ter o mesmo comprimento do exemplo original (não corte, não expanda demais)
+4. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
+5. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
+6. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
 
 Retorne APENAS JSON:
 {"hook":"frase do hook (máx 15 palavras)","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula da técnica foi aplicada aqui (1 frase)"}`,
@@ -219,25 +238,14 @@ Retorne APENAS JSON:
       hookData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback abaixo */ }
 
-    // GanchoGuard: corta se passou de 15 palavras — tenta pontuação natural primeiro
+    // GanchoGuard: segurança contra hooks absurdamente longos (>30 palavras)
     if (hookData.hook) {
       const words = hookData.hook.trim().split(/\s+/).filter(Boolean);
-      if (words.length > 15) {
-        // Tenta encontrar última pontuação forte (. ! ?) dentro de 15 palavras
-        const candidate = words.slice(0, 15).join(' ');
-        const punctMatch = candidate.match(/^(.*[.!?])\s+\S+\s*$/);
-        if (punctMatch) {
-          hookData.hook = punctMatch[1].trim();
-        } else {
-          // Tenta última vírgula dentro de 15 palavras
-          const commaMatch = candidate.match(/^(.*,)\s+\S+\s*$/);
-          if (commaMatch) {
-            hookData.hook = commaMatch[1].replace(/,$/, '.').trim();
-          } else {
-            // Fallback: corta em 13 palavras com reticências
-            hookData.hook = words.slice(0, 13).join(' ') + '…';
-          }
-        }
+      if (words.length > 30) {
+        // Tenta cortar na última pontuação forte dentro de 30 palavras
+        const candidate = words.slice(0, 30).join(' ');
+        const punctMatch = candidate.match(/^(.*[.!?])\s+\S/);
+        hookData.hook = punctMatch ? punctMatch[1].trim() : words.slice(0, 25).join(' ') + '.';
       }
     }
 
