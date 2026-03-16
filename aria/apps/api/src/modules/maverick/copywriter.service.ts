@@ -85,6 +85,7 @@ export interface TechniqueSelection {
   name: string;
   formula: string;
   application: string;
+  draft_sentence: string; // frase concreta comprometida — âncora obrigatória no Pass 2c
 }
 
 export interface TechniquePlan {
@@ -232,18 +233,26 @@ Para cada técnica selecionada, defina:
 - name: nome exato da técnica (copie do brain)
 - formula: a fórmula dela (copie exatamente do brain)
 - application: como aplicar NESTE roteiro específico (1-2 frases concretas com detalhes do nicho)
+- draft_sentence: escreva UMA frase real do roteiro que aplica esta técnica concretamente — use nomes, números, situações específicas do nicho/contexto. Esta frase SERÁ incluída no corpo final.
+
+EXEMPLOS de draft_sentence bem feitos (específicos, concretos, não genéricos):
+- Storytelling/Neural Sync: "Ricardo, 38 anos, abriu o analytics às 23h e sentiu aquela vergonha familiar: 847 visualizações, nenhum DM de cliente."
+- Persuasão/Prova Social: "Em 3 semanas, 12 criadores que aplicaram isso saíram de R$800/mês para R$4.200/mês em contratos fechados via DM."
+- Closing/Microcommit: "Antes de continuar assistindo: para no segundo 30 e escreve nos comentários qual desses 3 erros você estava cometendo."
+
+REGRA CRÍTICA: draft_sentence deve ser específica ao contexto do briefing — nunca genérica ou com placeholders.
 
 Retorne APENAS JSON:
 {
   "storytelling": [
-    {"name":"...","formula":"...","application":"..."},
-    {"name":"...","formula":"...","application":"..."}
+    {"name":"...","formula":"...","application":"...","draft_sentence":"..."},
+    {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
   "persuasion": [
-    {"name":"...","formula":"...","application":"..."},
-    {"name":"...","formula":"...","application":"..."}
+    {"name":"...","formula":"...","application":"...","draft_sentence":"..."},
+    {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
-  "closing": {"name":"...","formula":"...","application":"..."}
+  "closing": {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
 }`,
       'Você é um arquiteto de roteiros. Retorne APENAS JSON válido.'
     );
@@ -268,6 +277,13 @@ NUNCA mencione nomes de técnicas no texto gerado — aplique-as de forma invis�
 
     const hasTechniques = techniquePlan.storytelling.length > 0 || techniquePlan.persuasion.length > 0;
 
+    const buildTechniqueBlock = (t: TechniqueSelection, idx: number) =>
+      `${idx + 1}. ${t.name}
+   Fórmula: ${t.formula}
+   Como aplicar: ${t.application}
+   ⚓ ÂNCORA OBRIGATÓRIA: "${t.draft_sentence}"
+      → Você DEVE incluir esta frase (ou expandí-la diretamente) no corpo. Não substitua por algo genérico.`;
+
     const userPrompt = `Escreva o DESENVOLVIMENTO e CTA deste roteiro de Instagram seguindo o plano de técnicas abaixo.
 
 BRIEFING:
@@ -279,21 +295,16 @@ BRIEFING:
 - Técnica do hook: ${hookData.hook_technique}
 
 ${hasTechniques ? `━━━ PLANO DE TÉCNICAS — execute exatamente nesta ordem ━━━
+As âncoras marcadas com ⚓ são frases COMPROMETIDAS que DEVEM aparecer no texto final (exatamente ou expandidas).
 
 STORYTELLING (aplique no arco narrativo do corpo):
-${techniquePlan.storytelling.map((t, i) => `${i + 1}. ${t.name}
-   Fórmula: ${t.formula}
-   Como aplicar aqui: ${t.application}`).join('\n\n')}
+${techniquePlan.storytelling.map((t, i) => buildTechniqueBlock(t, i)).join('\n\n')}
 
 PERSUASÃO (insira nos momentos indicados):
-${techniquePlan.persuasion.map((t, i) => `${i + 1}. ${t.name}
-   Fórmula: ${t.formula}
-   Como aplicar aqui: ${t.application}`).join('\n\n')}
+${techniquePlan.persuasion.map((t, i) => buildTechniqueBlock(t, i)).join('\n\n')}
 
 CLOSING/CTA:
-${techniquePlan.closing.name}
-   Fórmula: ${techniquePlan.closing.formula}
-   Como aplicar aqui: ${techniquePlan.closing.application}` : `━━━ ESTRUTURA PADRÃO ━━━
+${buildTechniqueBlock(techniquePlan.closing, 0)}` : `━━━ ESTRUTURA PADRÃO ━━━
 Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultado (ação < 30s) → solução → CTA direto`}
 
 ━━━ REGRAS DE EXECUÇÃO ━━━
