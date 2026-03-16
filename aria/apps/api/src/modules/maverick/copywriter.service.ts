@@ -161,8 +161,12 @@ Retorne APENAS JSON array:
 
   onStep?.('🎣 Gerando hooks com técnicas do brain...');
 
-  // ── Pass 2: gerar cada roteiro em 3 passes ────────────────────────────────
-  const scripts = await Promise.all(ideas.map(async (idea) => {
+  // ── Pass 2: gerar cada roteiro sequencialmente para forçar diversidade ──────
+  const usedHookTechniques: string[] = [];
+  const usedBodyTechniques: string[] = [];
+
+  const scripts: GeneratedScript[] = [];
+  for (const idea of ideas) {
 
     // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ────────
     const hookRaw = await llmChat(
@@ -177,7 +181,11 @@ BRIEFING:
 - Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
 - Perfil de audiência: ${idea.audience_profile || 'empreendedores/gestores brasileiros'}
 
-━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
+${usedHookTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
+${usedHookTechniques.map(t => `- ${t}`).join('\n')}
+Escolha obrigatoriamente uma técnica DIFERENTE das listadas acima.
+
+` : ''}━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
 ${brain.hooks}
 
 ━━━ REGRAS ESTRITAS ━━━
@@ -236,7 +244,11 @@ BRIEFING:
 - Hook: "${hookData.hook}"
 - Técnica do hook: ${hookData.hook_technique}
 
-━━━ STORYTELLING — escolha 2 técnicas ━━━
+${usedBodyTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
+${usedBodyTechniques.map(t => `- ${t}`).join('\n')}
+Escolha obrigatoriamente técnicas DIFERENTES das listadas acima.
+
+` : ''}━━━ STORYTELLING — escolha 2 técnicas ━━━
 ${brain.storytelling}
 
 ━━━ PERSUASÃO — escolha 2 técnicas ━━━
@@ -341,7 +353,7 @@ Retorne APENAS JSON:
       bodyData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback */ }
 
-    return {
+    const script: GeneratedScript = {
       title: idea.title,
       hook: hookData.hook,
       body: bodyData.body,
@@ -351,7 +363,17 @@ Retorne APENAS JSON:
       hook_technique: hookData.hook_technique,
       technique_plan: hasTechniques ? techniquePlan : undefined,
     };
-  }));
+
+    // Registra técnicas usadas para forçar diversidade nos próximos roteiros
+    if (hookData.hook_technique) usedHookTechniques.push(hookData.hook_technique);
+    if (hasTechniques) {
+      techniquePlan.storytelling.forEach(t => t.name && usedBodyTechniques.push(t.name));
+      techniquePlan.persuasion.forEach(t => t.name && usedBodyTechniques.push(t.name));
+      if (techniquePlan.closing.name) usedBodyTechniques.push(techniquePlan.closing.name);
+    }
+
+    scripts.push(script);
+  }
 
   return scripts.filter(s => s.hook && s.body);
 }
