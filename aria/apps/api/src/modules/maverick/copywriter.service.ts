@@ -200,11 +200,25 @@ Retorne APENAS JSON:
       hookData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback abaixo */ }
 
-    // GanchoGuard: corta se passou de 15 palavras
+    // GanchoGuard: corta se passou de 15 palavras — tenta pontuação natural primeiro
     if (hookData.hook) {
-      const wc = hookData.hook.trim().split(/\s+/).filter(Boolean).length;
-      if (wc > 15) {
-        hookData.hook = hookData.hook.split(/\s+/).filter(Boolean).slice(0, 13).join(' ') + '.';
+      const words = hookData.hook.trim().split(/\s+/).filter(Boolean);
+      if (words.length > 15) {
+        // Tenta encontrar última pontuação forte (. ! ?) dentro de 15 palavras
+        const candidate = words.slice(0, 15).join(' ');
+        const punctMatch = candidate.match(/^(.*[.!?])\s+\S+\s*$/);
+        if (punctMatch) {
+          hookData.hook = punctMatch[1].trim();
+        } else {
+          // Tenta última vírgula dentro de 15 palavras
+          const commaMatch = candidate.match(/^(.*,)\s+\S+\s*$/);
+          if (commaMatch) {
+            hookData.hook = commaMatch[1].replace(/,$/, '.').trim();
+          } else {
+            // Fallback: corta em 13 palavras com reticências
+            hookData.hook = words.slice(0, 13).join(' ') + '…';
+          }
+        }
       }
     }
 
