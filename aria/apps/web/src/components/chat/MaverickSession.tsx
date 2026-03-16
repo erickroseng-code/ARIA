@@ -26,22 +26,37 @@ interface ProfileScore {
   };
 }
 
+interface TechniqueSelection {
+  name: string;
+  formula: string;
+  application: string;
+}
+
+interface TechniquePlan {
+  storytelling: TechniqueSelection[];
+  persuasion: TechniqueSelection[];
+  closing: TechniqueSelection;
+}
+
 interface ScriptData {
   title: string;
-  format: string;
-  format_type: string;
-  format_name: string;
-  funnel_stage?: string;
-  funnel_goal?: string;
-  conversion_angle?: string;
-  why_format: string;
-  framework: string;
-  why_framework: string;
   hook: string;
   body: string;
-  visual_cues: string[];
-  filming_tip: string;
   cta: string;
+  framework: string;
+  funnel_stage?: string;
+  hook_technique?: string;
+  technique_plan?: TechniquePlan;
+  // Campos legado (sistema antigo — backward compat)
+  format?: string;
+  format_type?: string;
+  format_name?: string;
+  funnel_goal?: string;
+  conversion_angle?: string;
+  why_format?: string;
+  why_framework?: string;
+  visual_cues?: string[];
+  filming_tip?: string;
 }
 
 interface ICPData {
@@ -206,12 +221,12 @@ function MetricCard({ icon: Icon, label, value, color }: {
   icon: React.ElementType; label: string; value: string; color: string;
 }) {
   return (
-    <div className={`flex flex-col gap-3 rounded-2xl p-6 border ${color} bg-white/[0.03]`}>
+    <div className={`flex flex-col gap-3 rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg transition-all hover:bg-white/[0.08]`}>
       <div className="flex items-center gap-2">
-        <Icon className="w-5 h-5 opacity-60" />
-        <span className="text-sm text-white/50 uppercase tracking-wider font-semibold">{label}</span>
+        <Icon className={`w-5 h-5 opacity-60 ${color.split(' ')[1]}`} />
+        <span className="text-[10px] text-white/40 uppercase tracking-widest font-black">{label}</span>
       </div>
-      <span className="text-4xl font-bold text-white leading-none">{value}</span>
+      <span className="text-4xl font-black text-white leading-none tracking-tight">{value}</span>
     </div>
   );
 }
@@ -221,18 +236,18 @@ function ListCard({ icon: Icon, title, items, color, emptyMsg }: {
   color: { border: string; accent: string; dot: string }; emptyMsg: string;
 }) {
   return (
-    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+    <div className={`rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg flex flex-col gap-5 transition-all hover:bg-white/[0.08]`}>
       <div className={`flex items-center gap-2.5 ${color.accent}`}>
         <Icon className="w-5 h-5" />
-        <span className="text-base font-bold">{title}</span>
+        <span className="text-base font-bold tracking-tight">{title}</span>
       </div>
       {items.length === 0 ? (
         <p className="text-white/30 text-base italic">{emptyMsg}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item, i) => (
-            <li key={i} className="flex items-start gap-3 text-base text-white/78 leading-relaxed">
-              <span className={`mt-2.5 w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
+            <li key={i} className="flex items-start gap-3 text-sm text-white/70 leading-relaxed">
+              <span className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 ${color.dot} shadow-[0_0_8px_rgba(255,255,255,0.2)]`} />
               {item}
             </li>
           ))}
@@ -248,21 +263,21 @@ function PostCard({ icon: Icon, title, posts, color }: {
   color: { border: string; accent: string; badge: string };
 }) {
   return (
-    <div className={`rounded-2xl p-6 border ${color.border} bg-white/[0.03] flex flex-col gap-5`}>
+    <div className={`rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg flex flex-col gap-5 transition-all hover:bg-white/[0.08]`}>
       <div className={`flex items-center gap-2.5 ${color.accent}`}>
         <Icon className="w-5 h-5" />
-        <span className="text-base font-bold">{title}</span>
+        <span className="text-base font-bold tracking-tight">{title}</span>
       </div>
       {posts.length === 0 ? (
         <p className="text-white/30 text-base italic">Sem dados suficientes</p>
       ) : (
         <div className="space-y-3">
           {posts.map((post, i) => (
-            <div key={i} className={`rounded-xl p-4 border ${color.badge} bg-white/[0.02]`}>
-              <p className="text-white/80 text-sm font-mono leading-relaxed mb-2 truncate">
-                "{post.caption_preview}..."
+            <div key={i} className={`rounded-xl p-4 border border-white/5 bg-white/[0.02]`}>
+              <p className="text-emerald-400/80 text-[11px] font-mono leading-relaxed mb-2 font-bold uppercase tracking-wider line-clamp-1">
+                "{post.caption_preview}"
               </p>
-              <p className="text-white/65 text-base leading-relaxed">{post.reason}</p>
+              <p className="text-white/60 text-sm leading-relaxed">{post.reason}</p>
             </div>
           ))}
         </div>
@@ -320,20 +335,20 @@ function ProfileScoreCard({ score }: { score: ProfileScore }) {
   ];
 
   return (
-    <div className="rounded-2xl p-6 border border-white/[0.08] bg-white/[0.03]">
-      <div className="flex items-center gap-2.5 mb-6">
-        <BarChart2 className="w-5 h-5 text-white/40" />
-        <span className="text-base font-bold text-white/70">Score do Perfil</span>
+    <div className="rounded-2xl p-8 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg">
+      <div className="flex items-center gap-2.5 mb-8">
+        <BarChart2 className="w-5 h-5 text-white/30" />
+        <span className="text-base font-bold text-white/60 tracking-tight">Score do Perfil</span>
       </div>
 
-      <div className="flex items-center gap-8 mb-2">
+      <div className="flex items-center gap-10 mb-2">
         {/* Nota geral em destaque */}
-        <div className="flex flex-col items-center justify-center w-28 h-28 rounded-2xl border border-white/[0.08] bg-white/[0.04] flex-shrink-0">
-          <span className={`text-5xl font-black ${color}`}>{overall}</span>
-          <span className="text-xs text-white/30 uppercase tracking-widest mt-1">/ 100</span>
+        <div className="flex flex-col items-center justify-center w-32 h-32 rounded-3xl border border-white/10 bg-white/5 shadow-inner flex-shrink-0">
+          <span className={`text-6xl font-black ${color} tracking-tighter`}>{overall}</span>
+          <span className="text-[10px] text-white/20 uppercase tracking-[0.2em] mt-1 font-bold">/ 100</span>
         </div>
         {/* Barras de dimensões */}
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-4">
           {dims.map(({ label, key }) => (
             <ScoreBar
               key={key}
@@ -400,32 +415,38 @@ const FORMAT_TYPE_EMOJI: Record<string, string> = {
 function ScriptPreviewCard({ script, index, onClick }: {
   script: ScriptData; index: number; onClick: () => void;
 }) {
-  const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
-  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
+  const cat = CATEGORY_CONFIG[script.format ?? 'Reels'] ?? CATEGORY_CONFIG['Reels'];
+  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type ?? ''] ?? '🎬';
+  const formatLabel = script.format_name || script.format || 'Reels';
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded-2xl border border-white/[0.08] overflow-hidden bg-gradient-to-br ${cat.gradient} hover:border-white/[0.18] hover:scale-[1.01] transition-all duration-200 group`}
+      className={`w-full text-left rounded-2xl border border-white/10 overflow-hidden bg-white/5 backdrop-blur-xl hover:bg-white/10 hover:border-white/20 transition-all duration-300 group shadow-lg`}
     >
       {/* Header */}
-      <div className="flex items-start gap-3 px-4 pt-4 pb-3 border-b border-white/[0.06]">
-        <span className="text-base font-black text-white/15 flex-shrink-0 leading-none mt-0.5">#{index + 1}</span>
+      <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-white/5">
+        <span className="text-xl font-black text-white/10 flex-shrink-0 leading-none mt-0.5">#{index + 1}</span>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-white leading-snug mb-2 line-clamp-2">{script.title}</h3>
+          <h3 className="text-sm font-black text-white leading-tight mb-2 line-clamp-2 tracking-tight">{script.title}</h3>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.badge}`}>
-              {formatEmoji} {script.format_name || script.format}
+            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${cat.badge} uppercase tracking-wider`}>
+              {formatEmoji} {formatLabel}
             </span>
-            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 border border-white/[0.08]">
+            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white/5 text-white/40 border border-white/10 uppercase tracking-wider">
               {script.framework}
             </span>
             {script.funnel_stage && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
-                script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
-                  'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                script.funnel_stage === 'MOFU' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
                 {script.funnel_stage}
+              </span>
+            )}
+            {script.hook_technique && (
+              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300/70 border border-amber-500/20 uppercase tracking-wider">
+                🎣 {script.hook_technique}
               </span>
             )}
           </div>
@@ -433,18 +454,20 @@ function ScriptPreviewCard({ script, index, onClick }: {
       </div>
 
       {/* Hook preview */}
-      <div className="px-4 py-3 border-b border-white/[0.04]">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Zap className="w-3 h-3 text-amber-400/70" />
-          <p className="text-[11px] font-bold text-amber-400/70 uppercase tracking-widest">Hook</p>
+      <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02]">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Zap className="w-3 h-3 text-amber-400" />
+          <p className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em]">Hook</p>
         </div>
-        <p className="text-sm text-white/60 leading-relaxed line-clamp-3">{script.hook}</p>
+        <p className="text-sm text-white/50 leading-relaxed line-clamp-2 font-medium italic">{script.hook}</p>
       </div>
 
       {/* CTA preview + open hint */}
-      <div className="px-4 py-3 flex items-center justify-between gap-2">
-        <p className="text-xs text-emerald-400/60 truncate flex-1">{script.cta}</p>
-        <span className="text-[11px] text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0 font-medium">
+      <div className="px-5 py-4 flex items-center justify-between gap-4">
+        <p className="text-[11px] text-emerald-400/50 truncate flex-1 font-mono uppercase tracking-wider">
+          {script.cta}
+        </p>
+        <span className="text-[10px] text-white/20 group-hover:text-emerald-400/80 transition-all flex-shrink-0 font-black uppercase tracking-widest">
           Ver roteiro →
         </span>
       </div>
@@ -463,8 +486,9 @@ function cleanScriptText(text: string | null | undefined): string {
 function ScriptModal({ script, index, onClose }: {
   script: ScriptData; index: number; onClose: () => void;
 }) {
-  const cat = CATEGORY_CONFIG[script.format] ?? CATEGORY_CONFIG['Reels'];
-  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type] ?? '🎬';
+  const cat = CATEGORY_CONFIG[script.format ?? 'Reels'] ?? CATEGORY_CONFIG['Reels'];
+  const formatEmoji = FORMAT_TYPE_EMOJI[script.format_type ?? ''] ?? '🎬';
+  const formatLabel = script.format_name || script.format || 'Reels';
 
   // Limpando os textos para remover a direção e deixar apenas a fala/texto
   const cleanHook = cleanScriptText(script.hook);
@@ -489,43 +513,74 @@ function ScriptModal({ script, index, onClose }: {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={handleBackdrop}
     >
-      <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.12] overflow-hidden bg-[#0d0d12] bg-gradient-to-br ${cat.gradient}`}>
+      <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-white/10 overflow-hidden bg-[#0d0d12] backdrop-blur-2xl bg-gradient-to-br ${cat.gradient} shadow-2xl`}>
         {/* Modal header */}
-        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-white/[0.08] flex-shrink-0">
-          <span className="text-xl font-black text-white/15 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
+        <div className="flex items-start gap-3 px-8 pt-8 pb-6 border-b border-white/5 flex-shrink-0">
+          <span className="text-2xl font-black text-white/10 flex-shrink-0 leading-none mt-1">#{index + 1}</span>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-snug mb-2">{script.title}</h2>
+            <h2 className="text-xl font-black text-white leading-tight mb-3 tracking-tight">{script.title}</h2>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${cat.badge}`}>
-                {formatEmoji} {script.format_name || script.format}
+              <span className={`text-[10px] font-black px-3 py-1 rounded-full ${cat.badge} uppercase tracking-wider`}>
+                {formatEmoji} {formatLabel}
               </span>
-              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/[0.08]">
+              <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/5 text-white/40 border border-white/10 uppercase tracking-wider">
                 {script.framework}
               </span>
               {script.funnel_stage && (
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
-                  script.funnel_stage === 'MOFU' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
-                    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider ${script.funnel_stage === 'TOFU' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                  script.funnel_stage === 'MOFU' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                    'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   }`}>
-                  {script.funnel_stage} · {script.funnel_goal}
+                  {script.funnel_stage}{script.funnel_goal ? ` · ${script.funnel_goal}` : ''}
                 </span>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <CopyButton text={fullText} label="Copiar tudo" />
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-2 rounded-xl text-white/20 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/10"
             >
-              <XCircle className="w-4 h-4" />
+              <XCircle className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* Why choices + conversion angle */}
+          {/* Técnicas usadas (novo formato) */}
+          {script.technique_plan && (
+            <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-2">
+              <p className="text-[9px] font-black text-white/25 uppercase tracking-[0.2em] mb-2">Brain — Técnicas aplicadas</p>
+              {script.hook_technique && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-amber-400/60 w-20 flex-shrink-0">Hook</span>
+                  <span className="text-[10px] text-amber-300/50">{script.hook_technique}</span>
+                </div>
+              )}
+              {script.technique_plan.storytelling.map((t, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-blue-400/60 w-20 flex-shrink-0">Story {i + 1}</span>
+                  <span className="text-[10px] text-blue-300/50">{t.name}</span>
+                </div>
+              ))}
+              {script.technique_plan.persuasion.map((t, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-purple-400/60 w-20 flex-shrink-0">Persuasão {i + 1}</span>
+                  <span className="text-[10px] text-purple-300/50">{t.name}</span>
+                </div>
+              ))}
+              {script.technique_plan.closing?.name && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-emerald-400/60 w-20 flex-shrink-0">Closing</span>
+                  <span className="text-[10px] text-emerald-300/50">{script.technique_plan.closing.name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Why choices + conversion angle (legado) */}
           {(script.why_format || script.why_framework || script.conversion_angle) && (
             <div className="rounded-xl px-4 py-3 bg-white/[0.02] border border-white/[0.05] space-y-2">
               {script.why_format && (
@@ -633,38 +688,38 @@ function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) 
   const scaleColors = ['bg-rose-500', 'bg-amber-500', 'bg-cyan-400', 'bg-emerald-400', 'bg-violet-400'];
 
   return (
-    <div className={`rounded-2xl p-6 border ${colors.border} ${colors.bg}`}>
-      <div className="flex items-center gap-2.5 mb-6">
+    <div className={`rounded-2xl p-8 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg transition-all hover:bg-white/[0.08]`}>
+      <div className="flex items-center gap-2.5 mb-8">
         <TrendingUp className={`w-5 h-5 ${colors.text}`} />
-        <span className={`text-base font-bold ${colors.text}`}>Panorama de Engajamento</span>
-        <span className={`ml-auto text-sm font-bold px-3 py-1 rounded-full ${colors.badge}`}>
+        <span className={`text-base font-bold text-white/70 tracking-tight`}>Panorama de Engajamento</span>
+        <span className={`ml-auto text-[10px] font-black px-3 py-1 rounded-full ${colors.badge} uppercase tracking-wider`}>
           {classification}
         </span>
       </div>
 
       {/* Rate + tier */}
-      <div className="flex items-baseline gap-4 mb-6">
-        <span className={`text-5xl font-black ${colors.text}`}>{panorama.profile_rate}</span>
+      <div className="flex items-baseline gap-4 mb-8">
+        <span className={`text-6xl font-black ${colors.text} tracking-tighter`}>{panorama.profile_rate}</span>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm text-white/45">taxa média de engajamento</span>
-          <span className="text-sm text-white/55 font-medium">{panorama.tier} · {panorama.market_position}</span>
+          <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">taxa média</span>
+          <span className="text-sm text-white/50 font-medium">{panorama.tier} · {panorama.market_position}</span>
         </div>
       </div>
 
       {/* Visual scale bar */}
-      <div className="mb-4">
-        <div className="flex h-2 rounded-full overflow-hidden gap-0.5 mb-1.5">
+      <div className="mb-6">
+        <div className="flex h-1.5 rounded-full overflow-hidden gap-1 mb-3">
           {scaleColors.map((c, i) => (
-            <div key={i} className={`flex-1 ${c} opacity-30`} />
+            <div key={i} className={`flex-1 ${c} opacity-20`} />
           ))}
         </div>
         <div className="relative h-1">
           <div
-            className={`absolute top-0 w-2 h-2 rounded-full -translate-y-0.5 ${colors.text.replace('text-', 'bg-')} shadow-lg`}
+            className={`absolute top-0 w-2.5 h-2.5 rounded-full -translate-y-1 ${colors.text.replace('text-', 'bg-')} shadow-[0_0_12px_rgba(255,255,255,0.3)]`}
             style={{ left: `${scalePercent}%` }}
           />
         </div>
-        <div className="flex justify-between text-[9px] text-white/25 mt-2 uppercase tracking-wider">
+        <div className="flex justify-between text-[8px] text-white/20 mt-4 uppercase tracking-[0.2em] font-black">
           <span>Ruim</span>
           <span>Abaixo</span>
           <span>Bom</span>
@@ -674,13 +729,13 @@ function EngagementPanoramaCard({ panorama }: { panorama: EngagementPanorama }) 
       </div>
 
       {/* Benchmark reference */}
-      <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06] mb-3">
-        <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Referência para {panorama.tier}</p>
-        <p className="text-xs text-white/60 font-mono">{panorama.tier_benchmark}</p>
+      <div className="rounded-xl p-4 bg-white/5 border border-white/5 mb-5 mb-6">
+        <p className="text-[9px] text-white/20 uppercase tracking-widest mb-1.5 font-bold">Referência para {panorama.tier}</p>
+        <p className="text-xs text-white/40 font-mono tracking-tight">{panorama.tier_benchmark}</p>
       </div>
 
       {/* Verdict */}
-      <p className="text-base text-white/70 leading-relaxed">{panorama.verdict}</p>
+      <p className="text-base text-white/60 leading-relaxed font-medium">{panorama.verdict}</p>
     </div>
   );
 }
@@ -710,46 +765,46 @@ function ScoreDelta({ current, previous, label }: { current: number; previous: n
 function SuggestedICPCard({ sicp }: { sicp: SuggestedICP }) {
   const isInferred = sicp.icp_source === 'inferred';
   return (
-    <div className={`rounded-2xl p-6 border ${isInferred ? 'border-violet-500/25 bg-violet-500/[0.05]' : 'border-indigo-500/25 bg-indigo-500/[0.05]'}`}>
-      <div className="flex items-center gap-2.5 mb-5">
+    <div className={`rounded-2xl p-8 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg transition-all hover:bg-white/[0.08]`}>
+      <div className="flex items-center gap-2.5 mb-7">
         <Lightbulb className={`w-5 h-5 ${isInferred ? 'text-violet-400' : 'text-indigo-400'}`} />
-        <span className={`text-base font-bold ${isInferred ? 'text-violet-300' : 'text-indigo-300'}`}>
-          {isInferred ? 'Posicionamento Inferido pelo Maverick' : 'Posicionamento Validado'}
+        <span className={`text-base font-bold text-white/70 tracking-tight`}>
+          {isInferred ? 'Posicionamento Inferido' : 'Posicionamento Validado'}
         </span>
-        <span className={`ml-auto text-[10px] font-bold px-2.5 py-1 rounded-full ${isInferred ? 'bg-violet-500/15 text-violet-400 border border-violet-500/20' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'}`}>
-          {isInferred ? 'Inferido' : 'Com ICP'}
+        <span className={`ml-auto text-[10px] font-black px-3 py-1 rounded-full bg-white/5 text-white/40 border border-white/10 uppercase tracking-wider`}>
+          {isInferred ? 'Inferido' : 'Validado'}
         </span>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Público provável</p>
-            <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_audience}</p>
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl p-5 bg-white/5 border border-white/5">
+            <p className="text-[10px] text-white/20 uppercase tracking-widest mb-2 font-bold">Público provável</p>
+            <p className="text-sm text-white/60 leading-relaxed font-medium">{sicp.inferred_audience}</p>
           </div>
-          <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Produto / Oferta</p>
-            <p className="text-sm text-white/75 leading-relaxed">{sicp.inferred_product}</p>
+          <div className="rounded-xl p-5 bg-white/5 border border-white/5">
+            <p className="text-[10px] text-white/20 uppercase tracking-widest mb-2 font-bold">Produto / Oferta</p>
+            <p className="text-sm text-white/60 leading-relaxed font-medium">{sicp.inferred_product}</p>
           </div>
         </div>
 
-        <div className={`rounded-xl p-4 border ${isInferred ? 'bg-violet-500/[0.08] border-violet-500/20' : 'bg-indigo-500/[0.08] border-indigo-500/20'}`}>
-          <p className="text-[10px] text-white/35 uppercase tracking-wider mb-1.5 font-semibold">Posicionamento recomendado</p>
-          <p className="text-sm text-white/85 leading-relaxed font-medium">{sicp.recommended_positioning}</p>
+        <div className="rounded-xl p-5 bg-white/10 border border-white/5 shadow-inner">
+          <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2 font-bold">Posicionamento recomendado</p>
+          <p className="text-base text-white font-bold leading-relaxed tracking-tight">{sicp.recommended_positioning}</p>
         </div>
 
-        <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Dor principal a enderecar</p>
-          <p className="text-sm text-white/65 leading-relaxed">{sicp.main_pain_addressed}</p>
+        <div className="rounded-xl p-5 bg-white/5 border border-white/5">
+          <p className="text-[10px] text-white/20 uppercase tracking-widest mb-2 font-bold">Dor principal a enderecar</p>
+          <p className="text-sm text-white/50 leading-relaxed italic">{sicp.main_pain_addressed}</p>
         </div>
 
         {sicp.icp_next_steps?.length > 0 && (
-          <div>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2.5 font-semibold">Proximos passos de posicionamento</p>
-            <ul className="space-y-2">
+          <div className="pt-2">
+            <p className="text-[10px] text-white/25 uppercase tracking-widest mb-4 font-bold">Proximos passos</p>
+            <ul className="space-y-3">
               {sicp.icp_next_steps.map((step, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-white/65 leading-relaxed">
-                  <span className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isInferred ? 'bg-violet-400' : 'bg-indigo-400'}`} />
+                <li key={i} className="flex items-start gap-3 text-sm text-white/50 leading-relaxed">
+                  <span className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-white/10 shadow-[0_0_8px_rgba(255,255,255,0.1)]`} />
                   {step}
                 </li>
               ))}
@@ -768,19 +823,25 @@ function TrendReferencesPanel({ data }: { data: TrendResearchData }) {
   if (!data.reference_posts?.length) return null;
 
   return (
-    <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04] overflow-hidden">
+    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg overflow-hidden transition-all hover:bg-white/[0.08]">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.03] transition-colors"
+        className="w-full flex items-center gap-4 px-6 py-5 text-left transition-colors"
       >
-        <Search className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+        <Search className="w-5 h-5 text-emerald-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-indigo-300">Referências pesquisadas</span>
-          <span className="text-[11px] text-white/30 ml-2">
-            {data.reference_posts.length} posts virais · {data.keywords_searched.slice(0, 3).join(', ')}
-          </span>
+          <span className="text-base font-bold text-white tracking-tight">Referências pesquisadas</span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] font-black text-emerald-400/60 uppercase tracking-wider">
+              {data.reference_posts.length} posts virais
+            </span>
+            <span className="text-white/20 text-xs">•</span>
+            <span className="text-[10px] text-white/30 truncate uppercase tracking-wider font-medium">
+              {data.keywords_searched.slice(0, 3).join(', ')}
+            </span>
+          </div>
         </div>
-        <ChevronRight className={`w-4 h-4 text-white/25 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`w-5 h-5 text-white/20 transition-transform duration-300 ${open ? 'rotate-90' : ''}`} />
       </button>
 
       {open && (
@@ -853,10 +914,10 @@ function ComparisonPanel({ current, previous, previousDate }: {
   });
 
   return (
-    <div className="rounded-2xl p-6 border border-indigo-500/20 bg-white/[0.03]">
-      <div className="flex items-center gap-2 mb-5">
-        <History className="w-4 h-4 text-indigo-400" />
-        <span className="text-sm font-semibold text-indigo-300">Evolução vs. análise de {dateStr}</span>
+    <div className="rounded-2xl p-8 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg">
+      <div className="flex items-center gap-3 mb-6">
+        <History className="w-5 h-5 text-emerald-400" />
+        <span className="text-base font-bold text-white tracking-tight">Evolução vs. análise de {dateStr}</span>
       </div>
 
       {/* Score geral */}
@@ -1415,7 +1476,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#09090B]">
 
       {/* ── Keyword Confirm Modal ── */}
       {phase === 'keyword-confirm' && (
@@ -1504,19 +1565,19 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           {phase === 'home' && (
             <div className="animate-in fade-in duration-300">
               {/* Topo: branding + botão nova análise */}
-              <div className="flex items-start justify-between mb-8">
+              <div className="flex items-start justify-between mb-10">
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-3xl">🦅</span>
-                    <h2 className="text-2xl font-extrabold text-white tracking-tight">Squad Maverick</h2>
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl shadow-inner">🦅</div>
+                    <h2 className="text-3xl font-black text-white tracking-tight">Squad <span className="text-emerald-400">Maverick</span></h2>
                   </div>
-                  <p className="text-white/40 text-sm leading-relaxed max-w-md">
+                  <p className="text-white/40 text-sm leading-relaxed max-w-sm font-medium">
                     Estratégia e Inteligência para crescer com autoridade no Instagram.
                   </p>
                 </div>
                 <button
                   onClick={() => setPhase('asking')}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex-shrink-0 shadow-[0_6px_20px_rgba(255,255,255,0.12)]"
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-2xl text-black text-sm font-black transition-all active:scale-[0.97] flex-shrink-0 shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
                 >
                   <TrendingUp className="w-4 h-4" />
                   Nova Análise
@@ -1525,17 +1586,17 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
               {/* Lista de análises */}
               {historyItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-5 py-20 rounded-2xl border border-white/[0.06] bg-white/[0.01]">
-                  <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
+                <div className="flex flex-col items-center gap-6 py-24 rounded-[32px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg">
+                  <div className="w-20 h-20 rounded-[20px] bg-white/5 border border-white/10 flex items-center justify-center text-4xl shadow-inner">
                     🦅
                   </div>
-                  <div className="text-center space-y-1">
-                    <p className="text-white/60 text-sm font-medium">Nenhuma análise realizada ainda</p>
-                    <p className="text-white/30 text-xs">Clique em Nova Análise para começar</p>
+                  <div className="text-center space-y-2">
+                    <p className="text-white/70 text-base font-bold tracking-tight">Nenhuma análise realizada ainda</p>
+                    <p className="text-white/30 text-sm">Comece sua primeira análise de perfil</p>
                   </div>
                   <button
                     onClick={() => setPhase('asking')}
-                    className="px-6 py-2.5 bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] rounded-xl text-white/70 text-sm font-medium transition-all"
+                    className="px-8 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-emerald-400 text-sm font-black transition-all shadow-[0_8px_30px_rgba(16,185,129,0.1)]"
                   >
                     Começar primeira análise
                   </button>
@@ -1566,30 +1627,35 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                         key={item.id}
                         onClick={() => canLoad && handleLoadHistoryEntry(item)}
                         disabled={!canLoad}
-                        className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] text-left transition-all ${canLoad ? 'hover:bg-white/[0.05] hover:border-white/[0.14] cursor-pointer group' : 'opacity-40 cursor-default'}`}
+                        className={`w-full flex items-center gap-5 px-6 py-5 rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-xl text-left transition-all shadow-lg ${
+                          canLoad
+                            ? 'hover:bg-white/10 hover:border-white/20 hover:shadow-[0_8px_30px_rgba(16,185,129,0.05)] cursor-pointer group'
+                            : 'opacity-40 cursor-default'
+                        }`}
                       >
-                        <div className="w-11 h-11 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-xl flex-shrink-0">
+                        <div className="w-12 h-12 rounded-[14px] bg-white/5 border border-white/10 flex items-center justify-center text-2xl flex-shrink-0 shadow-inner">
                           🦅
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white/85">@{item.username}</p>
+                          <p className="text-sm font-black text-white tracking-tight">@{item.username}</p>
                           {item.strategy?.diagnosis && (
-                            <p className="text-xs text-white/30 mt-0.5 truncate">{item.strategy.diagnosis}</p>
+                            <p className="text-xs text-white/35 mt-1 truncate font-medium leading-relaxed">{item.strategy.diagnosis}</p>
                           )}
-                          <p className="text-[11px] text-white/20 mt-1">{date}</p>
+                          <p className="text-[10px] text-white/20 mt-1.5 uppercase tracking-widest font-bold">{date}</p>
                         </div>
-                        <div className="flex items-center gap-2.5 flex-shrink-0">
+                        <div className="flex items-center gap-3 flex-shrink-0">
                           {item.scripts && item.scripts.length > 0 && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-medium">
+                            <span className="text-[10px] px-3 py-1 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-black uppercase tracking-wider">
                               {item.scripts.length} roteiros
                             </span>
                           )}
                           {score != null && (
-                            <div className={`flex items-center justify-center w-10 h-10 rounded-xl border text-sm font-black ${scoreColor} ${scoreBg}`}>
-                              {score}
+                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-[14px] border text-base font-black ${scoreColor} ${scoreBg}`}>
+                              <span>{score}</span>
+                              <span className="text-[8px] opacity-50 font-bold uppercase tracking-wider">score</span>
                             </div>
                           )}
-                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                          <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-emerald-400/70 transition-colors" />
                         </div>
                       </button>
                     );
@@ -1615,10 +1681,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           ════════════════════════════════════════════════════════ */}
           {phase === 'asking' && (
             <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
-              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden group">
-                {/* Discrete background glow */}
-                <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[80px] pointer-events-none group-hover:bg-purple-500/20 transition-colors duration-700" />
-                <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[80px] pointer-events-none group-hover:bg-blue-500/20 transition-colors duration-700" />
+              <div className="bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.07)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden group">
+                {/* Emerald background glow */}
+                <div className="absolute -top-24 -right-24 w-56 h-56 bg-emerald-500/10 blur-[100px] pointer-events-none group-hover:bg-emerald-500/15 transition-colors duration-700" />
+                <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-emerald-600/8 blur-[100px] pointer-events-none" />
 
                 {/* Headline */}
                 <div className="text-center space-y-3 relative z-10">
@@ -1644,7 +1710,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                 {/* Input Area */}
                 <div className="space-y-6 relative z-10">
                   <div className="group/input relative">
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 text-xl font-semibold transition-colors group-focus-within/input:text-purple-400">@</span>
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 text-xl font-semibold transition-colors group-focus-within/input:text-emerald-400">@</span>
                     <input
                       ref={inputRef}
                       type="text"
@@ -1652,13 +1718,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                       onChange={(e) => setUsername(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="username do perfil"
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 rounded-[24px] pl-14 pr-6 py-6 text-white placeholder:text-white/20 text-lg focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all duration-300 shadow-inner"
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 rounded-[24px] pl-14 pr-6 py-6 text-white placeholder:text-white/20 text-lg focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all duration-300 shadow-inner focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
                   <button
                     onClick={handleGoToIcpForm}
                     disabled={!username.trim()}
-                    className="w-fit mx-auto px-10 py-4 bg-white text-black hover:bg-white/90 rounded-[20px] text-sm font-bold flex items-center justify-center gap-2.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-[0_12px_30px_rgba(255,255,255,0.1)]"
+                    className="w-fit mx-auto px-10 py-4 bg-emerald-500 text-black hover:bg-emerald-400 rounded-[24px] text-sm font-black flex items-center justify-center gap-2.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
                   >
                     <TrendingUp className="w-4 h-4" />
                     Continuar
@@ -1677,8 +1743,9 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           ════════════════════════════════════════════════════════ */}
           {phase === 'icp-form' && (
             <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
-              <div className="bg-white/[0.02] backdrop-blur-3xl border border-white/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.1)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-7 relative overflow-hidden">
-                <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 blur-[60px] pointer-events-none" />
+              <div className="bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.07)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-7 relative overflow-hidden">
+                <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/8 blur-[80px] pointer-events-none" />
+                <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-amber-500/8 blur-[80px] pointer-events-none" />
 
                 <div className="text-center space-y-2">
                   <div className="text-2xl mb-2">🎯</div>
@@ -1707,7 +1774,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                         value={icp[key]}
                         onChange={(e) => setIcp(prev => ({ ...prev, [key]: e.target.value }))}
                         placeholder={placeholder}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white/25 focus:bg-white/[0.06] transition-all"
+                        className="w-full bg-white/[0.05] border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/40 focus:bg-white/[0.08] focus:ring-2 focus:ring-emerald-500/10 transition-all"
                       />
                     </div>
                   ))}
@@ -1716,7 +1783,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                 <div className="flex flex-col gap-3 pt-1">
                   <button
                     onClick={() => handleAnalyze(icp)}
-                    className="w-full py-4 bg-white text-black rounded-2xl text-sm font-bold hover:bg-white/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(255,255,255,0.1)]"
+                    className="w-full py-4 bg-emerald-500 text-black rounded-2xl text-sm font-black hover:bg-emerald-400 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
                   >
                     <TrendingUp className="w-4 h-4" />
                     Analisar com este contexto
@@ -1780,125 +1847,319 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
               {report ? (
                 <>
-                  {/* Métricas do perfil — 3 colunas */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <MetricCard
-                      icon={Users}
-                      label="Seguidores"
-                      value={report.profile.followers}
-                      color="border-violet-500/20 text-violet-300"
-                    />
-                    <MetricCard
-                      icon={UserCheck}
-                      label="Seguindo"
-                      value={report.profile.following}
-                      color="border-blue-500/20 text-blue-300"
-                    />
-                    <MetricCard
-                      icon={ImageIcon}
-                      label="Posts"
-                      value={report.profile.posts_count}
-                      color="border-cyan-500/20 text-cyan-300"
-                    />
-                  </div>
-
-                  {/* Bio */}
-                  {report.profile.bio && (
-                    <div className="rounded-2xl px-5 py-4 border border-white/[0.06] bg-white/[0.02]">
-                      <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Bio</p>
-                      <p className="text-base text-white/70 leading-relaxed">{report.profile.bio}</p>
-                    </div>
-                  )}
-
-                  {/* Análise — 2 colunas */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <ListCard
-                      icon={TrendingUp}
-                      title="Pontos Positivos"
-                      items={report.analysis.positive_points}
-                      color={{
-                        border: 'border-emerald-500/20',
-                        accent: 'text-emerald-400',
-                        dot: 'bg-emerald-400',
-                      }}
-                      emptyMsg="Nenhum ponto positivo identificado"
-                    />
-                    <ListCard
-                      icon={AlertTriangle}
-                      title="Brechas do Perfil"
-                      items={report.analysis.profile_gaps}
-                      color={{
-                        border: 'border-amber-500/20',
-                        accent: 'text-amber-400',
-                        dot: 'bg-amber-400',
-                      }}
-                      emptyMsg="Nenhuma brecha identificada"
-                    />
-                  </div>
-
-                  {/* Posts — 2 colunas */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <PostCard
-                      icon={Star}
-                      title="Melhores Posts"
-                      posts={report.analysis.best_posts}
-                      color={{
-                        border: 'border-cyan-500/20',
-                        accent: 'text-cyan-400',
-                        badge: 'border-cyan-500/10',
-                      }}
-                    />
-                    <PostCard
-                      icon={ThumbsDown}
-                      title="Piores Posts"
-                      posts={report.analysis.worst_posts}
-                      color={{
-                        border: 'border-rose-500/20',
-                        accent: 'text-rose-400',
-                        badge: 'border-rose-500/10',
-                      }}
-                    />
-                  </div>
-
-                  {/* Estratégia — full width */}
-                  <div className="rounded-2xl p-6 border border-purple-500/20 bg-white/[0.03]">
-                    <div className="flex items-center gap-2 text-purple-400 mb-5">
-                      <Lightbulb className="w-4 h-4" />
-                      <span className="text-sm font-semibold">Análise Estratégica Maverick</span>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* Diagnóstico */}
+                  {/* ── Bento Row 1: Perfil + Executive Summary ── */}
+                  <div className="grid grid-cols-5 gap-4">
+                    {/* Profile Card (3/5) */}
+                    <div className="col-span-3 rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-8 flex flex-col justify-between gap-6">
                       <div>
-                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Diagnóstico</p>
-                        <p className="text-base text-white/78 leading-relaxed">{report.strategy.diagnosis}</p>
-                      </div>
-
-                      {/* Conceito chave + citação */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-                          <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Conceito Chave</p>
-                          <p className="text-base font-medium text-purple-300">{report.strategy.key_concept}</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                            <TrendingUp className="w-3 h-3 text-emerald-400" />
+                          </div>
+                          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Auditoria Ativa</span>
                         </div>
-                        <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-                          <div className="flex items-start gap-2">
-                            <Quote className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
-                            <p className="text-sm text-white/55 leading-relaxed italic">{report.strategy.citation}</p>
+                        <h2 className="text-3xl font-black text-white tracking-tight mb-1">@{report.profile.username}</h2>
+                        {report.profile.bio && (
+                          <p className="text-sm text-white/40 leading-relaxed">{report.profile.bio}</p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mb-1">Seguidores</p>
+                          <p className="text-2xl font-black text-white">{report.profile.followers}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mb-1">Publicações</p>
+                          <p className="text-2xl font-black text-white">{report.profile.posts_count}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mb-1">Seguindo</p>
+                          <p className="text-2xl font-black text-white">{report.profile.following}</p>
+                        </div>
+                        {report.strategy.engagement_panorama && (
+                          <div>
+                            <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mb-1">Health Score</p>
+                            <p className="text-2xl font-black text-emerald-400">{report.strategy.engagement_panorama.profile_rate}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Executive Summary (2/5) */}
+                    <div className="col-span-2 rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-7 flex flex-col gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Zap className="w-4 h-4 text-white" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-[15px] font-semibold tracking-tight text-white">Executive Summary</h3>
+                        </div>
+                      </div>
+                      <p className="text-sm text-white/60 leading-relaxed flex-1">{report.strategy.diagnosis}</p>
+                      {report.strategy.key_concept && (
+                        <div className="rounded-xl px-4 py-3 bg-emerald-500/5 border border-emerald-500/20">
+                          <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Conceito Chave</p>
+                          <p className="text-sm text-white/70 font-medium">{report.strategy.key_concept}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Monetization Ladder (Engagement Panorama) ── */}
+                  {report.strategy.engagement_panorama && (() => {
+                    const levels = ['Atenção', 'Confiança', 'Autoridade', 'Escala', 'Impacto'];
+                    const cls = report.strategy.engagement_panorama.classification;
+                    const currentLevel = cls === 'Ruim' || cls === 'Abaixo da Media' ? 0 : cls === 'Bom' ? 1 : cls === 'Muito Bom' ? 2 : cls === 'Otimo' ? 3 : 0;
+                    const ep = report.strategy.engagement_panorama;
+                    return (
+                      <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                            <BarChart2 className="w-4 h-4 text-white" strokeWidth={1.5} />
+                          </div>
+                          <div>
+                            <h3 className="text-[15px] font-semibold tracking-tight text-white">Escada de Monetização</h3>
+                            <p className="text-[12px] text-zinc-400 font-medium">Caminho projetado para escala comercial no perfil</p>
+                          </div>
+                        </div>
+                        {/* Steps */}
+                        <div className="flex items-center gap-0 mb-6">
+                          {levels.map((level, i) => {
+                            const isActive = i === currentLevel;
+                            const isPast = i < currentLevel;
+                            return (
+                              <div key={level} className="flex items-center flex-1">
+                                <div className="flex flex-col items-center">
+                                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${isActive ? 'border-emerald-500 bg-emerald-500/20 shadow-[0_0_16px_rgba(16,185,129,0.4)]' : isPast ? 'border-white/30 bg-white/10' : 'border-white/10 bg-white/3'}`}>
+                                    {isActive && <div className="w-3 h-3 rounded-full bg-emerald-400" />}
+                                  </div>
+                                  <span className={`text-[10px] font-semibold mt-2 ${isActive ? 'text-white' : 'text-white/30'}`}>{level}</span>
+                                </div>
+                                {i < levels.length - 1 && (
+                                  <div className={`h-px flex-1 mx-2 ${isPast ? 'bg-white/30' : 'bg-white/10'}`} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Current level detail */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="rounded-2xl bg-white/[0.03] border border-white/[0.08] p-5">
+                            <p className="text-[10px] text-amber-400 uppercase tracking-widest font-black mb-2">Nível Atual</p>
+                            <p className="text-2xl font-black text-white mb-1">{levels[currentLevel]}</p>
+                            <p className="text-xs text-white/35 italic">"{ep.tier_benchmark}"</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/[0.03] border border-white/[0.08] p-5 relative overflow-hidden">
+                            <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-black mb-2">Próximo Salto</p>
+                            <p className="text-sm text-white/70 leading-relaxed">{ep.verdict || ep.market_position}</p>
                           </div>
                         </div>
                       </div>
+                    );
+                  })()}
 
-                      {/* Próximos passos / ideias de roteiros */}
-                      <div>
-                        <p className="text-xs text-white/40 uppercase tracking-wider mb-3">Ideias de Roteiros</p>
-                        <div className="space-y-2.5">
-                          {report.strategy.next_steps.map((step, i) => (
-                            <div key={i} className="flex items-start gap-3 rounded-xl p-4 bg-white/[0.03] border border-white/[0.05]">
-                              <span className="text-sm font-bold text-purple-400/60 flex-shrink-0 mt-0.5">#{i + 1}</span>
-                              <p className="text-base text-white/72 leading-relaxed">{step}</p>
-                            </div>
-                          ))}
+                  {/* ── Top Posts + Critical Patterns (2 col) ── */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Top Posts */}
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-7 flex flex-col gap-4">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Star className="w-4 h-4 text-white" strokeWidth={1.5} />
                         </div>
+                        <div>
+                          <h3 className="text-[15px] font-semibold tracking-tight text-white">Top Posts por Engajamento</h3>
+                          <p className="text-[12px] text-zinc-400">Métricas baseadas nos dados extraídos</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {report.analysis.best_posts.slice(0, 3).map((post, i) => (
+                          <div key={i} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center">
+                                <span className="text-[10px] font-black text-white/60">#{i + 1}</span>
+                              </div>
+                              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Post</span>
+                            </div>
+                            <p className="text-xs text-white/70 leading-relaxed mb-2 italic">"{post.caption_preview}"</p>
+                            <div className="rounded-lg bg-white/[0.05] border border-white/[0.06] px-3 py-2">
+                              <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1 font-bold">Por que funcionou</p>
+                              <p className="text-xs text-white/55 leading-relaxed">{post.reason}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Critical Patterns */}
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-7 flex flex-col gap-5">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Search className="w-4 h-4 text-white" strokeWidth={1.5} />
+                        </div>
+                        <h3 className="text-[15px] font-semibold tracking-tight text-white">Padrões Críticos</h3>
+                      </div>
+                      {/* Gap de mercado */}
+                      {report.analysis.profile_gaps[0] && (
+                        <div className="rounded-2xl bg-rose-500/10 border border-rose-500/20 px-4 py-3">
+                          <p className="text-[10px] text-rose-400 uppercase tracking-widest font-black mb-1.5">Gap de Mercado Identificado</p>
+                          <p className="text-sm text-white/70 leading-relaxed">{report.analysis.profile_gaps[0]}</p>
+                        </div>
+                      )}
+                      {/* Formatos dominantes / pontos positivos */}
+                      {report.analysis.positive_points.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-white/30 uppercase tracking-wider font-black mb-2">Formatos Dominantes</p>
+                          <p className="text-sm text-white/55 leading-relaxed">{report.analysis.positive_points.slice(0, 2).join('. ')}</p>
+                        </div>
+                      )}
+                      {/* Tom de voz */}
+                      {report.strategy.citation && (
+                        <div>
+                          <p className="text-[10px] text-white/30 uppercase tracking-wider font-black mb-2">Tom de Voz</p>
+                          <p className="text-xs text-white/50 leading-relaxed italic">{report.strategy.citation}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Posicionamento & ICP ── */}
+                  {report.strategy.suggested_icp && (
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-8">
+                      <div className="grid grid-cols-2 gap-8">
+                        {/* Left: Posicionamento */}
+                        <div className="flex flex-col gap-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                              <Target className="w-4 h-4 text-white" strokeWidth={1.5} />
+                            </div>
+                            <div>
+                              <h3 className="text-[15px] font-semibold text-white">Posicionamento & Tilt</h3>
+                              <p className="text-[12px] text-zinc-400">O diferencial estratégico</p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-white/30 uppercase tracking-wider font-black mb-2">Posicionamento Ideal</p>
+                            <p className="text-base font-bold text-white leading-relaxed">{report.strategy.suggested_icp.recommended_positioning}</p>
+                          </div>
+                          {report.strategy.suggested_icp.inferred_product && (
+                            <div className="rounded-2xl bg-white/[0.03] border border-emerald-500/20 px-4 py-3">
+                              <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-black mb-1.5">Content Tilt (Diferencial)</p>
+                              <p className="text-sm font-bold text-white/80 leading-relaxed">{report.strategy.suggested_icp.inferred_product}</p>
+                            </div>
+                          )}
+                          <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-3">
+                            <p className="text-[10px] text-white/30 uppercase tracking-wider font-black mb-1.5">Público Inferido</p>
+                            <p className="text-sm text-white/60 leading-relaxed">{report.strategy.suggested_icp.inferred_audience}</p>
+                          </div>
+                        </div>
+                        {/* Right: Next steps as "pilares editoriais" */}
+                        <div className="flex flex-col gap-4">
+                          <p className="text-[10px] text-white/30 uppercase tracking-wider font-black">Próximos Passos</p>
+                          <div className="space-y-2">
+                            {report.strategy.suggested_icp.icp_next_steps?.slice(0, 5).map((step, i) => (
+                              <div key={i} className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+                                <div>
+                                  <p className="text-sm text-white/80 font-semibold">{step}</p>
+                                </div>
+                                <span className="text-[11px] font-black text-blue-400 ml-3 flex-shrink-0">#{i + 1}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Roteiros Ideias (next_steps como calendário editorial) ── */}
+                  {report.strategy.next_steps.length > 0 && (
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <BarChart2 className="w-4 h-4 text-white" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-[15px] font-semibold text-white">Ideias de Roteiros</h3>
+                          <p className="text-[12px] text-zinc-400">Pautas estratégicas sugeridas pelo @maverick</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {report.strategy.next_steps.map((step, i) => {
+                          const formats = ['Reel 30s', 'Carousel', 'Reel 60s', 'Stories', 'Reel 30s', 'Carousel'];
+                          const fmt = formats[i % formats.length];
+                          const fmtColor = fmt.startsWith('Reel') ? 'text-blue-400' : fmt === 'Carousel' ? 'text-cyan-400' : 'text-purple-400';
+                          return (
+                            <div key={i} className="rounded-2xl bg-white/[0.03] border border-white/[0.08] px-4 py-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">Pauta {i + 1}</span>
+                                <span className={`text-[10px] font-black ${fmtColor}`}>{fmt}</span>
+                              </div>
+                              <p className="text-sm text-white/70 leading-relaxed">{step}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Urgent Corrections + Validated Actions (2 col) ── */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Auditoria: Correções Urgentes */}
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-7 flex flex-col gap-4">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <AlertTriangle className="w-4 h-4 text-white" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-[15px] font-semibold text-white">Auditoria: Correções Urgentes</h3>
+                          <p className="text-[12px] text-zinc-400">O que está afundando a performance</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {report.analysis.profile_gaps.map((gap, i) => (
+                          <div key={i} className="rounded-2xl bg-white/[0.02] border border-white/[0.08] p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center">
+                                <span className="text-[10px] font-black text-rose-400">{i + 1}</span>
+                              </div>
+                              <p className="text-sm font-bold text-white/80">{gap.split(':')[0]?.trim() || gap.slice(0, 60)}</p>
+                            </div>
+                            {gap.includes(':') && (
+                              <p className="text-xs text-white/45 leading-relaxed">{gap.split(':').slice(1).join(':').trim()}</p>
+                            )}
+                          </div>
+                        ))}
+                        {report.analysis.worst_posts.slice(0, 1).map((post, i) => (
+                          <div key={`wp-${i}`} className="rounded-xl bg-rose-500/5 border border-rose-500/20 px-4 py-3">
+                            <p className="text-[10px] text-rose-400 uppercase tracking-widest font-black mb-1">Ação Corretiva</p>
+                            <p className="text-xs text-white/50 leading-relaxed">{post.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Ações Validadas */}
+                    <div className="rounded-[28px] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg p-7 flex flex-col gap-4">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-9 h-9 rounded-[12px] bg-white/5 border border-white/10 flex items-center justify-center">
+                          <CheckCircle className="w-4 h-4 text-white" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-[15px] font-semibold text-white">Ações Validadas</h3>
+                          <p className="text-[12px] text-zinc-400">O que continuar fazendo</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {report.analysis.positive_points.map((point, i) => (
+                          <div key={i} className="rounded-2xl bg-emerald-500/5 border border-emerald-500/15 p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                              <p className="text-sm font-bold text-white/80">{point.split(':')[0]?.trim() || point.slice(0, 60)}</p>
+                            </div>
+                            {point.includes(':') && (
+                              <p className="text-xs text-white/45 leading-relaxed">{point.split(':').slice(1).join(':').trim()}</p>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1906,16 +2167,6 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   {/* Score do Perfil */}
                   {report.strategy.profile_score && (
                     <ProfileScoreCard score={report.strategy.profile_score} />
-                  )}
-
-                  {/* Panorama de Engajamento */}
-                  {report.strategy.engagement_panorama && (
-                    <EngagementPanoramaCard panorama={report.strategy.engagement_panorama} />
-                  )}
-
-                  {/* Posicionamento Sugerido / Validado */}
-                  {report.strategy.suggested_icp && (
-                    <SuggestedICPCard sicp={report.strategy.suggested_icp} />
                   )}
 
                   {/* Painel Antes/Depois */}
@@ -1966,12 +2217,12 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
 
                       {/* ── Seção de Carrossel (phase report) ── */}
                       {(carouselState.loading || carouselState.carousel) && (
-                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-6 space-y-4 mt-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 space-y-6 mt-4 shadow-lg">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">🎨</span>
-                              <h3 className="text-purple-300 font-semibold text-sm">Estrutura do Carrossel</h3>
-                              {carouselState.loading && <Loader2 className="w-4 h-4 text-purple-400/60 animate-spin ml-1" />}
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xl">🎨</span>
+                              <h3 className="text-white font-black text-base tracking-tight uppercase tracking-[0.05em]">Estrutura do Carrossel</h3>
+                              {carouselState.loading && <Loader2 className="w-5 h-5 text-emerald-400 animate-spin ml-2" />}
                             </div>
                             {/* Theme toggle */}
                             <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
@@ -1982,10 +2233,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                     setCarouselTheme(t);
                                     if (parsedScripts?.[0]) generateCarousel(parsedScripts[0], t);
                                   }}
-                                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                  className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
                                     carouselTheme === t
-                                      ? 'bg-purple-500/30 text-purple-200'
-                                      : 'text-white/30 hover:text-white/60'
+                                      ? 'bg-emerald-500 text-black shadow-lg'
+                                      : 'bg-white/5 text-white/30 hover:text-white/60 border border-white/10'
                                   }`}
                                 >
                                   {t === 'dark' ? '🌑 Dark' : '☀️ Light'}
@@ -2016,7 +2267,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                     </div>
                                     <h4 className="text-white/85 text-xs font-bold leading-tight line-clamp-2">{slide.title}</h4>
                                     <p className="text-white/50 text-xs leading-relaxed line-clamp-3">{slide.body}</p>
-                                    <p className="text-purple-400/70 text-[11px] leading-tight">🎨 {slide.visual_hint}</p>
+                                    <p className="text-emerald-400/70 text-[11px] leading-tight font-bold">🎨 {slide.visual_hint}</p>
                                   </div>
                                 ))}
                               </div>
@@ -2024,7 +2275,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                 {carouselState.htmlExport && (
                                   <button
                                     onClick={() => downloadHtml(carouselState.htmlExport!)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-all"
+                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-400 text-[10px] font-black uppercase tracking-widest transition-all"
                                   >
                                     ⬇️ HTML
                                   </button>
@@ -2114,39 +2365,39 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
             <div className="space-y-6">
               {/* Compact report summary */}
               {report && (
-                <div className="rounded-2xl p-5 border border-white/[0.08] bg-white/[0.02]">
-                  <div className="flex items-center gap-4 mb-3">
+                <div className="rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg">
+                  <div className="flex items-center gap-5 mb-5">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-bold text-white/90">@{report.profile.username}</h3>
-                      <p className="text-xs text-white/35 mt-0.5">
+                      <h3 className="text-lg font-black text-white tracking-tight">@{report.profile.username}</h3>
+                      <p className="text-[10px] text-white/30 mt-1 uppercase tracking-widest font-bold">
                         {report.profile.followers} seguidores · {report.profile.posts_count} posts
                       </p>
                     </div>
                     {report.strategy.profile_score && (() => {
                       const s = report.strategy.profile_score.overall;
-                      const c = s >= 75 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : s >= 50 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                      const c = s >= 75 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : s >= 50 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20';
                       return (
-                        <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl border flex-shrink-0 ${c}`}>
-                          <span className="text-xl font-black">{s}</span>
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest">score</span>
+                        <div className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl border flex-shrink-0 ${c}`}>
+                          <span className="text-2xl font-black tracking-tighter">{s}</span>
+                          <span className="text-[9px] text-white/20 uppercase tracking-[0.2em] font-black">score</span>
                         </div>
                       );
                     })()}
                   </div>
                   {report.strategy.diagnosis && (
-                    <p className="text-sm text-white/55 leading-relaxed line-clamp-2">{report.strategy.diagnosis}</p>
+                    <p className="text-sm text-white/50 leading-relaxed line-clamp-2 italic font-medium mb-5">{report.strategy.diagnosis}</p>
                   )}
                   {report.strategy.engagement_panorama && (
-                    <div className="mt-3 flex items-center gap-3 pt-3 border-t border-white/[0.06]">
-                      <span className="text-xs text-white/30">Engajamento:</span>
-                      <span className="text-sm font-bold text-white/70">{report.strategy.engagement_panorama.profile_rate}</span>
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${report.strategy.engagement_panorama.classification === 'Otimo' ? 'bg-violet-500/20 text-violet-300' :
+                    <div className="mt-4 flex items-center gap-4 pt-5 border-t border-white/5">
+                      <span className="text-[10px] text-white/20 uppercase tracking-widest font-black">Engajamento</span>
+                      <span className="text-base font-black text-white tracking-tighter">{report.strategy.engagement_panorama.profile_rate}</span>
+                      <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider ${report.strategy.engagement_panorama.classification === 'Otimo' ? 'bg-violet-500/20 text-violet-300' :
                         report.strategy.engagement_panorama.classification === 'Muito Bom' ? 'bg-emerald-500/20 text-emerald-300' :
                           report.strategy.engagement_panorama.classification === 'Bom' ? 'bg-cyan-500/20 text-cyan-300' :
                             report.strategy.engagement_panorama.classification === 'Abaixo da Media' ? 'bg-amber-500/20 text-amber-300' :
                               'bg-rose-500/20 text-rose-300'
                         }`}>{report.strategy.engagement_panorama.classification}</span>
-                      <span className="text-[11px] text-white/25 ml-auto">{report.strategy.engagement_panorama.tier}</span>
+                      <span className="text-[10px] text-white/20 ml-auto font-black uppercase tracking-[0.1em]">{report.strategy.engagement_panorama.tier}</span>
                     </div>
                   )}
                 </div>
@@ -2319,7 +2570,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                 </button>
                 <button
                   onClick={handleApprove}
-                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white text-sm font-semibold transition-all"
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-xl text-black text-sm font-black transition-all shadow-[0_12px_40px_rgba(16,185,129,0.3)] active:scale-[0.98]"
                 >
                   ✍️ Gerar Roteiros com IA
                 </button>

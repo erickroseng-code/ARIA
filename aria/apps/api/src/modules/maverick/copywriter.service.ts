@@ -1,6 +1,6 @@
 /**
  * Maverick Copywriter — autocontido para produção (ARIA Docker)
- * Gera roteiros com brain/ principles + GanchoGuard sem dependência de squads/maverick
+ * Gera roteiros com brain/ principles + staged generation (hook → técnicas → corpo)
  */
 import fs from 'fs';
 import path from 'path';
@@ -10,13 +10,12 @@ const BRAIN_DIR = path.join(__dirname, 'brain');
 // ─── Brain loader ─────────────────────────────────────────────────────────────
 
 interface Brain {
-  constraints: string; // NUNCA violar — prioridade máxima
-  hooks: string;       // técnicas de gancho: qual escolher e como aplicar
-  storytelling: string; // estrutura narrativa do corpo
-  persuasion: string;  // gatilhos de persuasão a inserir em momentos específicos
-  audience: string;    // quem é a audiência, como ela pensa e que linguagem usa
-  virality: string;    // ângulos e mecânicas que maximizam compartilhamento
-  closing: string;     // técnicas de CTA e fechamento
+  hooks: string;        // técnicas de gancho: qual escolher e como aplicar
+  storytelling: string; // princípios narrativos para o corpo
+  persuasion: string;   // gatilhos de persuasão a inserir em momentos específicos
+  audience: string;     // quem é a audiência, como ela pensa e que linguagem usa
+  virality: string;     // ângulos e mecânicas que maximizam compartilhamento
+  closing: string;      // técnicas de CTA e fechamento
 }
 
 function loadBrain(): Brain {
@@ -37,17 +36,16 @@ function loadBrain(): Brain {
   };
 
   const brain: Brain = {
-    constraints: load('constraints.md'),
-    hooks:       load('hooks.md'),
+    hooks:        load('hooks.md'),
     storytelling: load('storytelling.md'),
-    persuasion:  load('persuasion.md'),
-    audience:    load('audience.md'),
-    virality:    load('virality.md'),
-    closing:     load('closing.md'),
+    persuasion:   load('persuasion.md'),
+    audience:     load('audience.md'),
+    virality:     load('virality.md'),
+    closing:      load('closing.md'),
   };
 
   const total = Object.values(brain).reduce((s, v) => s + v.length, 0);
-  console.log(`[BRAIN] total carregado: ${total} chars (7 arquivos)`);
+  console.log(`[BRAIN] total carregado: ${total} chars (6 arquivos)`);
   return brain;
 }
 
@@ -83,6 +81,18 @@ async function llmChat(prompt: string, system?: string): Promise<string> {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface TechniqueSelection {
+  name: string;
+  formula: string;
+  application: string;
+}
+
+export interface TechniquePlan {
+  storytelling: TechniqueSelection[];
+  persuasion: TechniqueSelection[];
+  closing: TechniqueSelection;
+}
+
 export interface GeneratedScript {
   title: string;
   hook: string;
@@ -90,7 +100,8 @@ export interface GeneratedScript {
   cta: string;
   framework: string;
   funnel_stage: string;
-  hook_technique?: string; // qual técnica do brain foi usada no hook
+  hook_technique?: string;
+  technique_plan?: TechniquePlan;
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -103,7 +114,7 @@ export async function generateScriptsFromPlan(
 
   onStep?.('🧠 Selecionando ângulos e frameworks...');
 
-  // ── Pass 1: selecionar ângulos usando virality + audience para calibrar ──────
+  // ── Pass 1: selecionar ângulos usando virality + audience ──────────────────
   const ideasRaw = await llmChat(
     `Analise o plano estratégico abaixo e extraia 3-4 ideias de roteiros para Instagram Reels/Carrossel.
 
@@ -119,7 +130,7 @@ Para cada ideia, defina:
 - framework: PAS | AIDA | BAB | HOOK_STORY_OFFER (qual serve melhor para este ângulo)
 - funnel_stage: TOFU | MOFU | BOFU
 - virality_angle: qual mecânica de viralidade (Polarização, Ancoragem nos Extremos, High-Arousal, etc.) este ângulo ativa
-- audience_profile: qual princípio de audiência (Co-Identidade, Público Inconsciente, Filtro do Otaku, etc.) guia a linguagem
+- audience_profile: qual princípio de audiência guia a linguagem
 
 PLANO ESTRATÉGICO:
 ${plan}
@@ -147,12 +158,12 @@ Retorne APENAS JSON array:
     ideas = [{ title: plan.slice(0, 80), context: plan.slice(0, 200), framework: 'PAS', funnel_stage: 'TOFU' }];
   }
 
-  onStep?.('✍️ Gerando roteiros com brain/ principles...');
+  onStep?.('🎣 Gerando hooks com técnicas do brain...');
 
-  // ── Pass 2: gerar cada roteiro com passes focados por seção ─────────────
+  // ── Pass 2: gerar cada roteiro em 3 passes ────────────────────────────────
   const scripts = await Promise.all(ideas.map(async (idea) => {
 
-    // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ──────
+    // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ────────
     const hookRaw = await llmChat(
       `Você receberá um briefing de roteiro e o catálogo completo de técnicas de hook.
 Sua única tarefa: escolher a técnica MAIS ADEQUADA ao ângulo e aplicar sua FÓRMULA EXATA.
@@ -186,7 +197,7 @@ Retorne APENAS JSON:
       hookData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback abaixo */ }
 
-    // GanchoGuard inline: corta se passou de 15 palavras
+    // GanchoGuard: corta se passou de 15 palavras
     if (hookData.hook) {
       const wc = hookData.hook.trim().split(/\s+/).filter(Boolean).length;
       if (wc > 15) {
@@ -194,17 +205,70 @@ Retorne APENAS JSON:
       }
     }
 
-    // ── Pass 2b: corpo + CTA com hook já fixado ───────────────────────────
+    onStep?.('📐 Arquitetando técnicas do corpo...');
+
+    // ── Pass 2b: selecionar técnicas de storytelling + persuasão + closing ───
+    const techRaw = await llmChat(
+      `Você é um arquiteto de roteiros de Instagram. Dado o briefing abaixo, selecione as técnicas mais adequadas do brain para construir o corpo e o CTA deste roteiro.
+
+BRIEFING:
+- Título: ${idea.title}
+- Contexto/Dor: ${idea.context}
+- Framework: ${idea.framework}
+- Funil: ${idea.funnel_stage}
+- Hook: "${hookData.hook}"
+- Técnica do hook: ${hookData.hook_technique}
+
+━━━ STORYTELLING — escolha 2 técnicas ━━━
+${brain.storytelling}
+
+━━━ PERSUASÃO — escolha 2 técnicas ━━━
+${brain.persuasion}
+
+━━━ CLOSING — escolha 1 técnica ━━━
+${brain.closing}
+
+Para cada técnica selecionada, defina:
+- name: nome exato da técnica (copie do brain)
+- formula: a fórmula dela (copie exatamente do brain)
+- application: como aplicar NESTE roteiro específico (1-2 frases concretas com detalhes do nicho)
+
+Retorne APENAS JSON:
+{
+  "storytelling": [
+    {"name":"...","formula":"...","application":"..."},
+    {"name":"...","formula":"...","application":"..."}
+  ],
+  "persuasion": [
+    {"name":"...","formula":"...","application":"..."},
+    {"name":"...","formula":"...","application":"..."}
+  ],
+  "closing": {"name":"...","formula":"...","application":"..."}
+}`,
+      'Você é um arquiteto de roteiros. Retorne APENAS JSON válido.'
+    );
+
+    let techniquePlan: TechniquePlan = {
+      storytelling: [],
+      persuasion: [],
+      closing: { name: '', formula: '', application: '' },
+    };
+
+    try {
+      const match = techRaw.match(/\{[\s\S]*\}/);
+      techniquePlan = JSON.parse(match?.[0] ?? '{}');
+    } catch { /* usa plano vazio, corpo ainda será gerado */ }
+
+    onStep?.('✍️ Gerando corpo e CTA...');
+
+    // ── Pass 2c: corpo + CTA seguindo o plano de técnicas selecionadas ───────
     const systemPrompt = `Você é o Maverick Copywriter — especialista em roteiros de Instagram que convertem.
+Você recebe um plano de técnicas SELECIONADAS e deve executá-las fielmente.
+NUNCA mencione nomes de técnicas no texto gerado — aplique-as de forma invisível.`;
 
-━━━ RESTRIÇÕES ÉTICAS (PRIORIDADE MÁXIMA) ━━━
-${brain.constraints}
+    const hasTechniques = techniquePlan.storytelling.length > 0 || techniquePlan.persuasion.length > 0;
 
-━━━ PERFIL DA AUDIÊNCIA ━━━
-${brain.audience}`;
-
-    const userPrompt = `Escreva o DESENVOLVIMENTO e CTA de um roteiro de Instagram Reels.
-O hook já está pronto — sua missão é construir o corpo que o justifica e o CTA que converte.
+    const userPrompt = `Escreva o DESENVOLVIMENTO e CTA deste roteiro de Instagram seguindo o plano de técnicas abaixo.
 
 BRIEFING:
 - Título: ${idea.title}
@@ -214,27 +278,31 @@ BRIEFING:
 - Hook já definido: "${hookData.hook}"
 - Técnica do hook: ${hookData.hook_technique}
 
-━━━ ESTRUTURA NARRATIVA (construa o arco que vai do hook ao CTA) ━━━
-${brain.storytelling}
+${hasTechniques ? `━━━ PLANO DE TÉCNICAS — execute exatamente nesta ordem ━━━
 
-━━━ TÉCNICAS DE PERSUASÃO (insira nos momentos certos do corpo) ━━━
-${brain.persuasion}
+STORYTELLING (aplique no arco narrativo do corpo):
+${techniquePlan.storytelling.map((t, i) => `${i + 1}. ${t.name}
+   Fórmula: ${t.formula}
+   Como aplicar aqui: ${t.application}`).join('\n\n')}
 
-━━━ INSTRUÇÃO DE DESENVOLVIMENTO ━━━
-- NUNCA mencione nomes de técnicas no texto. Aplique de forma invisível — proibido "(Tríade do Problema)", "(Microresultado)" ou qualquer anotação técnica
-- Abra agitando o problema com Tríade do Problema (externo + interno + filosófico) — escreva como roteiro, não como análise
-- Sincronização Neural: personagem específico com emoção nomeada, não "muitos empreendedores"
-- Insira MICRORESULTADO no meio: ação que o viewer faz em < 30s e sente resultado
-- Mínimo 200 palavras
+PERSUASÃO (insira nos momentos indicados):
+${techniquePlan.persuasion.map((t, i) => `${i + 1}. ${t.name}
+   Fórmula: ${t.formula}
+   Como aplicar aqui: ${t.application}`).join('\n\n')}
+
+CLOSING/CTA:
+${techniquePlan.closing.name}
+   Fórmula: ${techniquePlan.closing.formula}
+   Como aplicar aqui: ${techniquePlan.closing.application}` : `━━━ ESTRUTURA PADRÃO ━━━
+Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultado (ação < 30s) → solução → CTA direto`}
+
+━━━ REGRAS DE EXECUÇÃO ━━━
+- Mínimo 200 palavras no corpo
+- PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
+- PROIBIDO anotar técnicas entre parênteses ou colchetes — exceto [Visual: ...] e [Tom: ...] para direção de câmera
 - Tom: WhatsApp com amigo expert, não aula de faculdade
 - Proibido: jornada, transformação, incrível, poderoso, guru, revolucionário, gamechanger
-
-━━━ TÉCNICAS DE CTA E FECHAMENTO ━━━
-${brain.closing}
-
-━━━ INSTRUÇÃO DE CTA ━━━
-Funil ${idea.funnel_stage}: ${idea.funnel_stage === 'BOFU' ? 'use Bifurcação da Escolha ou Sintaxe do Compromisso' : idea.funnel_stage === 'MOFU' ? 'use Arquitetura da Crença ou 4Rs' : 'use Ancoragem de Página Única ou Ilusão Viral'}
-PROIBIDO: "Gostou? Salva e compartilha!" — isso é o pior fechamento possível.
+- O Microresultado (ação que o viewer faz em < 30s durante o vídeo) é OBRIGATÓRIO no meio do corpo
 
 Retorne APENAS JSON:
 {"body":"...","cta":"..."}`;
@@ -254,6 +322,7 @@ Retorne APENAS JSON:
       framework: idea.framework,
       funnel_stage: idea.funnel_stage,
       hook_technique: hookData.hook_technique,
+      technique_plan: hasTechniques ? techniquePlan : undefined,
     };
   }));
 
