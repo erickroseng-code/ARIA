@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useChatStore } from '@/stores/chatStore';
+import { useChatStore, type Message } from '@/stores/chatStore';
 import { streamMessage } from '@/services/chat.service';
 
 // Helper to generate client-side UUID (only on client)
@@ -82,7 +82,7 @@ export function useChat() {
       const currentMessages = store.messages();
       if (currentMessages.length < 1 || isStreaming) return;
 
-      let lastUserMsg: any = null;
+      let lastUserMsg: Message | null = null;
       let assistantMsgIdToRemove: string | null = null;
 
       // Find the last assistant message to remove and the user message before it

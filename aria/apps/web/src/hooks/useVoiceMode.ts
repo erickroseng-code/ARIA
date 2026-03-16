@@ -115,7 +115,6 @@ export function useVoiceMode({ onCommand, onStateChange, enabled = true }: UseVo
       rec.start();
       isRunningRef.current = true;
     } catch { /* já rodando */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopRecognition = useCallback(() => {
@@ -135,7 +134,6 @@ export function useVoiceMode({ onCommand, onStateChange, enabled = true }: UseVo
     commandSentRef.current = true;
     commandBufferRef.current = '';
 
-    console.log('[VoiceMode] → enviando comando:', cleaned);
     setStateSync('processing');
     onCommandRef.current(cleaned);
 
@@ -223,12 +221,10 @@ export function useVoiceMode({ onCommand, onStateChange, enabled = true }: UseVo
       for (let i = 0; i < result.length; i++) transcripts.push(result[i].transcript);
       const primary = transcripts[0] ?? '';
 
-      console.log(`[VoiceMode] "${primary}" isFinal=${isFinal} state=${stateRef.current}`);
       setLastTranscript(primary);
 
       if (stateRef.current === 'wake_listening') {
         if (hasWakeWord(transcripts.join(' '))) {
-          console.log('[VoiceMode] Wake word detectada!');
           playBeep(true);
           commandBufferRef.current = '';
           commandSentRef.current = false;
@@ -277,7 +273,6 @@ export function useVoiceMode({ onCommand, onStateChange, enabled = true }: UseVo
       // KEY FIX: se estávamos em cmd_listening e o recognition terminou
       // sem isFinal ter sido disparado — processa o que temos agora
       if (stateRef.current === 'cmd_listening' && commandBufferRef.current.trim()) {
-        console.log('[VoiceMode] onend com buffer pendente — flushing agora');
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         flushCommand();
       }
@@ -295,8 +290,6 @@ export function useVoiceMode({ onCommand, onStateChange, enabled = true }: UseVo
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       try { rec.abort(); } catch { /* ignora */ }
     };
-    // SEM onCommand nas deps — usamos onCommandRef para evitar recriar a recognition
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, setStateSync, startRecognition, flushCommand]);
 
   const isSupported = typeof window !== 'undefined' &&
