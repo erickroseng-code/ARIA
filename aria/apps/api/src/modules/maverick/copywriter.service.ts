@@ -154,8 +154,19 @@ Retorne APENAS JSON array:
 
   try {
     const match = ideasRaw.match(/\[[\s\S]*\]/);
-    ideas = JSON.parse(match?.[0] ?? '[]');
+    const parsed = JSON.parse(match?.[0] ?? '[]');
+    // Normaliza campos — LLM às vezes retorna nomes diferentes
+    ideas = parsed.map((item: any) => ({
+      title:          item.title        ?? item.titulo      ?? item.idea_title  ?? item.roteiro ?? 'Roteiro sem título',
+      context:        item.context      ?? item.contexto    ?? item.dor         ?? item.problema ?? '',
+      framework:      item.framework    ?? item.tipo        ?? item.estrutura   ?? 'PAS',
+      funnel_stage:   item.funnel_stage ?? item.funil       ?? item.etapa       ?? 'TOFU',
+      virality_angle: item.virality_angle ?? item.viralidade ?? item.angulo_viral ?? '',
+      audience_profile: item.audience_profile ?? item.audiencia ?? item.perfil_audiencia ?? '',
+    }));
+    console.log(`[PASS1] ${ideas.length} ângulos gerados:`, ideas.map((i: any) => i.title));
   } catch {
+    console.warn('[PASS1] Parse falhou, usando fallback de 1 ideia');
     ideas = [{ title: plan.slice(0, 80), context: plan.slice(0, 200), framework: 'PAS', funnel_stage: 'TOFU' }];
   }
 
@@ -293,7 +304,12 @@ Retorne APENAS JSON:
 
     try {
       const match = techRaw.match(/\{[\s\S]*\}/);
-      techniquePlan = JSON.parse(match?.[0] ?? '{}');
+      const parsed = JSON.parse(match?.[0] ?? '{}');
+      techniquePlan = {
+        storytelling: Array.isArray(parsed.storytelling) ? parsed.storytelling : [],
+        persuasion:   Array.isArray(parsed.persuasion)   ? parsed.persuasion   : [],
+        closing:      parsed.closing ?? techniquePlan.closing,
+      };
     } catch { /* usa plano vazio, corpo ainda será gerado */ }
 
     onStep?.('✍️ Gerando corpo e CTA...');
