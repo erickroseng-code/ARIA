@@ -79,7 +79,8 @@ async function llmChat(prompt: string, system?: string, modelPriority?: string[]
     { role: 'user', content: prompt },
   ];
 
-  const models = modelPriority || ['meta-llama/llama-4-maverick', 'deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'];
+  // Modelos ordenados por custo-benefício para copywriting em português
+  const models = modelPriority || ['meta-llama/llama-4-maverick', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'];
   for (const model of models) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -328,7 +329,7 @@ ${brain.hooks}
 Retorne APENAS JSON:
 {"hook":"texto do hook original e específico ao nicho","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula foi aplicada aqui (1 frase)"}`,
       'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
-      ['meta-llama/llama-4-maverick', 'deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'],
+      ['meta-llama/llama-4-maverick', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
     );
 
     let hookData: { hook: string; hook_technique: string; formula_applied?: string } = { hook: '', hook_technique: '' };
@@ -337,11 +338,72 @@ Retorne APENAS JSON:
       hookData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback abaixo */ }
 
+    // ── Hook Judge: valida e regenera até 2x se o hook for ruim ─────────────
+    const HOOK_ANTI_PATTERNS = [
+      /^se\s+você/i,           // "Se você..." — pergunta retórica disfarçada
+      /^você\s+(já|quer|sabe|tem)/i, // "Você já/quer/sabe/tem..." — retórica
+      /o\s+problema\s+é\s+(isso|esse)/i, // "o problema é isso" — vago
+      /é\s+isso\s+(mesmo|aqui|que)/i,    // "é isso mesmo" — vago
+      /^como\s+fazer/i,         // "Como fazer..." — genérico
+      /^[0-9]+\s+(dicas|estratégias|passos|segredos)/i, // "5 dicas para..." — genérico
+      /o\s+segredo\s+(é|está|que)/i,     // "o segredo é/está" — proibido
+      /você\s+sabia/i,          // "Você sabia que..." — proibido
+      /descubra\s+(como|o|a)/i, // "Descubra como..." — proibido
+    ];
+
+    const isHookBad = (h: string): boolean => HOOK_ANTI_PATTERNS.some(p => p.test(h.trim()));
+
+    let judgeAttempts = 0;
+    while (hookData.hook && isHookBad(hookData.hook) && judgeAttempts < 2) {
+      judgeAttempts++;
+      console.log(`[HOOK-JUDGE] Hook reprovado (tentativa ${judgeAttempts}): "${hookData.hook.slice(0, 60)}"`);
+      onStep?.(`🔄 Hook reprovado pelo juiz — regenerando (${judgeAttempts}/2)...`);
+
+      const retryRaw = await llmChat(
+        `O hook abaixo foi REPROVADO porque é genérico, vago ou usa padrão proibido:
+"${hookData.hook}"
+
+MOTIVO DA REPROVAÇÃO: ${HOOK_ANTI_PATTERNS.find(p => p.test(hookData.hook.trim()))?.toString() ?? 'padrão genérico'}
+
+Gere um hook COMPLETAMENTE DIFERENTE para o mesmo briefing:
+- Título: ${idea.title}
+- Contexto/Dor: ${idea.context}
+- Framework: ${idea.framework}
+- Funil: ${idea.funnel_stage}
+
+REGRAS ABSOLUTAS:
+1. PROIBIDO começar com "Se você", "Você já", "Como fazer", números + "dicas/estratégias"
+2. PROIBIDO terminar com "o problema é isso", "é isso mesmo", frases vagas
+3. OBRIGATÓRIO: mencione algo concreto e específico ao nicho (nome de cargo, número, situação real)
+4. Soe como uma pessoa real falando para outra — não um post de coach ou anúncio
+5. Use uma técnica do catálogo de hooks: ANCORAGEM POR CONTRASTE, MECANISMO NO COMANDO, ESPECIFICIDADE EXTREMA, LISONJA SINCERA, PRIMAZIA DO PERIGO, etc.
+
+EXEMPLOS DO NÍVEL ESPERADO:
+- "O algoritmo do Instagram vai cortar seu alcance em 80% este ano. Brincadeira. Mas a nova atualização vai exigir que você mude um detalhe nas suas legendas."
+- "Tu sabe aquela sensação de estar sempre no fogo, resolvendo problema de cliente, sendo o último a sair?"
+- "O que as grandes agências escondem é que escalar sem estar presente exige uma reengenharia de 3.5 etapas no teu processo de vendas."
+
+Retorne APENAS JSON:
+{"hook":"hook concreto e específico ao nicho","hook_technique":"técnica usada","formula_applied":"como aplicou"}`,
+        'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
+        ['meta-llama/llama-4-maverick', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
+      );
+
+      try {
+        const m = retryRaw.match(/\{[\s\S]*\}/);
+        const retried = JSON.parse(m?.[0] ?? '{}');
+        if (retried.hook) hookData = retried;
+      } catch { /* mantém o anterior */ }
+    }
+
+    if (judgeAttempts > 0) {
+      console.log(`[HOOK-JUDGE] Hook ${isHookBad(hookData.hook ?? '') ? 'ainda ruim após retries' : 'aprovado após ' + judgeAttempts + ' tentativa(s)'}: "${hookData.hook?.slice(0, 60)}"`);
+    }
+
     // GanchoGuard: segurança contra hooks absurdamente longos (>30 palavras)
     if (hookData.hook) {
       const words = hookData.hook.trim().split(/\s+/).filter(Boolean);
       if (words.length > 30) {
-        // Tenta cortar na última pontuação forte dentro de 30 palavras
         const candidate = words.slice(0, 30).join(' ');
         const punctMatch = candidate.match(/^(.*[.!?])\s+\S/);
         hookData.hook = punctMatch ? punctMatch[1].trim() : words.slice(0, 25).join(' ') + '.';
