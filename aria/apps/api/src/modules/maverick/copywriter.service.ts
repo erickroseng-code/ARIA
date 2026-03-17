@@ -4,6 +4,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { TrendResearch } from './trend-researcher.service';
 
 const BRAIN_DIR = path.join(__dirname, 'brain');
 
@@ -16,6 +17,7 @@ interface Brain {
   audience: string;     // quem é a audiência, como ela pensa e que linguagem usa
   virality: string;     // ângulos e mecânicas que maximizam compartilhamento
   closing: string;      // técnicas de CTA e fechamento
+  constraints: string;  // restrições de estilo e veto de palavras
 }
 
 // Extrai "Exemplo bom" de cada técnica do hooks.md para uso como referência direta
@@ -58,10 +60,11 @@ function loadBrain(): Brain {
     audience:     load('audience.md'),
     virality:     load('virality.md'),
     closing:      load('closing.md'),
+    constraints:  load('constraints.md'),
   };
 
   const total = Object.values(brain).reduce((s, v) => s + v.length, 0);
-  console.log(`[BRAIN] total carregado: ${total} chars (6 arquivos)`);
+  console.log(`[BRAIN] total carregado: ${total} chars (7 arquivos)`);
   return brain;
 }
 
@@ -76,8 +79,7 @@ async function llmChat(prompt: string, system?: string, modelPriority?: string[]
     { role: 'user', content: prompt },
   ];
 
-  const models = modelPriority || ['deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'];
-
+  const models = modelPriority || ['meta-llama/llama-4-maverick', 'deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'];
   for (const model of models) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -87,7 +89,7 @@ async function llmChat(prompt: string, system?: string, modelPriority?: string[]
           'Authorization': `Bearer ${apiKey}`,
           'HTTP-Referer': 'https://aria-api.onrender.com',
         },
-        body: JSON.stringify({ model, messages, temperature: 0.7 }),
+        body: JSON.stringify({ model, messages, temperature: 0.92 }),
       });
       const data = await res.json() as any;
       const content = data?.choices?.[0]?.message?.content;
@@ -134,9 +136,15 @@ export interface GeneratedScript {
 async function mergeNicheWithBrain(
   userProfile: string,
   brain: Brain,
+  trendResearch?: TrendResearch,
   onStep?: (msg: string) => void,
 ): Promise<string> {
   onStep?.('🔗 Mesclando nicho com referências do brain...');
+
+  let extraContext = '';
+  if (trendResearch?.insights?.length) {
+    extraContext = `\n━━━ TENDÊNCIAS VIRAIS ATUAIS ━━━\nO que está funcionando no nicho agora:\n${trendResearch.insights.map((i: any) => `- Padrão: ${i.hook_pattern}\n  Ângulo: ${i.angle}\n  Princípio: ${i.engagement_signal}\n  Exemplo Real: "${i.example_hook}"`).join('\n')}\n`;
+  }
 
   const mergePrompt = `Você é um estrategista de conteúdo que combina perfil de usuário com frameworks de copywriting.
 
@@ -152,12 +160,16 @@ ${brain.virality.slice(0, 800)}...
 
 ━━━ PERSUASÃO ━━━
 ${brain.persuasion.slice(0, 800)}...
+${extraContext}
 
 Agora, crie uma ESTRATÉGIA MESCLADA que:
 1. Identifique os 3 principais problemas/dores do nicho específico
 2. Mapeie quais mecânicas virais mais se aplicam a este perfil
 3. Sugira os 3-4 ângulos de roteiros mais promissores
 4. Defina o tom de voz EXATO para esta audiência
+
+RESTRIÇÕES A CONSIDERAR (NUNCA VIOLE):
+${brain.constraints.slice(0, 1000)}
 
 Retorne em um parágrafo fluido, não em listas. Deve ser usável diretamente como contexto estratégico.`;
 
@@ -168,18 +180,37 @@ Retorne em um parágrafo fluido, não em listas. Deve ser usável diretamente co
   );
 }
 
+// ─── Golden scripts loader (negative examples — never replicate) ──────────────
+
+function loadGoldenHooks(): string {
+  const goldenPath = path.join(
+    __dirname,
+    '../../../../../../squads/maverick/data/knowledge/copywriting/scripts/golden/maverick-llama4-scripts.json',
+  );
+  if (!fs.existsSync(goldenPath)) return '';
+  try {
+    const raw = JSON.parse(fs.readFileSync(goldenPath, 'utf-8'));
+    const hooks: string[] = (raw.scripts ?? []).map((s: any) => `- "${s.hook}"`);
+    return hooks.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateScriptsFromPlan(
   plan: string,
+  trendResearch?: TrendResearch,
   onStep?: (msg: string) => void,
 ): Promise<GeneratedScript[]> {
   const brain = loadBrain();
+  const goldenHooks = loadGoldenHooks();
 
   // Mescla o plano do usuário com as referências do brain usando gpt-oss-120b
   let enrichedContext = '';
   try {
-    enrichedContext = await mergeNicheWithBrain(plan, brain, onStep);
+    enrichedContext = await mergeNicheWithBrain(plan, brain, trendResearch, onStep);
     console.log(`[MERGE] Contexto enriquecido gerado (${enrichedContext.length} chars)`);
   } catch (e) {
     console.warn('[MERGE] Falha no merge, usando plan original:', e);
@@ -209,7 +240,13 @@ Para cada ideia, defina:
 CONTEXTO ESTRATÉGICO (mesclado com brain):
 ${enrichedContext}
 
-REGRA: Priorize ângulos que combinem dor real da audiência COM mecanismo viral natural — não escolha tópicos genéricos.
+RESTRIÇÕES (OBRIGATÓRIO):
+${brain.constraints.slice(0, 800)}
+
+${goldenHooks ? `⛔ ÂNGULOS JÁ EXPLORADOS — NÃO repita nem varie estas abordagens, use ângulos completamente diferentes:
+${goldenHooks}
+
+` : ''}REGRA: Gere ângulos NOVOS e DISTINTOS — cada ideia deve explorar uma dor ou desejo diferente do nicho, sem repetir temas ou estruturas já usadas.
 
 Retorne APENAS JSON array:
 [{"title":"...","context":"...","framework":"PAS","funnel_stage":"TOFU","virality_angle":"...","audience_profile":"..."}]`,
@@ -252,11 +289,11 @@ Retorne APENAS JSON array:
   const scripts: GeneratedScript[] = [];
   for (const idea of ideas) {
 
-    // ── Pass 2a: hook isolado — apenas hooks.md, força fórmula exata ────────
+    // ── Pass 2a: hook isolado — usa técnica como PRINCÍPIO, cria algo ORIGINAL ─
     const hookExamples = extractHookExamples(brain.hooks);
     const hookRaw = await llmChat(
-      `Você receberá um briefing de roteiro e o catálogo completo de técnicas de hook.
-Sua única tarefa: escolher a técnica MAIS ADEQUADA ao ângulo e escrever um hook com a mesma estrutura e comprimento do "Exemplo bom" dela.
+      `Você receberá um briefing de roteiro e o catálogo de técnicas de hook.
+Sua tarefa: escolher a técnica mais adequada e escrever um hook 100% ORIGINAL para o briefing.
 
 BRIEFING:
 - Título: ${idea.title}
@@ -266,27 +303,32 @@ BRIEFING:
 - Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
 - Perfil de audiência: ${idea.audience_profile || 'empreendedores/gestores brasileiros'}
 
-━━━ EXEMPLOS BONS DE CADA TÉCNICA — use como molde de comprimento e estrutura ━━━
+━━━ REFERÊNCIA DE NÍVEL — apenas para calibrar qualidade, NUNCA para copiar ou adaptar ━━━
 ${hookExamples}
 
-${usedHookTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
+${goldenHooks ? `⛔ PADRÕES PROIBIDOS — estes hooks já existem, NUNCA replique nem adapte a estrutura deles:
+${goldenHooks}
+
+` : ''}${usedHookTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
 ${usedHookTechniques.map(t => `- ${t}`).join('\n')}
-Escolha obrigatoriamente uma técnica DIFERENTE das listadas acima.
+Escolha obrigatoriamente uma técnica DIFERENTE.
 
 ` : ''}━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
 ${brain.hooks}
 
 ━━━ REGRAS ESTRITAS ━━━
-1. Escolha UMA técnica do catálogo abaixo
-2. Adapte o "Exemplo bom" da técnica escolhida para o briefing acima — mesma estrutura, mesmo comprimento, mesma vivacidade
-3. O hook deve ter o mesmo comprimento do exemplo original (não corte, não expanda demais)
-4. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
-5. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
-6. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
+1. Escolha UMA técnica do catálogo
+2. Use a FÓRMULA e os PRINCÍPIOS PSICOLÓGICOS da técnica — NÃO adapte o exemplo, crie algo completamente novo
+3. O hook deve ser específico ao nicho/contexto do briefing: use detalhes reais, números concretos, situações do setor
+4. PROIBIDO qualquer similaridade estrutural com os padrões listados acima
+5. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
+6. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
+7. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
 
 Retorne APENAS JSON:
-{"hook":"frase do hook (máx 15 palavras)","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula da técnica foi aplicada aqui (1 frase)"}`,
-      'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.'
+{"hook":"texto do hook original e específico ao nicho","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula foi aplicada aqui (1 frase)"}`,
+      'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
+      ['meta-llama/llama-4-maverick', 'deepseek/deepseek-v3.2', 'minimax/minimax-m2.5'],
     );
 
     let hookData: { hook: string; hook_technique: string; formula_applied?: string } = { hook: '', hook_technique: '' };
@@ -421,8 +463,10 @@ Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultad
 - PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
 - PROIBIDO qualquer anotação entre colchetes ou parênteses — sem [Visual: ...], [Tom: ...] nem nada similar
 - Tom: WhatsApp com amigo expert, não aula de faculdade
-- Proibido: jornada, transformação, incrível, poderoso, guru, revolucionário, gamechanger
 - O Microresultado (ação que o viewer faz em < 30s durante o vídeo) é OBRIGATÓRIO no meio do corpo
+
+RESTRIÇÕES DE ESTILO (PRIORIDADE MÁXIMA):
+${brain.constraints}
 
 Retorne APENAS JSON:
 {"body":"...","cta":"..."}`;
