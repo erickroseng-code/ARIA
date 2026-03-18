@@ -580,6 +580,9 @@ Não usa adjetivos vazios. Não anima palco. Aponta o erro, entrega o mecanismo,
 
 Você tem acesso à base de conhecimento completa abaixo. Use os princípios como guia interno — NUNCA cite nomes de técnicas no texto gerado. Aplique-as de forma invisível.
 
+━━━ BASE DE CONHECIMENTO: AUDIÊNCIA ━━━
+${brain.audience}
+
 ━━━ BASE DE CONHECIMENTO: STORYTELLING ━━━
 ${brain.storytelling}
 
