@@ -519,13 +519,13 @@ ${usedBodyTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROI
 ${usedBodyTechniques.map(t => `- ${t}`).join('\n')}
 Escolha obrigatoriamente técnicas DIFERENTES das listadas acima.
 
-` : ''}━━━ STORYTELLING — escolha 2 técnicas ━━━
+` : ''}━━━ STORYTELLING — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.storytelling}
 
-━━━ PERSUASÃO — escolha 2 técnicas ━━━
+━━━ PERSUASÃO — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.persuasion}
 
-━━━ CLOSING — escolha 1 técnica ━━━
+━━━ CLOSING — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.closing}
 
 Para cada técnica selecionada, defina:
@@ -549,11 +549,9 @@ REGRA CRÍTICA: draft_sentence deve ser específica ao contexto do briefing — 
 Retorne APENAS JSON:
 {
   "storytelling": [
-    {"name":"...","formula":"...","application":"...","draft_sentence":"..."},
     {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
   "persuasion": [
-    {"name":"...","formula":"...","application":"...","draft_sentence":"..."},
     {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
   "closing": {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
