@@ -392,12 +392,15 @@ Retorne APENAS JSON:
 
     // ── Hook Judge: valida e regenera até 2x se o hook for ruim ─────────────
     const HOOK_ANTI_PATTERNS = [
-      /^se\s+você/i,           // "Se você..." — pergunta retórica disfarçada
-      /^você\s+(já|quer|sabe|tem)/i, // "Você já/quer/sabe/tem..." — retórica
+      /^[\s"'""«»]*se\s+você/i,           // "Se você..." — pergunta retórica disfarçada (com possíveis aspas iniciais)
+      /^[\s"'""«»]*você\s+(já|quer|sabe|tem|ainda|também|precisa)/i, // "Você já/quer/sabe..." — retórica
+      /^[\s"'""«»]*e\s+se\s+você/i,      // "E se você..." — variante retórica
+      /^[\s"'""«»]*será\s+que\s+você/i,  // "Será que você..." — variante retórica
+      /^[\s"'""«»]*imagina\s+(se|você)/i, // "Imagina se..." — proibido
       /o\s+problema\s+é\s+(isso|esse)/i, // "o problema é isso" — vago
       /é\s+isso\s+(mesmo|aqui|que)/i,    // "é isso mesmo" — vago
-      /^como\s+fazer/i,         // "Como fazer..." — genérico
-      /^[0-9]+\s+(dicas|estratégias|passos|segredos)/i, // "5 dicas para..." — genérico
+      /^[\s"'""«»]*como\s+fazer/i,         // "Como fazer..." — genérico
+      /^[\s"'""«»]*[0-9]+\s+(dicas|estratégias|passos|segredos)/i, // "5 dicas para..." — genérico
       /o\s+segredo\s+(é|está|que)/i,     // "o segredo é/está" — proibido
       /você\s+sabia/i,          // "Você sabia que..." — proibido
       /descubra\s+(como|o|a)/i, // "Descubra como..." — proibido
@@ -412,31 +415,36 @@ Retorne APENAS JSON:
       onStep?.(`🔄 Hook reprovado pelo juiz — regenerando (${judgeAttempts}/2)...`);
 
       const retryRaw = await llmChat(
-        `O hook abaixo foi REPROVADO porque é genérico, vago ou usa padrão proibido:
-"${hookData.hook}"
+        `O hook abaixo foi REPROVADO automaticamente porque começa com padrão proibido:
+HOOK REPROVADO: "${hookData.hook}"
 
-MOTIVO DA REPROVAÇÃO: ${HOOK_ANTI_PATTERNS.find(p => p.test(hookData.hook.trim()))?.toString() ?? 'padrão genérico'}
+❌ PADRÃO IDENTIFICADO: o hook começa com palavra proibida (Se você / Você já / E se / Será que / Como fazer / etc.)
 
-Gere um hook COMPLETAMENTE DIFERENTE para o mesmo briefing:
+TAREFA: Escreva um hook COMPLETAMENTE DIFERENTE. A primeira palavra do hook NÃO PODE SER nenhuma dessas:
+→ "Se", "Você", "E", "Será", "Imagina", "Como", "O segredo", "Descubra"
+
+BRIEFING:
 - Título: ${idea.title}
 - Contexto/Dor: ${idea.context}
 - Framework: ${idea.framework}
 - Funil: ${idea.funnel_stage}
 
-REGRAS ABSOLUTAS:
-1. PROIBIDO começar com "Se você", "Você já", "Como fazer", números + "dicas/estratégias"
-2. PROIBIDO terminar com "o problema é isso", "é isso mesmo", frases vagas
-3. OBRIGATÓRIO: mencione algo concreto e específico ao nicho (nome de cargo, número, situação real)
-4. Soe como uma pessoa real falando para outra — não um post de coach ou anúncio
-5. Use uma técnica do catálogo de hooks: ANCORAGEM POR CONTRASTE, MECANISMO NO COMANDO, ESPECIFICIDADE EXTREMA, LISONJA SINCERA, PRIMAZIA DO PERIGO, etc.
+COMO DEVE COMEÇAR — opções válidas:
+• Com um FATO concreto: "R$ 12.000 em tráfego pago. Zero retorno."
+• Com uma REAÇÃO crua: "Eu vejo perfil desse e fico com dó."
+• Com uma CENA específica: "Segunda-feira, 7h da manhã. Inbox vazio."
+• Com um NÚMERO chocante: "Três meses. Todo dia. 90 posts. 4 clientes."
+• Com uma OBSERVAÇÃO de bastidores: "O que os grandes criadores fazem diferente..."
+• Com uma DECLARAÇÃO forte: "Postar sem estratégia é trabalhar de graça."
 
-EXEMPLOS DO NÍVEL ESPERADO:
-- "O algoritmo do Instagram vai cortar seu alcance em 80% este ano. Brincadeira. Mas a nova atualização vai exigir que você mude um detalhe nas suas legendas."
-- "Tu sabe aquela sensação de estar sempre no fogo, resolvendo problema de cliente, sendo o último a sair?"
-- "O que as grandes agências escondem é que escalar sem estar presente exige uma reengenharia de 3.5 etapas no teu processo de vendas."
+REGRAS ABSOLUTAS:
+1. A PRIMEIRA PALAVRA do hook NÃO pode ser: Se, Você, E (se), Será, Imagina, Como, Descubra
+2. Mencione algo concreto ao nicho: cargo, situação real, dado específico
+3. Soe como pessoa real falando para outra — não coach, não anúncio
+4. Máximo 25 palavras
 
 Retorne APENAS JSON:
-{"hook":"hook concreto e específico ao nicho","hook_technique":"técnica usada","formula_applied":"como aplicou"}`,
+{"hook":"hook que começa com fato, reação ou cena — nunca com Se/Você","hook_technique":"técnica usada","formula_applied":"como aplicou"}`,
         'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
         ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
       );
@@ -449,7 +457,38 @@ Retorne APENAS JSON:
     }
 
     if (judgeAttempts > 0) {
-      console.log(`[HOOK-JUDGE] Hook ${isHookBad(hookData.hook ?? '') ? 'ainda ruim após retries' : 'aprovado após ' + judgeAttempts + ' tentativa(s)'}: "${hookData.hook?.slice(0, 60)}"`);
+      const stillBad = isHookBad(hookData.hook ?? '');
+      console.log(`[HOOK-JUDGE] Hook ${stillBad ? 'ainda ruim após retries' : 'aprovado após ' + judgeAttempts + ' tentativa(s)'}: "${hookData.hook?.slice(0, 60)}"`);
+
+      // Fallback de emergência: se ainda ruim após 2 retries, force reescrita via prompt ultra-restritivo
+      if (stillBad && hookData.hook) {
+        console.log(`[HOOK-JUDGE] Aplicando fallback de emergência — reescrita forçada`);
+        try {
+          const emergencyRaw = await llmChat(
+            `TAREFA ÚNICA: Reescreva o início deste hook para que NÃO comece com "Se", "Você", "E se", "Será", "Imagina", "Como" ou "Descubra".
+
+HOOK ORIGINAL (início proibido): "${hookData.hook}"
+
+INSTRUÇÃO: Remova as primeiras palavras até a primeira vírgula ou ponto final, depois continue o hook a partir daí. Se não houver vírgula, inverta a estrutura da frase para que o fato concreto venha primeiro.
+
+EXEMPLOS DE TRANSFORMAÇÃO:
+• "Se você ainda não usa IA nos stories..." → "IA nos stories ainda é ignorada por..."
+• "Você sabia que 90% dos criadores..." → "90% dos criadores cometem o mesmo erro..."
+• "Como fazer R$5k em 30 dias..." → "R$5k em 30 dias é possível — desde que..."
+
+Retorne APENAS JSON com o hook corrigido:
+{"hook":"versão corrigida que não começa com padrão proibido","hook_technique":"${hookData.hook_technique}","formula_applied":"reescrita emergencial"}`,
+            'Você é um editor de copywriting. Retorne APENAS JSON válido.',
+            ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
+          );
+          const m = emergencyRaw.match(/\{[\s\S]*\}/);
+          const fixed = JSON.parse(m?.[0] ?? '{}');
+          if (fixed.hook && !isHookBad(fixed.hook)) {
+            hookData = fixed;
+            console.log(`[HOOK-JUDGE] Fallback aplicado com sucesso: "${hookData.hook?.slice(0, 60)}"`);
+          }
+        } catch { /* mantém o hook ruim, pelo menos temos algo */ }
+      }
     }
 
     // GanchoGuard: segurança contra hooks absurdamente longos (>30 palavras)
@@ -587,7 +626,8 @@ ${buildTechniqueBlock(techniquePlan.closing, 0)}` : `━━━ ESTRUTURA PADRÃO
 Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultado (ação < 30s) → solução → CTA direto`}
 
 ━━━ REGRAS DE EXECUÇÃO ━━━
-- Mínimo 200 palavras no corpo
+- Mínimo 220 palavras no roteiro completo (hook + corpo + CTA somados)
+- O CORPO sozinho deve ter no mínimo 150 palavras — desenvolva o PAS completo: agite a dor, mostre o custo de não resolver, entregue o microresultado, apresente a solução
 - PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
 - PROIBIDO qualquer anotação entre colchetes ou parênteses — sem [Visual: ...], [Tom: ...] nem nada similar
 
@@ -613,6 +653,55 @@ Retorne APENAS JSON:
       const match = raw.match(/\{[\s\S]*\}/);
       bodyData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback */ }
+
+    // ── Verificação de contagem de palavras — expande se abaixo do mínimo ──
+    const bodyWordCount = (bodyData.body || '').trim().split(/\s+/).filter(Boolean).length;
+    if (bodyData.body && bodyWordCount < 150) {
+      console.log(`[WORD-COUNT] Body tem ${bodyWordCount} palavras (mínimo 150) — expandindo...`);
+      onStep?.(`📏 Body com ${bodyWordCount} palavras — expandindo para atingir mínimo...`);
+      try {
+        const expandRaw = await llmChat(
+          `O roteiro abaixo está INCOMPLETO — tem apenas ${bodyWordCount} palavras no corpo, mas precisa de PELO MENOS 150 palavras no corpo.
+
+HOOK (não altere): "${hookData.hook}"
+
+CORPO ATUAL (${bodyWordCount} palavras — insuficiente):
+${bodyData.body}
+
+CTA ATUAL: ${bodyData.cta}
+
+TAREFA: Expanda o CORPO para ter pelo menos 150 palavras. Mantenha o hook e CTA exatamente como estão.
+
+O que deve ser expandido no corpo:
+1. AGITAÇÃO DA DOR: desenvolva mais o custo de não resolver o problema — seja específico sobre o que o viewer perde
+2. MICRORESULTADO: se não tiver ainda, adicione uma ação física que o viewer faz em menos de 30 segundos durante o vídeo
+3. APRESENTAÇÃO DA SOLUÇÃO: detalhe mais a solução, não apenas mencione — mostre como funciona na prática
+
+CONTEXTO DO ROTEIRO:
+- Título: ${idea.title}
+- Framework: ${idea.framework}
+- Funil: ${idea.funnel_stage}
+
+PROIBIÇÕES (mantidas):
+- Sem personas inventadas, sem percentuais inventados, sem mecanismos com nome
+- Tom: conversa direta, não aula ou coach
+
+Retorne APENAS JSON com o corpo expandido:
+{"body":"corpo expandido com pelo menos 150 palavras","cta":"${(bodyData.cta || '').replace(/"/g, '\\"')}"}`,
+          systemPrompt,
+          ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini', 'deepseek/deepseek-v3.2'],
+        );
+        const m = expandRaw.match(/\{[\s\S]*\}/);
+        const expanded = JSON.parse(m?.[0] ?? '{}');
+        if (expanded.body) {
+          const newCount = expanded.body.trim().split(/\s+/).filter(Boolean).length;
+          console.log(`[WORD-COUNT] Corpo expandido de ${bodyWordCount} → ${newCount} palavras`);
+          bodyData = { body: expanded.body, cta: expanded.cta || bodyData.cta };
+        }
+      } catch { /* mantém o body original */ }
+    } else {
+      console.log(`[WORD-COUNT] Body OK: ${bodyWordCount} palavras`);
+    }
 
     const script: GeneratedScript = {
       title: idea.title,
