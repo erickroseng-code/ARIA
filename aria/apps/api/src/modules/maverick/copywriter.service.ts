@@ -599,9 +599,18 @@ ${brain.closing}
 1. PROIBIDO inventar personas com nome e idade (“João, 30 anos”, “Joana, criadora de conteúdo”) — use “você” diretamente
 2. PROIBIDO percentuais ou números inventados (“37%”, “300%”, “20 clientes em 2 semanas”) — se não tem dado real, não cite número
 3. PROIBIDO nomear mecanismos inventados (“Círculo de X”, “Matriz de Y”, “Método Z”) — descreva o que faz, não invente nome
-4. PROIBIDO “dancinhas constrangedoras” e variações — é clichê de coach, não usar
-5. PROIBIDO frases de coach genérico (“transforme sua vida”, “resultados incríveis”, “sucesso garantido”)
-6. OBRIGATÓRIO: se não tem dado real, fale diretamente com “você” — sem exemplificar com persona inventada`;
+4. PROIBIDO frases de coach genérico (“transforme sua vida”, “resultados incríveis”, “sucesso garantido”)
+5. OBRIGATÓRIO: sem dado real, fale com “você” direto — nada de persona inventada
+
+━━━ REFERÊNCIA DE ESTILO (imite este nível, nunca o ultrapasse) ━━━
+Exemplo de corpo BOM — direto, cenas reais, sem coach-speak:
+“Eu vejo dono de negócio perdendo o final de semana respondendo 'qual o preço' e me dá dó. Você acorda às sete da manhã no domingo. Abre o celular antes de tomar café. Tem 40 mensagens acumuladas. Você responde uma por uma. No final, 38 te deixam no vácuo. A culpa de você estar escravizado no próprio celular não é sua. As grandes agências de lançamento criaram esse mito de que venda precisa de toque humano porque elas lucram te vendendo equipes de SDR e suporte caríssimas.”
+
+Exemplo de corpo RUIM — genérico, coach, persona inventada:
+“Eu conheci um empreendedor que estava perdendo dinheiro. Depois que ele aplicou minha estratégia, os resultados foram incríveis. Você também pode transformar seu negócio com essas 5 dicas poderosas.”
+
+O bom: cena real + reação crua + inimigo concreto + microresultado físico + progressão temporal
+O ruim: persona inventada + adjetivos vazios + promessa de coach`;
 
     const hasTechniques = !!(techniquePlan.storytelling || techniquePlan.persuasion);
 
@@ -649,7 +658,7 @@ Retorne APENAS JSON:
 
     let bodyData: { body: string; cta: string } = { body: '', cta: '' };
     try {
-      const raw = await llmChat(userPrompt, systemPrompt, ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2']);
+      const raw = await llmChat(userPrompt, systemPrompt, ['meta-llama/llama-4-maverick', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2']);
       const match = raw.match(/\{[\s\S]*\}/);
       bodyData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback */ }
@@ -689,7 +698,7 @@ PROIBIÇÕES (mantidas):
 Retorne APENAS JSON com o corpo expandido:
 {"body":"corpo expandido com pelo menos 150 palavras","cta":"${(bodyData.cta || '').replace(/"/g, '\\"')}"}`,
           systemPrompt,
-          ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
+          ['meta-llama/llama-4-maverick', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
         );
         const m =expandRaw.match(/\{[\s\S]*\}/);
         const expanded = JSON.parse(m?.[0] ?? '{}');
@@ -732,7 +741,7 @@ PROIBIÇÕES (mantidas):
 Retorne APENAS JSON:
 {"body":"corpo expandido","cta":"${(bodyData.cta || '').replace(/"/g, '\\"')}"}`,
           systemPrompt,
-          ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
+          ['meta-llama/llama-4-maverick', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
         );
         const m =totalExpandRaw.match(/\{[\s\S]*\}/);
         const expanded = JSON.parse(m?.[0] ?? '{}');
