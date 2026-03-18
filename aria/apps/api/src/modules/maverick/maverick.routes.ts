@@ -254,7 +254,7 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
       try {
         trendResearch = await runTrendResearch(plan, (msg) => {
           sendEvent(raw, 'step', { message: msg });
-        }, maxAgeDays);
+        }, maxAgeDays, keywords);
       } catch (err: any) {
         console.error('[TrendResearch] Failed:', err);
       }
