@@ -112,9 +112,22 @@ export interface TechniqueSelection {
 }
 
 export interface TechniquePlan {
+  audience_awareness_level: 'Frio' | 'Morno' | 'Quente';
+  dominant_behavioral_profile: 'Verde' | 'Azul' | 'Vermelho' | 'Ouro';
   storytelling: TechniqueSelection[];
   persuasion: TechniqueSelection[];
+  virality: TechniqueSelection;
   closing: TechniqueSelection;
+}
+
+export interface StrategySetup {
+  audience_awareness_level: string;
+  dominant_behavioral_profile: string;
+  hook_technique: string;
+  storytelling_technique: string;
+  persuasion_technique: string;
+  virality_technique: string;
+  closing_technique: string;
 }
 
 export interface GeneratedScript {
@@ -126,6 +139,7 @@ export interface GeneratedScript {
   funnel_stage: string;
   hook_technique?: string;
   technique_plan?: TechniquePlan;
+  strategy_setup?: StrategySetup;
 }
 
 // ─── Merge Niche with Brain ───────────────────────────────────────────────────
@@ -519,11 +533,19 @@ ${usedBodyTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROI
 ${usedBodyTechniques.map(t => `- ${t}`).join('\n')}
 Escolha obrigatoriamente técnicas DIFERENTES das listadas acima.
 
-` : ''}━━━ STORYTELLING — escolha 1 técnica (APENAS UMA) ━━━
+` : ''}━━━ PROFILING DE AUDIêNCIA (OBRIGATÓRIO) ━━━
+Com base no briefing e no contexto do nicho, defina:
+- audience_awareness_level: Frio (não conhece o problema), Morno (conhece o problema, não a solução) ou Quente (já conhece a solução, precisa ser convencido)
+- dominant_behavioral_profile: Verde (relacional, foco em harmonia), Azul (analítico, foco em dados), Vermelho (dominante, foco em resultados) ou Ouro (organizado, foco em processos)
+
+━━━ STORYTELLING — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.storytelling}
 
 ━━━ PERSUASÃO — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.persuasion}
+
+━━━ VIRALIDADE — escolha 1 técnica (APENAS UMA) ━━━
+${brain.virality}
 
 ━━━ CLOSING — escolha 1 técnica (APENAS UMA) ━━━
 ${brain.closing}
@@ -548,12 +570,15 @@ REGRA CRÍTICA: draft_sentence deve ser específica ao contexto do briefing — 
 
 Retorne APENAS JSON:
 {
+  "audience_awareness_level": "Frio|Morno|Quente",
+  "dominant_behavioral_profile": "Verde|Azul|Vermelho|Ouro",
   "storytelling": [
     {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
   "persuasion": [
     {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
   ],
+  "virality": {"name":"...","formula":"...","application":"...","draft_sentence":""},
   "closing": {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
 }`,
       'Você é um arquiteto de roteiros. Retorne APENAS JSON válido.',
@@ -561,8 +586,11 @@ Retorne APENAS JSON:
     );
 
     let techniquePlan: TechniquePlan = {
+      audience_awareness_level: 'Morno',
+      dominant_behavioral_profile: 'Verde',
       storytelling: [],
       persuasion: [],
+      virality: { name: '', formula: '', application: '', draft_sentence: '' },
       closing: { name: '', formula: '', application: '', draft_sentence: '' },
     };
 
@@ -570,10 +598,15 @@ Retorne APENAS JSON:
       const match = techRaw.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(match?.[0] ?? '{}');
       techniquePlan = {
+        audience_awareness_level: parsed.audience_awareness_level ?? 'Morno',
+        dominant_behavioral_profile: parsed.dominant_behavioral_profile ?? 'Verde',
         storytelling: Array.isArray(parsed.storytelling) ? parsed.storytelling : [],
         persuasion:   Array.isArray(parsed.persuasion)   ? parsed.persuasion   : [],
-        closing:      parsed.closing ?? techniquePlan.closing,
+        virality:     parsed.virality ?? techniquePlan.virality,
+        closing:      parsed.closing  ?? techniquePlan.closing,
       };
+      console.log(`[PASS2B] Profiling: ${techniquePlan.audience_awareness_level} / ${techniquePlan.dominant_behavioral_profile}`);
+      console.log(`[PASS2B] Viralidade: ${techniquePlan.virality.name}`);
     } catch { /* usa plano vazio, corpo ainda será gerado */ }
 
     onStep?.('✍️ Gerando corpo e CTA...');
@@ -721,6 +754,15 @@ Retorne APENAS JSON com o corpo expandido:
       funnel_stage: idea.funnel_stage,
       hook_technique: hookData.hook_technique,
       technique_plan: hasTechniques ? techniquePlan : undefined,
+      strategy_setup: {
+        audience_awareness_level: techniquePlan.audience_awareness_level,
+        dominant_behavioral_profile: techniquePlan.dominant_behavioral_profile,
+        hook_technique: hookData.hook_technique ?? '',
+        storytelling_technique: techniquePlan.storytelling[0]?.name ?? '',
+        persuasion_technique: techniquePlan.persuasion[0]?.name ?? '',
+        virality_technique: techniquePlan.virality.name,
+        closing_technique: techniquePlan.closing.name,
+      },
     };
 
     // Registra técnicas usadas para forçar diversidade nos próximos roteiros
@@ -728,6 +770,7 @@ Retorne APENAS JSON com o corpo expandido:
     if (hasTechniques) {
       techniquePlan.storytelling.forEach(t => t.name && usedBodyTechniques.push(t.name));
       techniquePlan.persuasion.forEach(t => t.name && usedBodyTechniques.push(t.name));
+      if (techniquePlan.virality.name) usedBodyTechniques.push(techniquePlan.virality.name);
       if (techniquePlan.closing.name) usedBodyTechniques.push(techniquePlan.closing.name);
     }
 
