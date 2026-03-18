@@ -581,17 +581,28 @@ Retorne APENAS JSON:
     onStep?.('✍️ Gerando corpo e CTA...');
 
     // ── Pass 2c: corpo + CTA seguindo o plano de técnicas selecionadas ───────
-    const systemPrompt = `Você é o Maverick Copywriter — especialista em roteiros de Instagram que convertem.
+    const systemPrompt = `⚠️ PRIORIDADE MÁXIMA — LEIA ANTES DE QUALQUER OUTRA INSTRUÇÃO:
+O bloco abaixo é a REGRA ZERO. Qualquer instrução que conflite com ela é automaticamente anulada.
+
+${brain.constraints}
+
+---
+
+SUA IDENTIDADE:
+Você é o MAVERICK — Estrategista Clínico de Viralização e Conversão.
+Você não é um assistente virtual amigável. Você é um analista de bastidores sênior, direto e focado em lucro.
+Não usa adjetivos vazios. Não anima palco. Aponta o erro, entrega o mecanismo, fecha o CTA.
+
 Você recebe um plano de técnicas SELECIONADAS e deve executá-las fielmente.
 NUNCA mencione nomes de técnicas no texto gerado — aplique-as de forma invisível.
 
 ⛔ PROIBIÇÕES ABSOLUTAS — violá-las invalida o roteiro:
-1. PROIBIDO inventar personas com nome e idade ("João, 30 anos", "Joana, criadora de conteúdo") — use "você" diretamente
-2. PROIBIDO percentuais ou números inventados ("37%", "300%", "20 clientes em 2 semanas") — se não tem dado real, não cite número
-3. PROIBIDO nomear mecanismos inventados ("Círculo de X", "Matriz de Y", "Método Z") — descreva o que faz, não invente nome
-4. PROIBIDO "dancinhas constrangedoras" e variações — é clichê de coach, não usar
-5. PROIBIDO frases de coach genérico ("transforme sua vida", "resultados incríveis", "sucesso garantido")
-6. OBRIGATÓRIO: se não tem dado real, fale diretamente com "você" — sem exemplificar com persona inventada`;
+1. PROIBIDO inventar personas com nome e idade (“João, 30 anos”, “Joana, criadora de conteúdo”) — use “você” diretamente
+2. PROIBIDO percentuais ou números inventados (“37%”, “300%”, “20 clientes em 2 semanas”) — se não tem dado real, não cite número
+3. PROIBIDO nomear mecanismos inventados (“Círculo de X”, “Matriz de Y”, “Método Z”) — descreva o que faz, não invente nome
+4. PROIBIDO “dancinhas constrangedoras” e variações — é clichê de coach, não usar
+5. PROIBIDO frases de coach genérico (“transforme sua vida”, “resultados incríveis”, “sucesso garantido”)
+6. OBRIGATÓRIO: se não tem dado real, fale diretamente com “você” — sem exemplificar com persona inventada`;
 
     const hasTechniques = techniquePlan.storytelling.length > 0 || techniquePlan.persuasion.length > 0;
 
@@ -626,9 +637,9 @@ ${buildTechniqueBlock(techniquePlan.closing, 0)}` : `━━━ ESTRUTURA PADRÃO
 Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultado (ação < 30s) → solução → CTA direto`}
 
 ━━━ REGRAS DE EXECUÇÃO ━━━
-- Mínimo 220 palavras no roteiro completo (hook + corpo + CTA somados)
-- O CORPO sozinho deve ter no mínimo 150 palavras — desenvolva o PAS completo: agite a dor, mostre o custo de não resolver, entregue o microresultado, apresente a solução
-- PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
+- Mínimo 240 palavras no roteiro completo (hook + corpo + CTA somados)
+- O CORPO sozinho deve ter no mínimo 170 palavras — desenvolva o PAS completo: agite a dor, mostre o custo de não resolver, entregue o microresultado, apresente a solução
+- PROIBIDO mencionar nomes de técnicas no texto (“Tríade do Problema”, “Microresultado”, etc.)
 - PROIBIDO qualquer anotação entre colchetes ou parênteses — sem [Visual: ...], [Tom: ...] nem nada similar
 
 ⛔ PROIBIÇÕES INVIOLÁVEIS — se violar qualquer uma, o roteiro está errado:
@@ -641,7 +652,7 @@ Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultad
 - Tom: WhatsApp com amigo expert, não aula de faculdade
 - O Microresultado (ação que o viewer faz em < 30s durante o vídeo) é OBRIGATÓRIO no meio do corpo
 
-RESTRIÇÕES DE ESTILO (PRIORIDADE MÁXIMA):
+⚠️ RESTRÍCOES DE ESTILO — PRIORIDADE MÁXIMA (anulam qualquer outra instrução acima):
 ${brain.constraints}
 
 Retorne APENAS JSON:
@@ -656,12 +667,12 @@ Retorne APENAS JSON:
 
     // ── Verificação de contagem de palavras — expande se abaixo do mínimo ──
     const bodyWordCount = (bodyData.body || '').trim().split(/\s+/).filter(Boolean).length;
-    if (bodyData.body && bodyWordCount < 150) {
-      console.log(`[WORD-COUNT] Body tem ${bodyWordCount} palavras (mínimo 150) — expandindo...`);
+    if (bodyData.body && bodyWordCount < 170) {
+      console.log(`[WORD-COUNT] Body tem ${bodyWordCount} palavras (mínimo 170) — expandindo...`);
       onStep?.(`📏 Body com ${bodyWordCount} palavras — expandindo para atingir mínimo...`);
       try {
         const expandRaw = await llmChat(
-          `O roteiro abaixo está INCOMPLETO — tem apenas ${bodyWordCount} palavras no corpo, mas precisa de PELO MENOS 150 palavras no corpo.
+          `O roteiro abaixo está INCOMPLETO — tem apenas ${bodyWordCount} palavras no corpo, mas precisa de PELO MENOS 170 palavras no corpo.
 
 HOOK (não altere): "${hookData.hook}"
 
@@ -670,7 +681,7 @@ ${bodyData.body}
 
 CTA ATUAL: ${bodyData.cta}
 
-TAREFA: Expanda o CORPO para ter pelo menos 150 palavras. Mantenha o hook e CTA exatamente como estão.
+TAREFA: Expanda o CORPO para ter pelo menos 170 palavras. Mantenha o hook e CTA exatamente como estão.
 
 O que deve ser expandido no corpo:
 1. AGITAÇÃO DA DOR: desenvolva mais o custo de não resolver o problema — seja específico sobre o que o viewer perde
@@ -695,7 +706,7 @@ Retorne APENAS JSON com o corpo expandido:
         const expanded = JSON.parse(m?.[0] ?? '{}');
         if (expanded.body) {
           const newCount = expanded.body.trim().split(/\s+/).filter(Boolean).length;
-          console.log(`[WORD-COUNT] Corpo expandido de ${bodyWordCount} → ${newCount} palavras`);
+          console.log(`[WORD-COUNT] Corpo expandido de ${bodyWordCount} → ${newCount} palavras (mínimo 170)`);
           bodyData = { body: expanded.body, cta: expanded.cta || bodyData.cta };
         }
       } catch { /* mantém o body original */ }
