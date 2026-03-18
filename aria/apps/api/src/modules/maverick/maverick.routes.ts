@@ -4,6 +4,7 @@ import { PrismaLibSql } from '@prisma/adapter-libsql';
 import * as path from 'path';
 import { MaverickService } from './maverick.service';
 import { generateScriptsFromPlan } from './copywriter.service';
+import { runTrendResearch } from './trend-researcher.service';
 import { generatePlan, ICP } from './plan.service';
 import { sendTelegram, sendTelegramDocument } from '../../shared/telegram';
 import { PdfService } from '../../services/pdf/pdf.service';
@@ -249,7 +250,16 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     sendEvent(raw, 'step', { message: '⏳ O time do Maverick está trabalhando na análise...' });
 
     try {
-      const scripts = await generateScriptsFromPlan(plan, (msg) => {
+      let trendResearch;
+      try {
+        trendResearch = await runTrendResearch(plan, (msg) => {
+          sendEvent(raw, 'step', { message: msg });
+        }, maxAgeDays);
+      } catch (err: any) {
+        console.error('[TrendResearch] Failed:', err);
+      }
+
+      const scripts = await generateScriptsFromPlan(plan, trendResearch, (msg) => {
         sendEvent(raw, 'step', { message: msg });
       });
 

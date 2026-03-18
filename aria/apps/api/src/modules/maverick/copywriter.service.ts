@@ -198,6 +198,40 @@ function loadGoldenHooks(): string {
   }
 }
 
+// ─── Diagnosis extractor ──────────────────────────────────────────────────────
+
+interface ExtractedDiagnosis {
+  audience_profile: string;   // quem é o público com dores e aspirações reais
+  diagnosis: string;          // GAP central identificado pelo Strategist
+  key_concept: string;        // conceito/framework central do diagnóstico
+  product_hint: string;       // o que vende ou deveria vender
+  main_pain: string;          // dor principal do público
+}
+
+function extractDiagnosis(planJson: string): ExtractedDiagnosis {
+  try {
+    const parsed = JSON.parse(planJson);
+    const strategy = parsed?.strategy ?? {};
+    const icp = strategy?.suggested_icp ?? {};
+
+    const audience_profile = [
+      icp.inferred_audience,
+      icp.main_pain_addressed ? `Dor principal: ${icp.main_pain_addressed}` : '',
+      icp.recommended_positioning ?? '',
+    ].filter(Boolean).join(' | ') || '';
+
+    return {
+      audience_profile,
+      diagnosis:    strategy.diagnosis            ?? '',
+      key_concept:  strategy.key_concept          ?? '',
+      product_hint: icp.inferred_product          ?? '',
+      main_pain:    icp.main_pain_addressed        ?? '',
+    };
+  } catch {
+    return { audience_profile: '', diagnosis: '', key_concept: '', product_hint: '', main_pain: '' };
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateScriptsFromPlan(
@@ -207,6 +241,14 @@ export async function generateScriptsFromPlan(
 ): Promise<GeneratedScript[]> {
   const brain = loadBrain();
   const goldenHooks = loadGoldenHooks();
+
+  // Extrai diagnóstico real do plano (dados do Scout + Strategist via Apify)
+  const diagnosis = extractDiagnosis(plan);
+  if (diagnosis.audience_profile) {
+    console.log(`[DIAGNOSIS] audience_profile extraído: ${diagnosis.audience_profile.slice(0, 120)}`);
+  } else {
+    console.warn('[DIAGNOSIS] audience_profile vazio — plan pode não ser JSON do Strategist');
+  }
 
   // Mescla o plano do usuário com as referências do brain usando gpt-oss-120b
   let enrichedContext = '';
@@ -220,10 +262,20 @@ export async function generateScriptsFromPlan(
 
   onStep?.('🧠 Selecionando ângulos e frameworks...');
 
-  // ── Pass 1: selecionar ângulos usando virality + audience ──────────────────
+  // ── Pass 1: selecionar ângulos usando diagnóstico real + virality + audience ──
+  const diagnosisBlock = diagnosis.audience_profile ? `
+━━━ DIAGNÓSTICO REAL DO PERFIL (extraído via Apify + Strategist) ━━━
+Público-alvo: ${diagnosis.audience_profile}
+${diagnosis.diagnosis ? `Diagnóstico estratégico: ${diagnosis.diagnosis}` : ''}
+${diagnosis.key_concept ? `Conceito-chave: ${diagnosis.key_concept}` : ''}
+${diagnosis.main_pain ? `Dor principal: ${diagnosis.main_pain}` : ''}
+${diagnosis.product_hint ? `Produto/Serviço: ${diagnosis.product_hint}` : ''}
+━━━ USE ESSES DADOS REAIS — não invente nem generalize o público ━━━
+` : '';
+
   const ideasRaw = await llmChat(
     `Analise o plano estratégico abaixo e extraia 3-4 ideias de roteiros para Instagram Reels/Carrossel.
-
+${diagnosisBlock}
 CALIBRAÇÃO DE AUDIÊNCIA (use para escolher ângulos que falem com ESTE público específico):
 ${brain.audience}
 
@@ -236,7 +288,7 @@ Para cada ideia, defina:
 - framework: PAS | AIDA | BAB | HOOK_STORY_OFFER (qual serve melhor para este ângulo)
 - funnel_stage: TOFU | MOFU | BOFU
 - virality_angle: qual mecânica de viralidade (Polarização, Ancoragem nos Extremos, High-Arousal, etc.) este ângulo ativa
-- audience_profile: qual princípio de audiência guia a linguagem
+- audience_profile: descrição CONCRETA do público (baseie-se no DIAGNÓSTICO REAL acima, não invente)
 
 CONTEXTO ESTRATÉGICO (mesclado com brain):
 ${enrichedContext}
@@ -302,7 +354,7 @@ BRIEFING:
 - Framework: ${idea.framework}
 - Funil: ${idea.funnel_stage}
 - Mecânica viral alvo: ${idea.virality_angle || 'escolha a mais adequada'}
-- Perfil de audiência: ${idea.audience_profile || 'empreendedores/gestores brasileiros'}
+- Perfil de audiência: ${idea.audience_profile || diagnosis.audience_profile || 'empreendedores/gestores brasileiros'}
 
 ━━━ REFERÊNCIA DE NÍVEL — apenas para calibrar qualidade, NUNCA para copiar ou adaptar ━━━
 ${hookExamples}
@@ -329,7 +381,7 @@ ${brain.hooks}
 Retorne APENAS JSON:
 {"hook":"texto do hook original e específico ao nicho","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula foi aplicada aqui (1 frase)"}`,
       'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
-      ['meta-llama/llama-4-maverick', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
+      ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
     );
 
     let hookData: { hook: string; hook_technique: string; formula_applied?: string } = { hook: '', hook_technique: '' };
@@ -386,7 +438,7 @@ EXEMPLOS DO NÍVEL ESPERADO:
 Retorne APENAS JSON:
 {"hook":"hook concreto e específico ao nicho","hook_technique":"técnica usada","formula_applied":"como aplicou"}`,
         'Você é um especialista em hooks de Instagram. Retorne APENAS JSON válido.',
-        ['meta-llama/llama-4-maverick', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
+        ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
       );
 
       try {
@@ -443,10 +495,15 @@ Para cada técnica selecionada, defina:
 - application: como aplicar NESTE roteiro específico (1-2 frases concretas com detalhes do nicho)
 - draft_sentence: escreva UMA frase real do roteiro que aplica esta técnica concretamente — use nomes, números, situações específicas do nicho/contexto. Esta frase SERÁ incluída no corpo final.
 
-EXEMPLOS de draft_sentence bem feitos (específicos, concretos, não genéricos):
-- Storytelling/Neural Sync: "Ricardo, 38 anos, abriu o analytics às 23h e sentiu aquela vergonha familiar: 847 visualizações, nenhum DM de cliente."
-- Persuasão/Prova Social: "Em 3 semanas, 12 criadores que aplicaram isso saíram de R$800/mês para R$4.200/mês em contratos fechados via DM."
-- Closing/Microcommit: "Antes de continuar assistindo: para no segundo 30 e escreve nos comentários qual desses 3 erros você estava cometendo."
+EXEMPLOS de draft_sentence bem feitos (específicos, diretos, sem personas inventadas):
+- Storytelling: "Você abre o analytics de manhã, vê 2 mil visualizações no Reel, e zero DMs de clientes — essa é a lacuna que estamos resolvendo aqui."
+- Persuasão: "Quando você para de postar por postar e começa a guiar o seguidor para uma ação específica, o engajamento vira venda."
+- Closing/Microcommit: "Antes de continuar: anota nos comentários o principal motivo pelo qual você ainda não converteu seus seguidores em clientes."
+
+⛔ PROIBIDO nas draft_sentences:
+- Personas com nome e idade ("Ricardo, 38 anos", "Joana, criadora de conteúdo")
+- Percentuais ou números inventados ("300%", "R$4.200/mês", "12 criadores")
+- Fale sempre com "você" diretamente
 
 REGRA CRÍTICA: draft_sentence deve ser específica ao contexto do briefing — nunca genérica ou com placeholders.
 
@@ -462,7 +519,8 @@ Retorne APENAS JSON:
   ],
   "closing": {"name":"...","formula":"...","application":"...","draft_sentence":"..."}
 }`,
-      'Você é um arquiteto de roteiros. Retorne APENAS JSON válido.'
+      'Você é um arquiteto de roteiros. Retorne APENAS JSON válido.',
+      ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-v3.2'],
     );
 
     let techniquePlan: TechniquePlan = {
@@ -486,7 +544,15 @@ Retorne APENAS JSON:
     // ── Pass 2c: corpo + CTA seguindo o plano de técnicas selecionadas ───────
     const systemPrompt = `Você é o Maverick Copywriter — especialista em roteiros de Instagram que convertem.
 Você recebe um plano de técnicas SELECIONADAS e deve executá-las fielmente.
-NUNCA mencione nomes de técnicas no texto gerado — aplique-as de forma invisível.`;
+NUNCA mencione nomes de técnicas no texto gerado — aplique-as de forma invisível.
+
+⛔ PROIBIÇÕES ABSOLUTAS — violá-las invalida o roteiro:
+1. PROIBIDO inventar personas com nome e idade ("João, 30 anos", "Joana, criadora de conteúdo") — use "você" diretamente
+2. PROIBIDO percentuais ou números inventados ("37%", "300%", "20 clientes em 2 semanas") — se não tem dado real, não cite número
+3. PROIBIDO nomear mecanismos inventados ("Círculo de X", "Matriz de Y", "Método Z") — descreva o que faz, não invente nome
+4. PROIBIDO "dancinhas constrangedoras" e variações — é clichê de coach, não usar
+5. PROIBIDO frases de coach genérico ("transforme sua vida", "resultados incríveis", "sucesso garantido")
+6. OBRIGATÓRIO: se não tem dado real, fale diretamente com "você" — sem exemplificar com persona inventada`;
 
     const hasTechniques = techniquePlan.storytelling.length > 0 || techniquePlan.persuasion.length > 0;
 
@@ -524,6 +590,14 @@ Aplique: Tríade do Problema (externo + interno + filosófico) → Microresultad
 - Mínimo 200 palavras no corpo
 - PROIBIDO mencionar nomes de técnicas no texto ("Tríade do Problema", "Microresultado", etc.)
 - PROIBIDO qualquer anotação entre colchetes ou parênteses — sem [Visual: ...], [Tom: ...] nem nada similar
+
+⛔ PROIBIÇÕES INVIOLÁVEIS — se violar qualquer uma, o roteiro está errado:
+- PROIBIDO inventar personas com nome e idade: "Carlos, 42 anos", "Joana, 29 anos", "Fernando, dono de loja" → use "você" diretamente
+- PROIBIDO percentuais ou números inventados: "37%", "300%", "20 clientes em 2 semanas" → sem dado real, sem número
+- PROIBIDO nomear mecanismos fictícios: "Máquina de Engajamento", "Ciclo de Conversão", "Método X" → descreva o que faz, não invente nome
+- PROIBIDO "dancinhas" em qualquer variação → é clichê, não usar
+- PROIBIDO frases de coach: "transforme sua vida", "resultados incríveis", "sucesso garantido"
+- OBRIGATÓRIO: fale diretamente com "você" — sem exemplificar com terceiros inventados
 - Tom: WhatsApp com amigo expert, não aula de faculdade
 - O Microresultado (ação que o viewer faz em < 30s durante o vídeo) é OBRIGATÓRIO no meio do corpo
 
@@ -535,7 +609,7 @@ Retorne APENAS JSON:
 
     let bodyData: { body: string; cta: string } = { body: '', cta: '' };
     try {
-      const raw = await llmChat(userPrompt, systemPrompt);
+      const raw = await llmChat(userPrompt, systemPrompt, ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini', 'deepseek/deepseek-v3.2']);
       const match = raw.match(/\{[\s\S]*\}/);
       bodyData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback */ }
