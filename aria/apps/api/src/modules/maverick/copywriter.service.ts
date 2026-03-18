@@ -649,7 +649,7 @@ Retorne APENAS JSON:
 
     let bodyData: { body: string; cta: string } = { body: '', cta: '' };
     try {
-      const raw = await llmChat(userPrompt, systemPrompt, ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini', 'deepseek/deepseek-v3.2']);
+      const raw = await llmChat(userPrompt, systemPrompt, ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2']);
       const match = raw.match(/\{[\s\S]*\}/);
       bodyData = JSON.parse(match?.[0] ?? '{}');
     } catch { /* usa fallback */ }
@@ -689,9 +689,9 @@ PROIBIÇÕES (mantidas):
 Retorne APENAS JSON com o corpo expandido:
 {"body":"corpo expandido com pelo menos 150 palavras","cta":"${(bodyData.cta || '').replace(/"/g, '\\"')}"}`,
           systemPrompt,
-          ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini', 'deepseek/deepseek-v3.2'],
+          ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
         );
-        const m = expandRaw.match(/\{[\s\S]*\}/);
+        const m =expandRaw.match(/\{[\s\S]*\}/);
         const expanded = JSON.parse(m?.[0] ?? '{}');
         if (expanded.body) {
           const newCount = expanded.body.trim().split(/\s+/).filter(Boolean).length;
@@ -732,9 +732,9 @@ PROIBIÇÕES (mantidas):
 Retorne APENAS JSON:
 {"body":"corpo expandido","cta":"${(bodyData.cta || '').replace(/"/g, '\\"')}"}`,
           systemPrompt,
-          ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini', 'deepseek/deepseek-v3.2'],
+          ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
         );
-        const m = totalExpandRaw.match(/\{[\s\S]*\}/);
+        const m =totalExpandRaw.match(/\{[\s\S]*\}/);
         const expanded = JSON.parse(m?.[0] ?? '{}');
         if (expanded.body) {
           const newTotal = countWords(hookData.hook) + countWords(expanded.body) + countWords(bodyData.cta);
