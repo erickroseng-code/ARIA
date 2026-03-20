@@ -222,6 +222,50 @@ function extractDiagnosis(planJson: string): ExtractedDiagnosis {
   }
 }
 
+// ─── Focused plan builder ─────────────────────────────────────────────────────
+
+/**
+ * Extrai só os campos estratégicos do JSON do Strategist.
+ * Remove ruído (analysis, profile_score, engagement_panorama, etc.)
+ * para que o mergeNicheWithBrain receba um contexto limpo e focado.
+ */
+function buildFocusedPlan(planJson: string): string {
+  try {
+    const parsed = JSON.parse(planJson);
+    const strategy = parsed?.strategy ?? {};
+    const icp = strategy?.suggested_icp ?? {};
+    const profile = parsed?.profile ?? {};
+
+    const focused = {
+      profile: {
+        username: profile.username ?? parsed?.analysis?.username ?? '',
+        followers: profile.followers ?? '',
+      },
+      strategy: {
+        diagnosis: strategy.diagnosis ?? '',
+        key_concept: strategy.key_concept ?? '',
+        suggested_icp: {
+          inferred_audience: icp.inferred_audience ?? '',
+          inferred_product: icp.inferred_product ?? '',
+          main_pain_addressed: icp.main_pain_addressed ?? '',
+          recommended_positioning: icp.recommended_positioning ?? '',
+        },
+        funnel_mix: {
+          tofu_pct: strategy.funnel_mix?.tofu_pct ?? 33,
+          mofu_pct: strategy.funnel_mix?.mofu_pct ?? 34,
+          bofu_pct: strategy.funnel_mix?.bofu_pct ?? 33,
+          reasoning: strategy.funnel_mix?.reasoning ?? '',
+        },
+        next_steps: strategy.next_steps ?? [],
+      },
+    };
+
+    return JSON.stringify(focused);
+  } catch {
+    return planJson; // fallback: usa o plan original
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export async function generateScriptsFromPlan(
@@ -231,8 +275,12 @@ export async function generateScriptsFromPlan(
 ): Promise<GeneratedScript[]> {
   const brain = loadBrain();
 
+  // Reduz ruído do Strategist — extrai só os campos estratégicos relevantes
+  const focusedPlan = buildFocusedPlan(plan);
+  console.log(`[FOCUSED-PLAN] Plano focado: ${focusedPlan.length} chars (original: ${plan.length} chars)`);
+
   // Extrai diagnóstico real do plano (dados do Scout + Strategist via Apify)
-  const diagnosis = extractDiagnosis(plan);
+  const diagnosis = extractDiagnosis(focusedPlan);
   if (diagnosis.audience_profile) {
     console.log(`[DIAGNOSIS] audience_profile extraído: ${diagnosis.audience_profile.slice(0, 120)}`);
   } else {
@@ -242,11 +290,11 @@ export async function generateScriptsFromPlan(
   // Mescla o plano do usuário com as referências do brain
   let enrichedContext = '';
   try {
-    enrichedContext = await mergeNicheWithBrain(plan, brain, trendResearch, onStep);
+    enrichedContext = await mergeNicheWithBrain(focusedPlan, brain, trendResearch, onStep);
     console.log(`[MERGE] Contexto enriquecido gerado (${enrichedContext.length} chars)`);
   } catch (e) {
     console.warn('[MERGE] Falha no merge, usando plan original:', e);
-    enrichedContext = plan; // fallback para plan original
+    enrichedContext = focusedPlan; // fallback para plan focado
   }
 
   onStep?.('🧠 Selecionando ângulos e frameworks...');
