@@ -1757,22 +1757,13 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     Estratégia e Inteligência para crescer com autoridade no Instagram.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => { setDirectKeywordInput(''); setPhase('keyword-input'); }}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-2xl text-black text-sm font-black transition-all active:scale-[0.97] shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
-                  >
-                    <Film className="w-4 h-4" />
-                    Gerar Roteiros
-                  </button>
-                  <button
-                    onClick={() => setPhase('asking')}
-                    className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white/60 text-sm font-bold transition-all active:scale-[0.97]"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    Analisar Perfil
-                  </button>
-                </div>
+                <button
+                  onClick={() => setPhase('asking')}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-2xl text-black text-sm font-black transition-all active:scale-[0.97] flex-shrink-0 shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Nova Análise
+                </button>
               </div>
 
               {/* Lista de análises */}
