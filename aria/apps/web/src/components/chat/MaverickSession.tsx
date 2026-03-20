@@ -168,7 +168,7 @@ interface HistoryListEntry {
   trendResearch?: TrendResearchData;
 }
 
-type Phase = 'home' | 'asking' | 'icp-form' | 'running-plan' | 'report' | 'keyword-confirm' | 'running-scripts' | 'done' | 'error';
+type Phase = 'home' | 'asking' | 'icp-form' | 'running-plan' | 'report' | 'keyword-confirm' | 'keyword-input' | 'running-scripts' | 'done' | 'error';
 
 interface MaverickSessionProps {
   onClose: () => void;
@@ -296,6 +296,128 @@ function StepLog({ steps }: { steps: string[] }) {
           <span>{step}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Maverick Loading (New Design) ─────────────────────────────────────────────
+
+interface MaverickLoadingProps {
+  username: string;
+  steps: string[];
+}
+
+function MaverickLoading({ username, steps: backendSteps }: MaverickLoadingProps) {
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+
+  const MAVERICK_LOADING_STEPS = [
+    { label: 'SCOUT', text: 'Escaneando o perfil...' },
+    { label: 'SCHOLAR', text: 'Consultando a base de conhecimento...' },
+    { label: 'SCHOLAR', text: 'Cruzando dados com teoria...' },
+    { label: 'STRATEGIST', text: 'Gerando diagnóstico...' },
+    { label: 'MAVERICK', text: 'Montando o relatório final...' },
+  ];
+
+  useEffect(() => {
+    const lastStep = backendSteps[backendSteps.length - 1] || '';
+    if (lastStep.includes('Scout')) {
+      setCurrentStepIndex(1); // Finish scout, on scholar 1
+    } else if (lastStep.includes('Strategist')) {
+      setCurrentStepIndex(3); // Finish scholar 2, on strategist
+    }
+    
+    // Auto-advance for better feel (scholar 1 to scholar 2, strategist to maverick)
+    const timer = setTimeout(() => {
+      if (currentStepIndex === 1) setCurrentStepIndex(2);
+      if (currentStepIndex === 3) setCurrentStepIndex(4);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [backendSteps, currentStepIndex]);
+
+  return (
+    <div className="fixed inset-0 bg-[#09090B] flex flex-col items-center justify-center p-6 z-[100] animate-in fade-in duration-500">
+      {/* Background decoration */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]" />
+      </div>
+
+      {/* Header Username Badge */}
+      <div className="bg-white/5 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg mb-14 relative z-10 transition-all hover:scale-105 hover:bg-white/10">
+        <span className="text-sm font-black text-white tracking-tight">@{username.replace(/^@/, '')}</span>
+      </div>
+
+      {/* Lightning Icon */}
+      <div className="relative mb-8 z-10 text-center flex flex-col items-center">
+        <div className="w-16 h-16 rounded-[22px] bg-white/5 shadow-2xl flex items-center justify-center border border-white/10 relative overflow-hidden group mb-4">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <Zap className="w-8 h-8 text-orange-500 fill-orange-500 animate-[pulse_2s_infinite]" />
+        </div>
+      </div>
+
+      <div className="text-center mb-12 z-10">
+        <p className="text-[11px] font-black text-white/30 uppercase tracking-[0.25em] mb-3">Maverick</p>
+        <h2 className="text-3xl font-black text-white tracking-tight mb-2.5">
+          {MAVERICK_LOADING_STEPS[currentStepIndex].text}
+        </h2>
+        <p className="text-white/40 text-[15px] font-medium">
+          Priorizando ações de maior impacto para esta semana
+        </p>
+      </div>
+
+      {/* Steps Card */}
+      <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[36px] p-8 w-full max-w-[420px] shadow-2xl z-10 space-y-7">
+        {MAVERICK_LOADING_STEPS.map((step, i) => {
+          const isDone = i < currentStepIndex;
+          const isCurrent = i === currentStepIndex;
+          
+          return (
+            <div key={i} className={`flex items-center justify-between transition-all duration-500 ${isDone ? 'opacity-40' : isCurrent ? 'opacity-100' : 'opacity-20'}`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all duration-500 ${
+                  isDone 
+                    ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
+                    : isCurrent 
+                      ? 'bg-white/10 border-white/20' 
+                      : 'bg-white/5 border-white/5'
+                }`}>
+                  {isDone ? (
+                    <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  ) : isCurrent ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+                  ) : null}
+                </div>
+                <div>
+                  <p className={`text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 ${isDone ? 'text-emerald-400/80' : isCurrent ? 'text-white/40' : 'text-white/20'}`}>
+                    {step.label}
+                  </p>
+                  <p className={`text-[13.5px] font-bold tracking-tight ${isCurrent ? 'text-white' : 'text-white/50'}`}>
+                    {step.text}
+                  </p>
+                </div>
+              </div>
+              
+              {isDone ? (
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">concluído</span>
+              ) : isCurrent ? (
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest animate-pulse">em andamento</span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-10 text-[11px] font-black text-white/10 uppercase tracking-[0.2em] z-10">
+        {Math.min(currentStepIndex + 1, 5)} de 5 etapas
+      </p>
+      
+      {/* Decorative elements */}
+      <div className="absolute inset-0 pointer-events-none">
+         <div className="absolute top-[20%] left-[10%] w-1.5 h-1.5 rounded-full bg-emerald-500/20" />
+         <div className="absolute top-[40%] right-[15%] w-2 h-2 rounded-full bg-blue-500/20 blur-[1px]" />
+         <div className="absolute bottom-[30%] left-[20%] w-1 h-1 rounded-full bg-white/5" />
+      </div>
     </div>
   );
 }
@@ -1117,6 +1239,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     loading: false, carousel: null, htmlExport: null, figmaUrl: null, error: null,
   });
   const [carouselTheme, setCarouselTheme] = useState<'dark' | 'light'>('dark');
+  const [directKeywordInput, setDirectKeywordInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<boolean>(false);
 
@@ -1437,6 +1560,64 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     }
   }, [rawPlan, analysisId, addStep, selectedMaxAge]);
 
+  const handleGenerateFromKeywords = useCallback(async () => {
+    const keywords = directKeywordInput.split(',').map(k => k.trim()).filter(Boolean);
+    if (keywords.length === 0) return;
+
+    const plan = JSON.stringify({
+      strategy: {
+        key_concept: keywords[0],
+        diagnosis: `Criador de conteúdo sobre: ${keywords.join(', ')}`,
+        suggested_icp: {
+          inferred_audience: `Público interessado em ${keywords.join(', ')}`,
+          inferred_product: '',
+          main_pain_addressed: '',
+        },
+        funnel_mix: { tofu_pct: 40, mofu_pct: 35, bofu_pct: 25 },
+        next_steps: keywords,
+      },
+    });
+
+    setRawPlan(plan);
+    setPhase('running-scripts');
+    setStreamingScripts('');
+    setScripts('');
+    setParsedScripts(null);
+    setTrendResearch(null);
+    abortRef.current = false;
+    setSteps([]);
+
+    try {
+      for await (const event of streamSse('/api/maverick/scripts', { plan, skipTrendResearch: true })) {
+        if (abortRef.current) break;
+        switch (event.type) {
+          case 'step':
+            addStep(event.message as string);
+            break;
+          case 'scripts': {
+            const raw = event.content as string;
+            setScripts(raw);
+            try {
+              const parsed = JSON.parse(raw) as ScriptData[];
+              setParsedScripts(Array.isArray(parsed) ? parsed : null);
+            } catch { setParsedScripts(null); }
+            setPhase('done');
+            break;
+          }
+          case 'error':
+            setErrorMsg(event.message as string);
+            setPhase('error');
+            return;
+        }
+      }
+    } catch (err: any) {
+      if (!abortRef.current) {
+        setErrorMsg(err.message ?? 'Erro durante a geração dos roteiros');
+        setPhase('error');
+      }
+    }
+  }, [directKeywordInput, addStep]);
+
   const handleReset = useCallback(() => {
     abortRef.current = true;
     stopSpeech();
@@ -1575,13 +1756,22 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     Estratégia e Inteligência para crescer com autoridade no Instagram.
                   </p>
                 </div>
-                <button
-                  onClick={() => setPhase('asking')}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-2xl text-black text-sm font-black transition-all active:scale-[0.97] flex-shrink-0 shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
-                >
-                  <TrendingUp className="w-4 h-4" />
-                  Nova Análise
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setDirectKeywordInput(''); setPhase('keyword-input'); }}
+                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 rounded-2xl text-black text-sm font-black transition-all active:scale-[0.97] shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
+                  >
+                    <Film className="w-4 h-4" />
+                    Gerar Roteiros
+                  </button>
+                  <button
+                    onClick={() => setPhase('asking')}
+                    className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white/60 text-sm font-bold transition-all active:scale-[0.97]"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    Analisar Perfil
+                  </button>
+                </div>
               </div>
 
               {/* Lista de análises */}
@@ -1671,6 +1861,45 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                   className="text-xs text-white/25 hover:text-white/50 transition-colors"
                 >
                   Sair do Maverick
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════
+              FASE: KEYWORD-INPUT — geração direta por palavras-chave
+          ════════════════════════════════════════════════════════ */}
+          {phase === 'keyword-input' && (
+            <div className="flex flex-col items-center justify-center pt-8 animate-in fade-in zoom-in-95 duration-500">
+              <div className="bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.07)] rounded-[32px] p-10 w-full max-w-[580px] flex flex-col gap-8 relative overflow-hidden">
+                <div className="absolute -top-24 -right-24 w-56 h-56 bg-emerald-500/10 blur-[100px] pointer-events-none" />
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-2xl">🦅</div>
+                  <div>
+                    <h3 className="text-xl font-black text-white tracking-tight">Gerar Roteiros</h3>
+                    <p className="text-white/40 text-xs font-medium mt-0.5">Digite os temas e deixa o Maverick trabalhar</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <label className="text-xs text-white/40 uppercase tracking-widest font-bold">Palavras-chave / Tema</label>
+                  <input
+                    type="text"
+                    value={directKeywordInput}
+                    onChange={e => setDirectKeywordInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && directKeywordInput.trim()) handleGenerateFromKeywords(); }}
+                    placeholder="ex: IA para negócios, automação, produtividade"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-white/20 text-sm font-medium focus:outline-none focus:border-emerald-500/50 focus:bg-white/8 transition-all"
+                    autoFocus
+                  />
+                  <p className="text-white/20 text-xs">Separe por vírgula. O Maverick vai gerar 3-4 roteiros baseados nesses temas.</p>
+                </div>
+                <button
+                  onClick={handleGenerateFromKeywords}
+                  disabled={!directKeywordInput.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-2xl text-black text-sm font-black transition-all active:scale-[0.98] shadow-[0_12px_40px_rgba(16,185,129,0.3)]"
+                >
+                  <Film className="w-4 h-4" />
+                  Gerar Roteiros
                 </button>
               </div>
             </div>
@@ -1806,35 +2035,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
           )}
 
           {/* ═══════════════════════════════════════════════════════
-              FASE: RUNNING-PLAN — loading com logs
+              FASE: RUNNING-PLAN — loading com logs (AGORA COM NOVO DESIGN)
           ════════════════════════════════════════════════════════ */}
           {phase === 'running-plan' && (
-            <div className="flex flex-col items-center gap-8 pt-12">
-              <div className="relative">
-                <div className="w-20 h-20 rounded-full border-2 border-white/10 flex items-center justify-center text-4xl">
-                  🦅
-                </div>
-                <Loader2 className="absolute -right-1 -bottom-1 w-6 h-6 text-white/40 animate-spin" />
-              </div>
-              <div className="text-center space-y-1">
-                <h3 className="text-white font-semibold">Analisando perfil</h3>
-                <p className="text-white/40 text-sm">Isso pode levar alguns minutos...</p>
-              </div>
-              <div className="w-full max-w-md space-y-2">
-                {steps.map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-white/50">
-                    <CheckCircle className="w-4 h-4 text-emerald-500/60 flex-shrink-0" />
-                    <span>{step}</span>
-                  </div>
-                ))}
-                {steps.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-white/30">
-                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                    <span>Processando...</span>
-                  </div>
-                )}
-              </div>
-            </div>
+            <MaverickLoading username={username} steps={steps} />
           )}
 
           {/* ═══════════════════════════════════════════════════════

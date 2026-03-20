@@ -234,10 +234,10 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
 
   // POST /api/maverick/scripts — Copywriter com SSE streaming
   fastify.post('/scripts', async (
-    req: FastifyRequest<{ Body: { plan: string; analysisId?: string; keywords?: string[]; maxAgeDays?: number } }>,
+    req: FastifyRequest<{ Body: { plan: string; analysisId?: string; keywords?: string[]; maxAgeDays?: number; skipTrendResearch?: boolean } }>,
     reply: FastifyReply,
   ) => {
-    const { plan, analysisId, keywords, maxAgeDays = 45 } = req.body;
+    const { plan, analysisId, keywords, maxAgeDays = 45, skipTrendResearch = false } = req.body;
 
     if (!plan) {
       return reply.status(400).send({ error: 'plan é obrigatório' });
@@ -251,12 +251,14 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
 
     try {
       let trendResearch;
-      try {
-        trendResearch = await runTrendResearch(plan, (msg) => {
-          sendEvent(raw, 'step', { message: msg });
-        }, maxAgeDays, keywords);
-      } catch (err: any) {
-        console.error('[TrendResearch] Failed:', err);
+      if (!skipTrendResearch) {
+        try {
+          trendResearch = await runTrendResearch(plan, (msg) => {
+            sendEvent(raw, 'step', { message: msg });
+          }, maxAgeDays, keywords);
+        } catch (err: any) {
+          console.error('[TrendResearch] Failed:', err);
+        }
       }
 
       const scripts = await generateScriptsFromPlan(plan, trendResearch, (msg) => {
@@ -328,6 +330,8 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
         profile: analysis.profile,
         analysis: analysis.analysis,
         strategy: analysis.strategy,
+        scripts: analysis.scripts ?? [],
+        trendResearch: analysis.trendResearch ?? null,
       });
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao recuperar análise' });
