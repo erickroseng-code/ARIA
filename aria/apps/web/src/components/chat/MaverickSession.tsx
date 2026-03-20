@@ -681,18 +681,18 @@ function ScriptModal({ script, index, onClose }: {
                   <span className="text-[10px] text-amber-300/50">{script.hook_technique}</span>
                 </div>
               )}
-              {script.technique_plan.storytelling.map((t, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="text-[10px] font-bold text-blue-400/60 w-20 flex-shrink-0">Story {i + 1}</span>
-                  <span className="text-[10px] text-blue-300/50">{t.name}</span>
+              {script.technique_plan.storytelling && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-blue-400/60 w-20 flex-shrink-0">Story</span>
+                  <span className="text-[10px] text-blue-300/50">{typeof script.technique_plan.storytelling === 'string' ? script.technique_plan.storytelling : (script.technique_plan.storytelling as any).name}</span>
                 </div>
-              ))}
-              {script.technique_plan.persuasion.map((t, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="text-[10px] font-bold text-purple-400/60 w-20 flex-shrink-0">Persuasão {i + 1}</span>
-                  <span className="text-[10px] text-purple-300/50">{t.name}</span>
+              )}
+              {script.technique_plan.persuasion && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-purple-400/60 w-20 flex-shrink-0">Persuasão</span>
+                  <span className="text-[10px] text-purple-300/50">{typeof script.technique_plan.persuasion === 'string' ? script.technique_plan.persuasion : (script.technique_plan.persuasion as any).name}</span>
                 </div>
-              ))}
+              )}
               {script.technique_plan.closing?.name && (
                 <div className="flex items-start gap-2">
                   <span className="text-[10px] font-bold text-emerald-400/60 w-20 flex-shrink-0">Closing</span>
@@ -1564,14 +1564,15 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     const keywords = directKeywordInput.split(',').map(k => k.trim()).filter(Boolean);
     if (keywords.length === 0) return;
 
+    const mainTopic = keywords[0];
     const plan = JSON.stringify({
       strategy: {
-        key_concept: keywords[0],
-        diagnosis: `Criador de conteúdo sobre: ${keywords.join(', ')}`,
+        key_concept: mainTopic,
+        diagnosis: `Criador de conteúdo sobre ${keywords.join(', ')} para empreendedores brasileiros.`,
         suggested_icp: {
-          inferred_audience: `Público interessado em ${keywords.join(', ')}`,
-          inferred_product: '',
-          main_pain_addressed: '',
+          inferred_audience: 'Empreendedores e donos de negócio 25-45 anos que querem crescer',
+          inferred_product: `Curso, consultoria ou serviço relacionado a ${mainTopic}`,
+          main_pain_addressed: `Perdem tempo e dinheiro por não dominar ${mainTopic}`,
         },
         funnel_mix: { tofu_pct: 40, mofu_pct: 35, bofu_pct: 25 },
         next_steps: keywords,
