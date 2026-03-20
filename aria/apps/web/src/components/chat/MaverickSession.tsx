@@ -1510,7 +1510,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
 
     try {
-      const body: Record<string, unknown> = { plan: rawPlan, keywords, maxAgeDays: selectedMaxAgeRef.current };
+      const body: Record<string, unknown> = { plan: rawPlan, skipTrendResearch: true };
       if (analysisId) body.analysisId = analysisId;
 
       for await (const event of streamSse('/api/maverick/scripts', body)) {
