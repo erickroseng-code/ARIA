@@ -1510,8 +1510,10 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setSteps([]);
 
     try {
+      const cleanedKeywords = keywords.filter(Boolean);
       const body: Record<string, unknown> = { plan: rawPlan, skipTrendResearch: true };
       if (analysisId) body.analysisId = analysisId;
+      if (cleanedKeywords.length > 0) body.keywords = cleanedKeywords;
 
       for await (const event of streamSse('/api/maverick/scripts', body)) {
         if (abortRef.current) break;

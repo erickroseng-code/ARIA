@@ -250,10 +250,30 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
     sendEvent(raw, 'step', { message: '⏳ O time do Maverick está trabalhando na análise...' });
 
     try {
+      // Se keywords foram fornecidas pelo usuário, injeta-as no plan como next_steps
+      // para que o copywriter use esses temas ao gerar os roteiros
+      let effectivePlan = plan;
+      if (keywords && keywords.length > 0) {
+        try {
+          const parsed = JSON.parse(plan);
+          if (parsed?.strategy) {
+            parsed.strategy.next_steps = keywords;
+            // Também injeta como key_concept se ainda não houver
+            if (!parsed.strategy.key_concept) {
+              parsed.strategy.key_concept = keywords[0];
+            }
+          }
+          effectivePlan = JSON.stringify(parsed);
+          console.log(`[/scripts] Keywords injetadas no plan: [${keywords.join(', ')}]`);
+        } catch {
+          console.warn('[/scripts] Falha ao injetar keywords no plan — usando plan original');
+        }
+      }
+
       let trendResearch;
       if (!skipTrendResearch) {
         try {
-          trendResearch = await runTrendResearch(plan, (msg) => {
+          trendResearch = await runTrendResearch(effectivePlan, (msg) => {
             sendEvent(raw, 'step', { message: msg });
           }, maxAgeDays, keywords);
         } catch (err: any) {
@@ -261,7 +281,7 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
         }
       }
 
-      const scripts = await generateScriptsFromPlan(plan, trendResearch, (msg) => {
+      const scripts = await generateScriptsFromPlan(effectivePlan, trendResearch, (msg) => {
         sendEvent(raw, 'step', { message: msg });
       });
 
