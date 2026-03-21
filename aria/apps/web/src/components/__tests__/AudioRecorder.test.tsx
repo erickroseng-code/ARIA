@@ -105,7 +105,7 @@ describe('AudioRecorder', () => {
     fireEvent.click(recordBtn);
 
     // Simulate recording stopped
-    const mediaRecorder = (window.MediaRecorder as any)();
+    const mediaRecorder = (window.MediaRecorder as unknown as () => any)();
     mediaRecorder.onstop();
 
     await waitFor(() => {
@@ -127,7 +127,7 @@ describe('AudioRecorder', () => {
     fireEvent.click(recordBtn);
 
     // Simulate recording stopped
-    const mediaRecorder = (window.MediaRecorder as any)();
+    const mediaRecorder = (window.MediaRecorder as unknown as () => any)();
     mediaRecorder.onstop();
 
     await waitFor(() => {
@@ -147,7 +147,7 @@ describe('AudioRecorder', () => {
     fireEvent.click(recordBtn);
 
     // Simulate recording stopped
-    const mediaRecorder = (window.MediaRecorder as any)();
+    const mediaRecorder = (window.MediaRecorder as unknown as () => any)();
     mediaRecorder.onstop();
 
     await waitFor(() => {

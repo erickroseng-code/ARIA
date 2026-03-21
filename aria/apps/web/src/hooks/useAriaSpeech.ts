@@ -82,7 +82,7 @@ export function useAriaSpeech() {
   // Low-level: sintetiza e toca uma utterance sem gerenciar estado de "speaking"
   // Usado internamente pelo queue runner para evitar flicker entre sentenças
   const _playAudio = useCallback((text: string, options?: SpeakOptions): Promise<void> => {
-    return new Promise(async (resolve) => {
+    return new Promise((resolve) => {
       const clean = stripMarkdown(text);
       if (!clean) {
         options?.onCharIndex?.(text.length);
@@ -90,66 +90,68 @@ export function useAriaSpeech() {
         return;
       }
 
-      try {
-        const response = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean }),
-        });
+      (async () => {
+        try {
+          const response = await fetch('/api/tts/synthesize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: clean }),
+          });
 
-        if (!response.ok) throw new Error('TTS request falhou');
+          if (!response.ok) throw new Error('TTS request falhou');
 
-        const arrayBuffer = await response.arrayBuffer();
-        const audioCtx = new AudioContext();
-        audioCtxRef.current = audioCtx;
+          const arrayBuffer = await response.arrayBuffer();
+          const audioCtx = new AudioContext();
+          audioCtxRef.current = audioCtx;
 
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
 
-        const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-        const source = audioCtx.createBufferSource();
-        source.buffer = decoded;
-        currentSourceRef.current = source;
+          const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+          const source = audioCtx.createBufferSource();
+          source.buffer = decoded;
+          currentSourceRef.current = source;
 
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        const freqData = new Uint8Array(analyser.frequencyBinCount);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          const freqData = new Uint8Array(analyser.frequencyBinCount);
 
-        await createJarvisChain(audioCtx, source, analyser);
+          await createJarvisChain(audioCtx, source, analyser);
 
-        const duration = decoded.duration * 1000;
-        const charCount = text.length;
-        const startTime = Date.now();
+          const duration = decoded.duration * 1000;
+          const charCount = text.length;
+          const startTime = Date.now();
 
-        isSpeakingRef.current = true;
+          isSpeakingRef.current = true;
 
-        energyTimerRef.current = setInterval(() => {
-          if (!isSpeakingRef.current) return;
-          analyser.getByteFrequencyData(freqData);
-          const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
-          const energy = Math.min(1, avg / 80);
-          onEnergyPulseRef.current?.(0.2 + energy * 0.8);
+          energyTimerRef.current = setInterval(() => {
+            if (!isSpeakingRef.current) return;
+            analyser.getByteFrequencyData(freqData);
+            const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
+            const energy = Math.min(1, avg / 80);
+            onEnergyPulseRef.current?.(0.2 + energy * 0.8);
 
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(1, elapsed / duration);
-          options?.onCharIndex?.(Math.floor(progress * charCount));
-        }, 50);
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(1, elapsed / duration);
+            options?.onCharIndex?.(Math.floor(progress * charCount));
+          }, 50);
 
-        source.onended = () => {
-          isSpeakingRef.current = false;
-          onEnergyPulseRef.current?.(0);
-          if (energyTimerRef.current) clearInterval(energyTimerRef.current);
-          options?.onCharIndex?.(text.length);
-          audioCtx.close().catch(() => {});
+          source.onended = () => {
+            isSpeakingRef.current = false;
+            onEnergyPulseRef.current?.(0);
+            if (energyTimerRef.current) clearInterval(energyTimerRef.current);
+            options?.onCharIndex?.(text.length);
+            audioCtx.close().catch(() => {});
+            resolve();
+          };
+
+          source.start();
+        } catch {
+          // Silently skip chunk — queue continues
           resolve();
-        };
-
-        source.start();
-      } catch {
-        // Silently skip chunk — queue continues
-        resolve();
-      }
+        }
+      })();
     });
   }, []);
 
@@ -175,7 +177,7 @@ export function useAriaSpeech() {
   // Speak público: interrompe o atual, toca utterance completa com fallback
   // Para textos longos (>4800 chars), chunka em sentenças automaticamente
   const speak = useCallback((text: string, options?: SpeakOptions): Promise<void> => {
-    return new Promise(async (resolve) => {
+    return new Promise((resolve) => {
       stop();
 
       const clean = stripMarkdown(text);
@@ -185,109 +187,111 @@ export function useAriaSpeech() {
         return;
       }
 
-      // Chunking automático para textos que excedem o limite do backend (~4800 chars)
-      const MAX_CHUNK = 4800;
-      if (clean.length > MAX_CHUNK) {
-        isSpeakingRef.current = true;
-        onSpeakingChangeRef.current?.(true);
+      (async () => {
+        // Chunking automático para textos que excedem o limite do backend (~4800 chars)
+        const MAX_CHUNK = 4800;
+        if (clean.length > MAX_CHUNK) {
+          isSpeakingRef.current = true;
+          onSpeakingChangeRef.current?.(true);
 
-        // Divide em sentenças respeitando pontuação
-        const sentences = clean.match(/[^.!?…]+[.!?…]*\s*/g) ?? [clean];
-        const chunks: string[] = [];
-        let current = '';
-        for (const s of sentences) {
-          if ((current + s).length > MAX_CHUNK) {
-            if (current) chunks.push(current.trim());
-            current = s;
-          } else {
-            current += s;
+          // Divide em sentenças respeitando pontuação
+          const sentences = clean.match(/[^.!?…]+[.!?…]*\s*/g) ?? [clean];
+          const chunks: string[] = [];
+          let current = '';
+          for (const s of sentences) {
+            if ((current + s).length > MAX_CHUNK) {
+              if (current) chunks.push(current.trim());
+              current = s;
+            } else {
+              current += s;
+            }
           }
-        }
-        if (current.trim()) chunks.push(current.trim());
+          if (current.trim()) chunks.push(current.trim());
 
-        let charOffset = 0;
-        for (let i = 0; i < chunks.length; i++) {
-          if (!queueRunningRef.current && !isSpeakingRef.current) break; // parado externamente
-          const chunkText = chunks[i];
-          const chunkLen = chunkText.length;
-          const chunkOptions: SpeakOptions = options?.onCharIndex ? {
-            onCharIndex: (ci) => options.onCharIndex!(charOffset + ci),
+          let charOffset = 0;
+          for (let i = 0; i < chunks.length; i++) {
+            if (!queueRunningRef.current && !isSpeakingRef.current) break; // parado externamente
+            const chunkText = chunks[i];
+            const chunkLen = chunkText.length;
+            const chunkOptions = options?.onCharIndex ? {
+            onCharIndex: (ci: number) => options.onCharIndex!(charOffset + ci),
           } : undefined;
-          await _playAudio(chunkText, chunkOptions);
-          charOffset += chunkLen;
-        }
+            await _playAudio(chunkText, chunkOptions);
+            charOffset += chunkLen;
+          }
 
-        isSpeakingRef.current = false;
-        onSpeakingChangeRef.current?.(false);
-        onEnergyPulseRef.current?.(0);
-        options?.onCharIndex?.(text.length);
-        resolve();
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean }),
-        });
-
-        if (!response.ok) throw new Error('TTS request falhou');
-
-        const arrayBuffer = await response.arrayBuffer();
-        const audioCtx = new AudioContext();
-        audioCtxRef.current = audioCtx;
-
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
-
-        const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-        const source = audioCtx.createBufferSource();
-        source.buffer = decoded;
-        currentSourceRef.current = source;
-
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        const freqData = new Uint8Array(analyser.frequencyBinCount);
-
-        await createJarvisChain(audioCtx, source, analyser);
-
-        const duration = decoded.duration * 1000;
-        const charCount = text.length;
-        const startTime = Date.now();
-
-        isSpeakingRef.current = true;
-        onSpeakingChangeRef.current?.(true);
-
-        energyTimerRef.current = setInterval(() => {
-          if (!isSpeakingRef.current) return;
-          analyser.getByteFrequencyData(freqData);
-          const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
-          const energy = Math.min(1, avg / 80);
-          onEnergyPulseRef.current?.(0.2 + energy * 0.8);
-
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(1, elapsed / duration);
-          options?.onCharIndex?.(Math.floor(progress * charCount));
-        }, 50);
-
-        source.onended = () => {
           isSpeakingRef.current = false;
           onSpeakingChangeRef.current?.(false);
           onEnergyPulseRef.current?.(0);
-          if (energyTimerRef.current) clearInterval(energyTimerRef.current);
           options?.onCharIndex?.(text.length);
-          audioCtx.close().catch(() => {});
           resolve();
-        };
+          return;
+        }
 
-        source.start();
-      } catch (err) {
-        // Fallback para Web Speech API se o backend falhar
-        console.warn('[AriaSpeech] Backend TTS falhou, usando fallback:', err);
-        fallbackWebSpeech(text, options, onSpeakingChangeRef, onEnergyPulseRef, resolve);
-      }
+        try {
+          const response = await fetch('/api/tts/synthesize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: clean }),
+          });
+
+          if (!response.ok) throw new Error('TTS request falhou');
+
+          const arrayBuffer = await response.arrayBuffer();
+          const audioCtx = new AudioContext();
+          audioCtxRef.current = audioCtx;
+
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
+
+          const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+          const source = audioCtx.createBufferSource();
+          source.buffer = decoded;
+          currentSourceRef.current = source;
+
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          const freqData = new Uint8Array(analyser.frequencyBinCount);
+
+          await createJarvisChain(audioCtx, source, analyser);
+
+          const duration = decoded.duration * 1000;
+          const charCount = text.length;
+          const startTime = Date.now();
+
+          isSpeakingRef.current = true;
+          onSpeakingChangeRef.current?.(true);
+
+          energyTimerRef.current = setInterval(() => {
+            if (!isSpeakingRef.current) return;
+            analyser.getByteFrequencyData(freqData);
+            const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
+            const energy = Math.min(1, avg / 80);
+            onEnergyPulseRef.current?.(0.2 + energy * 0.8);
+
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(1, elapsed / duration);
+            options?.onCharIndex?.(Math.floor(progress * charCount));
+          }, 50);
+
+          source.onended = () => {
+            isSpeakingRef.current = false;
+            onSpeakingChangeRef.current?.(false);
+            onEnergyPulseRef.current?.(0);
+            if (energyTimerRef.current) clearInterval(energyTimerRef.current);
+            options?.onCharIndex?.(text.length);
+            audioCtx.close().catch(() => {});
+            resolve();
+          };
+
+          source.start();
+        } catch (err) {
+          // Fallback para Web Speech API se o backend falhar
+          console.warn('[AriaSpeech] Backend TTS falhou, usando fallback:', err);
+          fallbackWebSpeech(text, options, onSpeakingChangeRef, onEnergyPulseRef, resolve);
+        }
+      })();
     });
   }, [stop, _playAudio]);
 
@@ -369,9 +373,9 @@ function fallbackWebSpeech(
 
   let pulseTimer: ReturnType<typeof setInterval>;
 
-  utterance.onboundary = (e: SpeechSynthesisEvent) => {
-    if (e.name === 'word') {
-      options?.onCharIndex?.(e.charIndex + e.charLength);
+  utterance.onboundary = (event: SpeechSynthesisEvent) => {
+    if (event.name === 'word') {
+      options?.onCharIndex?.(event.charIndex + event.charLength);
       onEnergyPulseRef.current?.(0.6 + Math.random() * 0.4);
     }
   };

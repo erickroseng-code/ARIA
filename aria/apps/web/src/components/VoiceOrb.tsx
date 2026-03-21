@@ -8,7 +8,6 @@ interface VoiceOrbProps {
   energy?: number;            // 0-1, usado durante fala
   lastTranscript?: string;    // texto sendo ouvido em tempo real
   onToggle?: () => void;      // clique para ligar/desligar
-  isActive?: boolean;
 }
 
 const STATE_LABELS: Record<VoiceState, string> = {
@@ -27,7 +26,7 @@ const STATE_COLORS: Record<VoiceState, string> = {
   error: 'rgba(255,80,80,0.9)',
 };
 
-export function VoiceOrb({ state, energy = 0, lastTranscript = '', onToggle, isActive }: VoiceOrbProps) {
+export function VoiceOrb({ state, energy = 0, lastTranscript = '', onToggle }: VoiceOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const timeRef = useRef(0);
