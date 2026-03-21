@@ -9,6 +9,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { FinanceSession } from "@/components/chat/FinanceSession";
 import { TrafficSession } from "@/components/chat/TrafficSession";
+import { MaverickSession } from "@/components/chat/MaverickSession";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { useChat } from "@/hooks/useChat";
 import { useAriaSpeech } from "@/hooks/useAriaSpeech";
@@ -32,6 +33,12 @@ export function ChatInterface() {
     }
     return false;
   });
+  const [maverickOpen, setMaverickOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aria_active_squad') === 'maverick';
+    }
+    return false;
+  });
   const [showDashboard, setShowDashboard] = useState(() => {
     if (typeof window !== 'undefined') {
       const active = localStorage.getItem('aria_active_squad');
@@ -48,10 +55,12 @@ export function ChatInterface() {
       localStorage.setItem('aria_active_squad', 'finance');
     } else if (trafficOpen) {
       localStorage.setItem('aria_active_squad', 'traffic');
+    } else if (maverickOpen) {
+      localStorage.setItem('aria_active_squad', 'maverick');
     } else {
       localStorage.removeItem('aria_active_squad');
     }
-  }, [financeOpen, trafficOpen]);
+  }, [financeOpen, trafficOpen, maverickOpen]);
 
   // Store — for sidebar props
   const { conversations, activeConversationId, streamingConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
@@ -221,12 +230,13 @@ export function ChatInterface() {
   const orbState = isSpeaking ? 'processing' : voiceState;
 
   // Derive active squad id for sidebar highlight
-  const activeSquad = financeOpen ? 'finance' : trafficOpen ? 'traffic' : null;
+  const activeSquad = financeOpen ? 'finance' : trafficOpen ? 'traffic' : maverickOpen ? 'maverick' : null;
 
   const handleSelectSquad = useCallback((squadId: string | null) => {
-    if (squadId === 'finance') { setFinanceOpen(true); setTrafficOpen(false); setShowDashboard(false); }
-    else if (squadId === 'traffic') { setTrafficOpen(true); setFinanceOpen(false); setShowDashboard(false); }
-    else { setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(true); }
+    if (squadId === 'finance') { setFinanceOpen(true); setTrafficOpen(false); setMaverickOpen(false); setShowDashboard(false); }
+    else if (squadId === 'traffic') { setTrafficOpen(true); setFinanceOpen(false); setMaverickOpen(false); setShowDashboard(false); }
+    else if (squadId === 'maverick') { setMaverickOpen(true); setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(false); }
+    else { setFinanceOpen(false); setTrafficOpen(false); setMaverickOpen(false); setShowDashboard(true); }
   }, []);
 
   return (
@@ -247,6 +257,8 @@ export function ChatInterface() {
               <FinanceSession onClose={() => setFinanceOpen(false)} />
             ) : trafficOpen ? (
               <TrafficSession onClose={() => setTrafficOpen(false)} />
+            ) : maverickOpen ? (
+              <MaverickSession onClose={() => setMaverickOpen(false)} />
             ) : (
               <>
                 <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">

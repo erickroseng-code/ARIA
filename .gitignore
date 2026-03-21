@@ -35,3 +35,6 @@ squads/maverick/data/knowledge/scholar.db-wal
 squads/maverick/data/knowledge/scholar.db-journal
 **/*.db-shm
 **/*.db-wal
+
+# Maverick backup — PDFs e binários pesados (não vão pro deploy)
+squads/maverick/data/backup maverick/
