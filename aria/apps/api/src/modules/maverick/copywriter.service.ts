@@ -326,6 +326,14 @@ Para cada ideia, defina:
 - virality_angle: qual mecânica de viralidade (Polarização, Ancoragem nos Extremos, High-Arousal, etc.) este ângulo ativa
 - audience_profile: descrição CONCRETA do público (baseie-se no DIAGNÓSTICO REAL acima, não invente)
 
+REGRA DE PREMISSA (OBRIGATÓRIO): Cada um dos roteiros DEVE ter uma premissa diferente das abaixo:
+1. "O Erro Fatal": focado em algo que o público está fazendo errado e não percebeu.
+2. "O Bastidor Clínico": focado em um dado, número ou situação real de quem opera no nicho.
+3. "A Visão de Futuro/Contraste": focado em como o mercado está mudando e quem vai ficar para trás.
+4. "O Mecanismo Único": focado em um método ou detalhe técnico que ninguém comenta.
+
+PROIBIDO: Começar o contexto ou o título de dois roteiros pela mesma palavra. Diversidade temática é prioridade máxima.
+
 CONTEXTO ESTRATÉGICO (mesclado com brain):
 ${enrichedContext}
 
@@ -404,17 +412,17 @@ Escolha obrigatoriamente uma técnica DIFERENTE.
 ` : ''}━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
 ${brain.hooks}
 
-━━━ REGRAS ESTRITAS ━━━
-1. Escolha UMA técnica do catálogo
-2. Use a FÓRMULA e os PRINCÍPIOS PSICOLÓGICOS da técnica — NÃO adapte o exemplo, crie algo completamente novo
-3. O hook deve ser específico ao nicho/contexto do briefing: use detalhes reais, números concretos, situações do setor
-4. PROIBIDO qualquer similaridade estrutural com os padrões listados acima
-5. PROIBIDO padrões genéricos como "X estratégias para...", "O segredo de...", "Como fazer...", "Você sabia que..."
-6. PROIBIDO emojis, exclamações excessivas, linguagem de agência ou coach motivacional
-7. O hook deve soar como uma pessoa real falando diretamente para outra — não uma copy de anúncio
+━━━ REGRAS ESTRITAS DE ABERTURA (HOOK) ━━━
+1. Escolha UMA técnica do catálogo e aplique de forma INVISÍVEL
+2. O hook DEVE ser 100% original e focado na dor real do nicho, usando números ou situações tangíveis
+3. PROIBIDO começar a frase com "Você..." (ex: "Você está", "Você já", "Você sabia")
+4. PROIBIDO começar com "Se..." (ex: "Se você quer", "Se você ainda não")
+5. PROIBIDO começar com perguntas (ex: "Como fazer...?", "E se...?")
+6. A PRIMEIRA PALAVRA deve ser de impacto: um dado, um substantivo forte, uma afirmação clínica ou uma reação.
+7. O tom deve ser "Penoni Mode": direto, assertivo, sem enrolação. NUNCA soe como coach ou anúncio barato.
 
 Retorne APENAS JSON:
-{"hook":"texto do hook original e específico ao nicho","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula foi aplicada aqui (1 frase)"}`,
+{"hook":"texto do hook começando de forma visceral e sem pronomes ou condicionais","hook_technique":"nome exato da técnica usada","formula_applied":"como a fórmula foi aplicada aqui (1 frase)"}`,
       'Você é o MAVERICK — Estrategista Clínico de Viralização e Conversão. Retorne APENAS JSON válido.',
       ['openai/gpt-4o-mini', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
     );
@@ -427,13 +435,13 @@ Retorne APENAS JSON:
 
     // ── Hook Judge: valida e regenera até 2x se o hook for ruim ─────────────
     const HOOK_ANTI_PATTERNS = [
-      /^[\s"'""«»]*se\s+você/i,           // "Se você..." — pergunta retórica disfarçada (com possíveis aspas iniciais)
-      /^[\s"'""«»]*você\s+(já|quer|sabe|tem|ainda|também|precisa)/i, // "Você já/quer/sabe..." — retórica
-      /^[\s"'""«»]*e\s+se\s+você/i,      // "E se você..." — variante retórica
-      /^[\s"'""«»]*será\s+que\s+você/i,  // "Será que você..." — variante retórica
-      /^[\s"'""«»]*imagina\s+(se|você)/i, // "Imagina se..." — proibido
-      /o\s+problema\s+é\s+(isso|esse)/i, // "o problema é isso" — vago
-      /é\s+isso\s+(mesmo|aqui|que)/i,    // "é isso mesmo" — vago
+      /^[\s"'\«\»]*se\s+você/i,           // "Se você..."
+      /^[\s"'\«\»]*você\s+(está|já|quer|sabe|tem|ainda|também|precisa|vai)/i, // "Você [verbo]..."
+      /^[\s"'\«\»]*e\s+se\s+você/i,      // "E se você..."
+      /^[\s"'\«\»]*será\s+que/i,         // "Será que..."
+      /^[\s"'\«\»]*imagina\s+(se|você)/i, // "Imagina se..."
+      /o\s+problema\s+é\s+(isso|esse)/i, // "o problema é isso"
+      /é\s+isso\s+(mesmo|aqui|que)/i,    // "é isso mesmo"
       /^[\s"'""«»]*como\s+fazer/i,         // "Como fazer..." — genérico
       /^[\s"'""«»]*[0-9]+\s+(dicas|estratégias|passos|segredos)/i, // "5 dicas para..." — genérico
       /o\s+segredo\s+(é|está|que)/i,     // "o segredo é/está" — proibido
@@ -623,7 +631,13 @@ Retorne APENAS JSON com os nomes exatos das técnicas escolhidas:
 
 ${brain.constraints}
 
----
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ REGRAS INVIOLÁVEIS DE ESCRITA:
+1. PROIBIDO começar parágrafos iniciais com "Você já...", "Imagine se...", "No vídeo de hoje", "Você está...".
+2. Use a regra do "Teste do Bar": se não puder ser dito numa mesa de bar para um colega, não escreva.
+3. Mantenha parágrafos de no máximo 2 linhas. Ritmo estacato.
+4. Se for ensinar algo, use MECANIZAÇÃO (dê um nome ao método).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 SUA IDENTIDADE:
 Você é o MAVERICK — Estrategista Clínico de Viralização e Conversão.
