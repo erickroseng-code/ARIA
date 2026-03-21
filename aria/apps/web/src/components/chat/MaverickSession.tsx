@@ -1,515 +1,533 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import {
-  ArrowLeft, Loader2, Zap, Copy, Check, ChevronRight,
-  Sparkles, RefreshCw, FileText, Film, LayoutGrid,
-} from 'lucide-react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X, Zap, DollarSign, Type, ChevronRight, Copy, Check, RotateCcw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-// ── Tipos ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ContentPillar {
-  name: string;
-  topics: string[];
+type Mode = 'content' | 'sales' | 'microcopy' | null;
+type Phase = 'landing' | 'scoping' | 'dossie' | 'generating' | 'result';
+
+interface Dossie {
+  strategy: string;
+  hooks: string[];
 }
-
-interface IdeaCard {
-  id: string;
-  angle: string;
-  hook: string;
-}
-
-type Phase = 'onboarding' | 'ideator' | 'generating' | 'result';
-type Format = 'reels' | 'carousel' | 'sales_page';
 
 interface MaverickSessionProps {
   onClose: () => void;
 }
 
-// ── Mapa de Formatos ──────────────────────────────────────────────────────────
+// ─── Mode Config ──────────────────────────────────────────────────────────────
 
-const FORMATS: { id: Format; label: string; description: string; icon: typeof Film }[] = [
-  { id: 'reels', label: 'Reels', description: '60–90 segundos de roteiro narrado', icon: Film },
-  { id: 'carousel', label: 'Carrossel', description: 'Slides curtos com gancho e CTA', icon: LayoutGrid },
-  { id: 'sales_page', label: 'Página de Vendas', description: 'Copy long-form com múltiplos CTAs', icon: FileText },
+const MODES = [
+  {
+    id: 'content' as const,
+    icon: Zap,
+    label: 'Criador de Conteúdo',
+    sub: 'Reels · Carrossel',
+    color: '#a855f7',
+    border: 'border-violet-500/30 hover:border-violet-500/60',
+    bg: 'bg-violet-500/5 hover:bg-violet-500/10',
+    text: 'text-violet-400',
+    dot: 'bg-violet-400',
+  },
+  {
+    id: 'sales' as const,
+    icon: DollarSign,
+    label: 'Página de Vendas',
+    sub: 'Sales Copy · VSL',
+    color: '#22c55e',
+    border: 'border-emerald-500/30 hover:border-emerald-500/60',
+    bg: 'bg-emerald-500/5 hover:bg-emerald-500/10',
+    text: 'text-emerald-400',
+    dot: 'bg-emerald-400',
+  },
+  {
+    id: 'microcopy' as const,
+    icon: Type,
+    label: 'Micro-Copy',
+    sub: 'Headlines · CTAs · Legendas',
+    color: '#f59e0b',
+    border: 'border-amber-500/30 hover:border-amber-500/60',
+    bg: 'bg-amber-500/5 hover:bg-amber-500/10',
+    text: 'text-amber-400',
+    dot: 'bg-amber-400',
+  },
 ];
 
-// ── Componente Principal ──────────────────────────────────────────────────────
+// ─── Scoping Questions per Mode ───────────────────────────────────────────────
+
+const SCOPING_FIELDS: Record<NonNullable<Mode>, { key: string; label: string; placeholder: string; type?: 'radio'; options?: string[] }[]> = {
+  content: [
+    {
+      key: 'objetivo',
+      label: 'Objetivo',
+      placeholder: '',
+      type: 'radio',
+      options: ['🚀 Viral', '💎 Autoridade', '💰 Venda'],
+    },
+    {
+      key: 'temaInimigo',
+      label: 'Tema e Inimigo Comum',
+      placeholder: 'O que vamos falar e quem vamos atacar?',
+    },
+    {
+      key: 'cta',
+      label: 'CTA desejada',
+      placeholder: 'O que o seguidor deve fazer?',
+    },
+  ],
+  sales: [
+    {
+      key: 'produto',
+      label: 'Produto e Valor',
+      placeholder: 'O que é e quanto custa?',
+    },
+    {
+      key: 'mecanismo',
+      label: 'Mecanismo Único',
+      placeholder: 'Qual o seu diferencial?',
+    },
+    {
+      key: 'objecao',
+      label: 'A Maior Objeção',
+      placeholder: 'Por que eles não compram?',
+    },
+  ],
+  microcopy: [
+    {
+      key: 'local',
+      label: 'Local da Copy',
+      placeholder: 'Onde será usado? (ex: botão de CTA, header da LP)',
+    },
+    {
+      key: 'contexto',
+      label: 'Contexto / Gatilho',
+      placeholder: 'Escassez, Curiosidade, Lembrete?',
+    },
+    {
+      key: 'acao',
+      label: 'Ação Imediata',
+      placeholder: 'O que o lead deve clicar/fazer?',
+    },
+  ],
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function MaverickSession({ onClose }: MaverickSessionProps) {
-  const [phase, setPhase] = useState<Phase>('onboarding');
-
-  // Onboarding state
-  const [niche, setNiche] = useState('');
-  const [audience, setAudience] = useState('');
-  const [pillars, setPillars] = useState<ContentPillar[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [loadingPyramid, setLoadingPyramid] = useState(false);
-
-  // Ideator state
-  const [cards, setCards] = useState<IdeaCard[]>([]);
-  const [selectedCard, setSelectedCard] = useState<IdeaCard | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState<Format>('reels');
-  const [loadingCards, setLoadingCards] = useState(false);
-
-  // Gerador state
+  const [phase, setPhase] = useState<Phase>('landing');
+  const [mode, setMode] = useState<Mode>(null);
+  const [scopingAnswers, setScopingAnswers] = useState<Record<string, string>>({});
+  const [dossie, setDossie] = useState<Dossie | null>(null);
+  const [chosenHook, setChosenHook] = useState<string | null>(null);
   const [script, setScript] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const generationRef = useRef<boolean>(false);
+  const modeConfig = MODES.find(m => m.id === mode);
 
-  // ── Step 1: Gerar Pirâmide de Conteúdo ────────────────────────────────────
-
-  const handleOnboarding = useCallback(async () => {
-    if (!niche.trim() || !audience.trim() || loadingPyramid) return;
-    setLoadingPyramid(true);
-    setPillars([]);
-    setSelectedTopic('');
-
+  // ── Scoping → Dossiê ────────────────────────────────────────────────────────
+  const handleScoping = async () => {
+    if (!mode) return;
+    const fields = SCOPING_FIELDS[mode];
+    const allFilled = fields.every(f => scopingAnswers[f.key]?.trim());
+    if (!allFilled) {
+      setError('Preencha todos os campos antes de continuar.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/maverick/onboarding`, {
+      const res = await fetch(`${API_BASE}/api/maverick/dossie`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, targetAudience: audience }),
+        body: JSON.stringify({ mode, scopingAnswers }),
       });
+      if (!res.ok) throw new Error('Erro ao gerar dossiê');
       const data = await res.json();
-      if (data.pyramid?.pillars) setPillars(data.pyramid.pillars);
-    } catch {
-      console.error('[Maverick] Onboarding failed');
+      setDossie(data.dossie);
+      setPhase('dossie');
+    } catch (e: any) {
+      setError(e.message ?? 'Erro desconhecido');
     } finally {
-      setLoadingPyramid(false);
+      setIsLoading(false);
     }
-  }, [niche, audience, loadingPyramid]);
+  };
 
-  // ── Step 2: Gerar Cards de Ângulo ─────────────────────────────────────────
-
-  const handleIdeate = useCallback(async (topic: string) => {
-    if (!topic.trim() || loadingCards) return;
-    setSelectedTopic(topic);
-    setCards([]);
-    setSelectedCard(null);
-    setLoadingCards(true);
-    setPhase('ideator');
-
-    try {
-      const res = await fetch(`${API_URL}/api/maverick/ideator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, targetAudience: audience, topic }),
-      });
-      const data = await res.json();
-      if (data.cards) setCards(data.cards);
-    } catch {
-      console.error('[Maverick] Ideator failed');
-    } finally {
-      setLoadingCards(false);
-    }
-  }, [niche, audience, loadingCards]);
-
-  // ── Step 3: Gerar Script via Streaming ───────────────────────────────────
-
-  const handleGenerate = useCallback(async () => {
-    if (!selectedCard || generationRef.current) return;
-
+  // ── Dossiê → Geração ────────────────────────────────────────────────────────
+  const handleGenerate = async (hook: string) => {
+    if (!mode) return;
+    setChosenHook(hook);
     setScript('');
     setPhase('generating');
-    generationRef.current = true;
 
+    abortRef.current = new AbortController();
     try {
-      const res = await fetch(`${API_URL}/api/maverick/generate`, {
+      const res = await fetch(`${API_BASE}/api/maverick/generate-v2`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          niche,
-          targetAudience: audience,
-          angle: selectedCard.angle,
-          hook: selectedCard.hook,
-          format: selectedFormat,
-        }),
+        body: JSON.stringify({ mode, scopingAnswers, chosenHook: hook }),
+        signal: abortRef.current.signal,
       });
 
-      if (!res.ok || !res.body) throw new Error('Stream falhou');
+      if (!res.ok || !res.body) throw new Error('Falha na geração');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-
-      setPhase('result');
+      let accum = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-
         for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed === 'data: [DONE]') continue;
-          if (trimmed.startsWith('data: ')) {
+          const t = line.trim();
+          if (!t || t === 'data: [DONE]') continue;
+          if (t.startsWith('data: ')) {
             try {
-              const payload = JSON.parse(trimmed.slice(6));
-              if (payload.chunk) {
-                setScript(prev => prev + payload.chunk);
+              const parsed = JSON.parse(t.slice(6));
+              if (parsed.chunk) {
+                accum += parsed.chunk;
+                setScript(accum);
               }
             } catch { /* skip */ }
           }
         }
       }
-    } catch (err) {
-      console.error('[Maverick] Generate failed:', err);
-      setPhase('ideator');
-    } finally {
-      generationRef.current = false;
-    }
-  }, [selectedCard, selectedFormat, niche, audience]);
 
-  const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(script);
+      setPhase('result');
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        setError(e.message ?? 'Erro durante geração');
+        setPhase('dossie');
+      }
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(script);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [script]);
+  };
 
-  // ── Renderização ──────────────────────────────────────────────────────────
+  const handleReset = () => {
+    abortRef.current?.abort();
+    setPhase('landing');
+    setMode(null);
+    setScopingAnswers({});
+    setDossie(null);
+    setChosenHook(null);
+    setScript('');
+    setError(null);
+  };
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="relative flex flex-col h-full bg-background text-white overflow-hidden font-sans antialiased">
-
+    <div className="h-full flex flex-col bg-[#080809]">
       {/* Header */}
-      <div className="relative z-20 flex items-center gap-3 px-6 py-4 border-b border-white/5 bg-background/80 backdrop-blur-3xl shrink-0">
-        <button
-          onClick={onClose}
-          className="p-2.5 rounded-2xl hover:bg-white/10 transition-all text-white/50 hover:text-white group"
-        >
-          <ArrowLeft className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" />
-        </button>
-
-        <div className="flex items-center gap-3.5 flex-1 min-w-0">
-          <div className="w-11 h-11 rounded-[1.2rem] bg-[#161618] border border-violet-500/30 flex items-center justify-center shrink-0 shadow-sm">
-            <Zap className="w-5 h-5 text-violet-400" />
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04] flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
+            <Zap className="w-4 h-4 text-violet-400" />
           </div>
-          <div className="min-w-0">
-            <p className="text-[17px] font-semibold tracking-tight text-white/95">Maverick</p>
-            <p className="text-[10px] text-violet-400/60 font-bold tracking-widest uppercase">
-              Copywriter A-List
-            </p>
+          <div>
+            <p className="text-white font-semibold text-sm tracking-tight">Maverick V2</p>
+            <p className="text-white/30 text-[11px] uppercase tracking-widest">Copywriter A-List</p>
           </div>
         </div>
-
-        {/* Step indicators */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {(['onboarding', 'ideator', 'result'] as const).map((p, i) => (
-            <div
-              key={p}
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                phase === p || (phase === 'generating' && p === 'result')
-                  ? 'w-6 bg-violet-400'
-                  : (phase === 'result' && i < 2) || (phase === 'ideator' && i === 0)
-                    ? 'w-1.5 bg-violet-400/40'
-                    : 'w-1.5 bg-white/10'
-              }`}
-            />
-          ))}
+        <div className="flex items-center gap-2">
+          {phase !== 'landing' && (
+            <button
+              onClick={handleReset}
+              className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
+              title="Recomeçar"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto scrollbar-hidden">
+        <div className="max-w-2xl mx-auto px-6 py-10">
+          <AnimatePresence mode="wait">
 
-        {/* ── FASE 1: ONBOARDING ────────────────────────────────────────── */}
-        {phase === 'onboarding' && (
-          <motion.div
-            key="onboarding"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8 max-w-2xl mx-auto w-full"
-          >
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 mx-auto rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-4">
-                <Sparkles className="w-8 h-8 text-violet-400" />
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight">Configure seu Maverick</h2>
-              <p className="text-white/40 text-sm">
-                Diga o seu nicho e público. O Maverick gera os temas automáticamente.
-              </p>
-            </div>
-
-            {/* Campos */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">
-                  Seu Nicho
-                </label>
-                <input
-                  type="text"
-                  value={niche}
-                  onChange={e => setNiche(e.target.value)}
-                  placeholder="Ex: Marketing Digital para Pequenos Negócios"
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4 text-[15px] text-white placeholder-white/20 outline-none focus:border-violet-500/40 focus:ring-2 focus:ring-violet-500/10 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">
-                  Público-Alvo
-                </label>
-                <input
-                  type="text"
-                  value={audience}
-                  onChange={e => setAudience(e.target.value)}
-                  placeholder="Ex: Donos de agências com equipes de até 10 pessoas"
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4 text-[15px] text-white placeholder-white/20 outline-none focus:border-violet-500/40 focus:ring-2 focus:ring-violet-500/10 transition-all"
-                />
-              </div>
-
-              <button
-                onClick={handleOnboarding}
-                disabled={!niche.trim() || !audience.trim() || loadingPyramid}
-                className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 transition-all font-semibold text-[15px] flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20 active:scale-[0.99]"
+            {/* ── FASE 0: LANDING ─────────────────────────────────────────── */}
+            {phase === 'landing' && (
+              <motion.div
+                key="landing"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-8"
               >
-                {loadingPyramid ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                {loadingPyramid ? 'Gerando Pirâmide...' : 'Gerar Temas de Conteúdo'}
-              </button>
-            </div>
+                <div>
+                  <p className="text-white/80 text-xl font-semibold tracking-tight">
+                    Maverick V2 online.
+                  </p>
+                  <p className="text-white/35 text-sm mt-1">
+                    Selecione o campo de batalha abaixo para começar.
+                  </p>
+                </div>
 
-            {/* Pirâmide de Conteúdo */}
-            <AnimatePresence>
-              {pillars.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-white/40 uppercase tracking-widest">
-                      Escolha um tema
-                    </p>
-                    <button
-                      onClick={handleOnboarding}
-                      className="text-xs text-violet-400/60 hover:text-violet-400 flex items-center gap-1 transition-colors"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Regenerar
-                    </button>
-                  </div>
-                  {pillars.map((pillar, pi) => (
-                    <div key={pi} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
-                      <p className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-3">
-                        {pillar.name}
-                      </p>
-                      <div className="space-y-2">
-                        {pillar.topics.map((topic, ti) => (
-                          <button
-                            key={ti}
-                            onClick={() => handleIdeate(topic)}
-                            className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[14px] text-white/60 hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-white transition-all flex items-center justify-between group"
-                          >
-                            <span>{topic}</span>
-                            <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 text-violet-400 transition-all group-hover:translate-x-0.5" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-
-        {/* ── FASE 2: IDEATOR ────────────────────────────────────────────── */}
-        {phase === 'ideator' && (
-          <motion.div
-            key="ideator"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-6 max-w-2xl mx-auto w-full"
-          >
-            {/* Breadcrumb */}
-            <button
-              onClick={() => setPhase('onboarding')}
-              className="flex items-center gap-2 text-xs text-white/30 hover:text-white/60 transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Mudar tema
-            </button>
-
-            <div>
-              <p className="text-xs font-bold text-violet-400/60 uppercase tracking-widest mb-1">
-                Ângulos para
-              </p>
-              <h2 className="text-xl font-bold tracking-tight">{selectedTopic}</h2>
-            </div>
-
-            {/* Cards de ângulo */}
-            {loadingCards ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
-                <p className="text-sm text-white/30">O Ideator está procurando ângulos matadores...</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-white/30">
-                  Escolha um ângulo para criar a copy
-                </p>
-                {cards.map(card => (
-                  <button
-                    key={card.id}
-                    onClick={() => setSelectedCard(prev => prev?.id === card.id ? null : card)}
-                    className={`w-full text-left rounded-2xl border transition-all p-5 group ${
-                      selectedCard?.id === card.id
-                        ? 'bg-violet-500/10 border-violet-500/40 shadow-md shadow-violet-500/10'
-                        : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/10'
-                    }`}
-                  >
-                    <p className={`text-[15px] font-semibold mb-2 transition-colors ${
-                      selectedCard?.id === card.id ? 'text-violet-200' : 'text-white/90'
-                    }`}>
-                      {card.angle}
-                    </p>
-                    <p className="text-[13px] text-white/40 leading-relaxed italic">
-                      &ldquo;{card.hook}&rdquo;
-                    </p>
-                  </button>
-                ))}
-              </div>
+                <div className="space-y-3">
+                  {MODES.map((m) => {
+                    const Icon = m.icon;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => { setMode(m.id); setPhase('scoping'); setScopingAnswers({}); }}
+                        className={cn(
+                          'w-full text-left flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200',
+                          m.border, m.bg
+                        )}
+                      >
+                        <div className="p-2.5 rounded-xl" style={{ background: `${m.color}15`, border: `1px solid ${m.color}30` }}>
+                          <Icon className="w-4 h-4" style={{ color: m.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white/90 font-medium text-sm">{m.label}</p>
+                          <p className="text-white/35 text-xs mt-0.5">{m.sub}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-white/20 flex-shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
             )}
 
-            {/* Formato + Geração */}
-            <AnimatePresence>
-              {selectedCard && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
+            {/* ── FASE 1: SCOPING ─────────────────────────────────────────── */}
+            {phase === 'scoping' && mode && (
+              <motion.div
+                key="scoping"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={cn('w-1.5 h-1.5 rounded-full', modeConfig?.dot)} />
+                  <span className={cn('text-xs font-bold uppercase tracking-widest', modeConfig?.text)}>
+                    {modeConfig?.label}
+                  </span>
+                </div>
+
+                <div className="space-y-5">
+                  {SCOPING_FIELDS[mode].map((field) => (
+                    <div key={field.key}>
+                      <label className="block text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">
+                        {field.label}
+                      </label>
+
+                      {field.type === 'radio' && field.options ? (
+                        <div className="flex gap-2 flex-wrap">
+                          {field.options.map(opt => (
+                            <button
+                              key={opt}
+                              onClick={() => setScopingAnswers(prev => ({ ...prev, [field.key]: opt }))}
+                              className={cn(
+                                'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 border',
+                                scopingAnswers[field.key] === opt
+                                  ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                                  : 'border-white/[0.07] text-white/40 hover:border-white/20 hover:text-white/70'
+                              )}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <textarea
+                          rows={2}
+                          placeholder={field.placeholder}
+                          value={scopingAnswers[field.key] ?? ''}
+                          onChange={e => setScopingAnswers(prev => ({ ...prev, [field.key]: e.target.value }))}
+                          className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-white/80 text-sm placeholder-white/20 focus:outline-none focus:border-white/20 resize-none transition-colors"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {error && (
+                  <p className="text-red-400/80 text-sm">{error}</p>
+                )}
+
+                <button
+                  onClick={handleScoping}
+                  disabled={isLoading}
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40"
+                  style={{ background: modeConfig ? `${modeConfig.color}25` : '#8b5cf630', border: `1px solid ${modeConfig?.color ?? '#8b5cf6'}40` }}
                 >
-                  <p className="text-xs font-bold text-white/40 uppercase tracking-widest">
-                    Formato de saída
+                  {isLoading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+                      Gerando dossiê...
+                    </span>
+                  ) : (
+                    '⚡ Gerar Dossiê Estratégico'
+                  )}
+                </button>
+              </motion.div>
+            )}
+
+            {/* ── FASE 2: DOSSIÊ ──────────────────────────────────────────── */}
+            {phase === 'dossie' && dossie && (
+              <motion.div
+                key="dossie"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-6"
+              >
+                {/* Strategy */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05]">
+                  <p className="text-[11px] font-bold text-white/25 uppercase tracking-widest mb-3">Estratégia</p>
+                  <p className="text-white/80 text-sm leading-relaxed">{dossie.strategy}</p>
+                </div>
+
+                {/* Hooks */}
+                <div>
+                  <p className="text-[11px] font-bold text-white/25 uppercase tracking-widest mb-3">
+                    ⚡ Ganchos Disponíveis — escolha um para gerar a copy
                   </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {FORMATS.map(fmt => (
+                  <div className="space-y-2.5">
+                    {dossie.hooks.map((hook, i) => (
                       <button
-                        key={fmt.id}
-                        onClick={() => setSelectedFormat(fmt.id)}
-                        className={`p-4 rounded-2xl border text-left transition-all ${
-                          selectedFormat === fmt.id
-                            ? 'bg-violet-500/10 border-violet-500/40'
-                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
-                        }`}
+                        key={i}
+                        onClick={() => handleGenerate(hook)}
+                        className="w-full text-left p-4 rounded-2xl border border-white/[0.06] hover:border-white/[0.15] hover:bg-white/[0.03] transition-all duration-200 group"
                       >
-                        <fmt.icon className={`w-5 h-5 mb-2 ${selectedFormat === fmt.id ? 'text-violet-400' : 'text-white/30'}`} />
-                        <p className={`text-[13px] font-semibold ${selectedFormat === fmt.id ? 'text-white' : 'text-white/50'}`}>
-                          {fmt.label}
-                        </p>
-                        <p className="text-[11px] text-white/25 mt-0.5 leading-tight">{fmt.description}</p>
+                        <div className="flex items-start gap-3">
+                          <span className="text-white/20 text-xs font-mono mt-0.5 flex-shrink-0 group-hover:text-white/40 transition-colors">
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          <p className="text-white/70 text-sm leading-relaxed group-hover:text-white/90 transition-colors">
+                            {hook}
+                          </p>
+                        </div>
                       </button>
                     ))}
                   </div>
-
-                  <button
-                    onClick={handleGenerate}
-                    className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 transition-all font-semibold text-[15px] flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20 active:scale-[0.99]"
-                  >
-                    <Zap className="w-5 h-5" />
-                    Gerar Roteiro
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-
-        {/* ── FASE 3: GERANDO (Animação de Carregamento) ────────────────── */}
-        {phase === 'generating' && (
-          <motion.div
-            key="generating"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex-1 flex flex-col items-center justify-center gap-6 px-6"
-          >
-            <div className="relative">
-              <div className="w-20 h-20 rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Zap className="w-10 h-10 text-violet-400" />
-              </div>
-              <div className="absolute inset-0 rounded-3xl animate-ping bg-violet-500/10" />
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-lg font-semibold tracking-tight">Forjando sua copy...</p>
-              <p className="text-sm text-white/30">O Maverick está lendo os Swipe Files e construindo o roteiro.</p>
-            </div>
-            <div className="flex gap-1.5">
-              {[0, 0.15, 0.3].map((delay, i) => (
-                <span
-                  key={i}
-                  className="w-2 h-2 bg-violet-400 rounded-full animate-bounce"
-                  style={{ animationDelay: `${delay}s` }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── FASE 4: RESULTADO ─────────────────────────────────────────── */}
-        {phase === 'result' && (
-          <motion.div
-            key="result"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 flex flex-col min-h-0"
-          >
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
-              <div>
-                <p className="text-xs font-bold text-violet-400/60 uppercase tracking-widest">
-                  {FORMATS.find(f => f.id === selectedFormat)?.label}
-                </p>
-                <p className="text-sm font-semibold text-white/80 truncate max-w-xs">
-                  {selectedCard?.angle}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setPhase('ideator'); setScript(''); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white/50 hover:text-white hover:bg-white/[0.08] transition-all"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Refazer
-                </button>
-                <button
-                  onClick={handleCopy}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    copied
-                      ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
-                      : 'bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-500/20'
-                  }`}
-                >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copiado!' : 'Copiar'}
-                </button>
-              </div>
-            </div>
-
-            {/* Script com streaming */}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
-              <div className="max-w-2xl mx-auto">
-                <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 text-[15px] leading-[1.8] text-white/85 whitespace-pre-wrap font-mono">
-                  {script}
-                  {generationRef.current && (
-                    <span className="inline-block w-0.5 h-5 bg-violet-400 animate-pulse ml-0.5 align-middle" />
-                  )}
                 </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
-      </AnimatePresence>
+                {error && <p className="text-red-400/80 text-sm">{error}</p>}
+              </motion.div>
+            )}
+
+            {/* ── FASE 3: GERANDO ─────────────────────────────────────────── */}
+            {phase === 'generating' && (
+              <motion.div
+                key="generating"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6"
+              >
+                {/* Chosen hook preview */}
+                {chosenHook && (
+                  <div className="p-4 rounded-2xl bg-violet-500/5 border border-violet-500/15">
+                    <p className="text-[10px] font-bold text-violet-400/60 uppercase tracking-widest mb-2">Gancho selecionado</p>
+                    <p className="text-white/60 text-sm">{chosenHook}</p>
+                  </div>
+                )}
+
+                {/* Streaming output */}
+                <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.05] min-h-[200px]">
+                  <p className="text-white/70 text-sm leading-7 whitespace-pre-wrap font-mono">
+                    {script}
+                    <span className="inline-block w-0.5 h-4 bg-violet-400 animate-pulse ml-0.5 align-middle" />
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── FASE 4: RESULT ──────────────────────────────────────────── */}
+            {phase === 'result' && (
+              <motion.div
+                key="result"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-5"
+              >
+                {/* Gancho chosen */}
+                {chosenHook && (
+                  <div className="p-3.5 rounded-xl bg-violet-500/5 border border-violet-500/15">
+                    <p className="text-[10px] font-bold text-violet-400/60 uppercase tracking-widest mb-1.5">Gancho</p>
+                    <p className="text-white/55 text-xs">{chosenHook}</p>
+                  </div>
+                )}
+
+                {/* Copy result */}
+                <div className="relative group">
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] group-hover:border-white/[0.10] transition-colors">
+                    <p className="text-white/80 text-sm leading-7 whitespace-pre-wrap">{script}</p>
+                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] transition-all opacity-0 group-hover:opacity-100"
+                    title="Copiar"
+                  >
+                    {copied
+                      ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      : <Copy className="w-3.5 h-3.5 text-white/40" />
+                    }
+                  </button>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopy}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copiado!' : 'Copiar'}
+                  </button>
+                  <button
+                    onClick={() => { setPhase('dossie'); setScript(''); }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white transition-all"
+                  >
+                    Tentar outro gancho
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="py-2.5 px-4 rounded-xl text-sm font-medium bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 text-violet-400 hover:text-violet-300 transition-all flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Nova
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 }

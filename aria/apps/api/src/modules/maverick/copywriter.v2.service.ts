@@ -349,3 +349,155 @@ Escreva a copy completa. Siga a <FORMAT_STRUCTURE> à risca. Use o <SWIPE_FILE_S
 
   yield* callGroqStream(systemPrompt, userPrompt, 'meta-llama/llama-4-maverick');
 }
+
+// ─── Serviço de Dossiê: Estratégia + 3 Ganchos ───────────────────────────────
+
+export type MaverickMode = 'content' | 'sales' | 'microcopy';
+
+export interface DossieInput {
+  mode: MaverickMode;
+  scopingAnswers: Record<string, string>;
+}
+
+export interface DossieOutput {
+  strategy: string;
+  hooks: string[];
+}
+
+export async function generateDossie(input: DossieInput): Promise<DossieOutput> {
+  const persona = readBrainFile('core/persona.md');
+  const hooks = readBrainFile('hooks.md');
+
+  const modeContext = input.mode === 'content'
+    ? `MODO: Criador de Conteúdo (Reels/Carrossel)
+Objetivo: ${input.scopingAnswers['objetivo'] ?? ''}
+Tema e Inimigo Comum: ${input.scopingAnswers['temaInimigo'] ?? ''}
+CTA Desejada: ${input.scopingAnswers['cta'] ?? ''}`
+    : input.mode === 'sales'
+    ? `MODO: Página de Vendas
+Produto e Valor: ${input.scopingAnswers['produto'] ?? ''}
+Mecanismo Único: ${input.scopingAnswers['mecanismo'] ?? ''}
+Maior Objeção: ${input.scopingAnswers['objecao'] ?? ''}`
+    : `MODO: Micro-Copy
+Local da Copy: ${input.scopingAnswers['local'] ?? ''}
+Contexto/Gatilho: ${input.scopingAnswers['contexto'] ?? ''}
+Ação Imediata: ${input.scopingAnswers['acao'] ?? ''}`;
+
+  const systemPrompt = `<PERSONA>
+${persona}
+</PERSONA>
+
+Você está gerando o DOSSIÊ MAVERICK. Seu trabalho aqui é:
+1. Definir a ESTRATÉGIA de ataque em exatamente 1 frase curta e cirúrgica (sem adjetivos desnecessários).
+2. Gerar 3 GANCHOS agressivos baseados nas técnicas do arquivo de hooks abaixo.
+
+<HOOKS_REFERENCE>
+${hooks}
+</HOOKS_REFERENCE>
+
+REGRAS DOS GANCHOS:
+- Cada gancho deve ser dramaticamente diferente em técnica (ex: Contraste, Inimigo Comum, Especificidade Numérica)
+- NUNCA pergunta retórica
+- Máximo 2 linhas por gancho
+- Linguagem visceral, humana, anticlímax
+- Retorne APENAS JSON válido, sem markdown`;
+
+  const userPrompt = `${modeContext}
+
+Gere o dossiê estratégico.
+Retorne neste formato JSON exato:
+{
+  "strategy": "A estratégia de ataque em 1 frase",
+  "hooks": [
+    "Gancho 1 (técnica: Contraste)",
+    "Gancho 2 (técnica: Inimigo Comum)",
+    "Gancho 3 (técnica: Especificidade Numérica)"
+  ]
+}`;
+
+  const raw = await callGroq(systemPrompt, userPrompt, 'llama3-8b-8192');
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Resposta do Dossiê inválida');
+  return JSON.parse(jsonMatch[0]) as DossieOutput;
+}
+
+// ─── Serviço de Geração V2 (modo + scoping + hook escolhido) ─────────────────
+
+export interface GenerateV2Input {
+  mode: MaverickMode;
+  scopingAnswers: Record<string, string>;
+  chosenHook: string;
+}
+
+export async function* generateScriptV2(input: GenerateV2Input): AsyncGenerator<string> {
+  const persona = readBrainFile('core/persona.md');
+  const vetoes = readBrainFile('core/vetoes.md');
+  const tone = readBrainFile('core/tone.md');
+
+  const format = input.mode === 'content' ? 'reels' : input.mode === 'sales' ? 'sales_page' : 'microcopy';
+  const swipe = selectSwipeForFormat(format);
+  const formulas = selectFormulasForTopic(input.chosenHook, 2);
+  const formulasText = formulas.map((f, i) => `### FÓRMULA ${i + 1}\n${f}`).join('\n\n');
+
+  const formatStructure = input.mode === 'content'
+    ? `ESTRUTURA OBRIGATÓRIA:
+- 00-03s: Hook (use o GANCHO ESCOLHIDO como abertura literal)
+- 03-10s: Entrega rápida do valor ou promessa
+- 10-45s: Bullets curtos e quebrados (máx 8 palavras por linha)
+- Final: CTA baseado em curiosidade — NUNCA "siga para mais", use o CTA informado pelo usuário`
+    : input.mode === 'sales'
+    ? `ESTRUTURA OBRIGATÓRIA PARA PÁGINA DE VENDAS:
+- Headline: Mecanismo Único + Resultado (use a diferenciação do usuário)
+- Lead: Cena de transformação (antes/depois concreto)
+- Oferta: o que é, para quem, bônus, garantia
+- FAQ: quebre as 3 maiores objeções com prova social`
+    : `ESTRUTURA OBRIGATÓRIA PARA MICRO-COPY:
+- Gere 5 variações da copy para o local informado
+- Cada variação com técnica diferente (curiosidade, urgência, contraste, prova social, FOMO)
+- Máximo 1 linha por variação`;
+
+  const modeContext = input.mode === 'content'
+    ? `Objetivo: ${input.scopingAnswers['objetivo']}\nTema/Inimigo: ${input.scopingAnswers['temaInimigo']}\nCTA: ${input.scopingAnswers['cta']}`
+    : input.mode === 'sales'
+    ? `Produto: ${input.scopingAnswers['produto']}\nMecanismo: ${input.scopingAnswers['mecanismo']}\nMaior Objeção: ${input.scopingAnswers['objecao']}`
+    : `Local: ${input.scopingAnswers['local']}\nContexto: ${input.scopingAnswers['contexto']}\nAção: ${input.scopingAnswers['acao']}`;
+
+  const systemPrompt = `<PERSONA>
+${persona}
+</PERSONA>
+
+Você está na FASE 3 (O EXECUTOR). Hierarquia de obediência: PERSONA > CONSTITUTION > FRAMEWORK > SWIPE.
+
+<CONSTITUTION>
+${vetoes}
+
+---
+
+${tone}
+</CONSTITUTION>
+
+<FRAMEWORK>
+${formulasText}
+</FRAMEWORK>
+
+<SWIPE_FILE_SKELETON>
+Referência de ritmo e cadência — NÃO copie o conteúdo, copie a cadência.
+${swipe}
+</SWIPE_FILE_SKELETON>
+
+<FORMAT_STRUCTURE>
+${formatStructure}
+</FORMAT_STRUCTURE>
+
+Entregue APENAS a copy final. Sem títulos, sem meta-comentários, sem explicações.`;
+
+  const userPrompt = `MODO: ${input.mode.toUpperCase()}
+${modeContext}
+
+GANCHO ESCOLHIDO (use como abertura literal): ${input.chosenHook}
+
+Escreva a copy completa. Assuma a voz do Maverick: direto, visceral, sem clichês de IA.`;
+
+  yield* callGroqStream(systemPrompt, userPrompt, 'meta-llama/llama-4-maverick');
+}
+

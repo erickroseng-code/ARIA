@@ -3,9 +3,13 @@ import {
   generateContentPyramid,
   generateIdeaCards,
   generateScript,
+  generateDossie,
+  generateScriptV2,
   type OnboardingInput,
   type IdeatorInput,
   type GenerateInput,
+  type DossieInput,
+  type GenerateV2Input,
 } from './copywriter.v2.service';
 
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
@@ -90,6 +94,59 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       console.error('[Maverick] /generate error:', err);
       if (!reply.raw.headersSent) {
         return reply.status(500).send({ error: err.message ?? 'Erro ao gerar roteiro' });
+      }
+      reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      reply.raw.end();
+    }
+  });
+
+  // ── POST /api/maverick/dossie ──────────────────────────────────────────────
+  // Recebe modo + respostas de scoping → retorna estratégia + 3 ganchos do brain
+  fastify.post('/dossie', async (
+    req: FastifyRequest<{ Body: DossieInput }>,
+    reply: FastifyReply,
+  ) => {
+    const { mode, scopingAnswers } = req.body;
+    if (!mode || !scopingAnswers) {
+      return reply.status(400).send({ error: 'mode e scopingAnswers são obrigatórios' });
+    }
+    try {
+      const dossie = await generateDossie({ mode, scopingAnswers });
+      return reply.send({ success: true, dossie });
+    } catch (err: any) {
+      console.error('[Maverick] /dossie error:', err);
+      return reply.status(500).send({ error: err.message ?? 'Erro ao gerar dossiê' });
+    }
+  });
+
+  // ── POST /api/maverick/generate-v2 (SSE Streaming) ────────────────────────
+  // Recebe modo + scopingAnswers + chosenHook → gera copy via llama-4-maverick
+  fastify.post('/generate-v2', async (
+    req: FastifyRequest<{ Body: GenerateV2Input }>,
+    reply: FastifyReply,
+  ) => {
+    const { mode, scopingAnswers, chosenHook } = req.body;
+    if (!mode || !scopingAnswers || !chosenHook?.trim()) {
+      return reply.status(400).send({ error: 'mode, scopingAnswers e chosenHook são obrigatórios' });
+    }
+    try {
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'X-Accel-Buffering': 'no',
+      });
+      const generator = generateScriptV2({ mode, scopingAnswers, chosenHook });
+      for await (const chunk of generator) {
+        reply.raw.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+      }
+      reply.raw.write('data: [DONE]\n\n');
+      reply.raw.end();
+    } catch (err: any) {
+      console.error('[Maverick] /generate-v2 error:', err);
+      if (!reply.raw.headersSent) {
+        return reply.status(500).send({ error: err.message ?? 'Erro ao gerar copy' });
       }
       reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
       reply.raw.end();
