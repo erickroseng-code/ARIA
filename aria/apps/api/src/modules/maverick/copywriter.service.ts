@@ -154,32 +154,30 @@ async function mergeNicheWithBrain(
     extraContext = `\n━━━ TENDÊNCIAS VIRAIS ATUAIS ━━━\nO que está funcionando no nicho agora:\n${trendResearch.insights.map((i: any) => `- Padrão: ${i.hook_pattern}\n  Ângulo: ${i.angle}\n  Princípio: ${i.engagement_signal}\n  Exemplo Real: "${i.example_hook}"`).join('\n')}\n`;
   }
 
-  const mergePrompt = `Você é um estrategista de conteúdo que combina perfil de usuário com frameworks de copywriting.
+  const mergePrompt = `Você é um estrategista de conteúdo clínico. Analise o perfil abaixo e combine com os frameworks de copywriting disponíveis.
 
 PERFIL DO NICHO/USUÁRIO:
 ${userProfile}
 
-REFERÊNCIAS DE BRAIN DISPONÍVEIS:
-━━━ AUDIÊNCIA ━━━
-${brain.audience.slice(0, 800)}...
+━━━ AUDIÊNCIA — leia e use para calibrar o tom ━━━
+${brain.audience}
 
-━━━ VIRALIDADE ━━━
-${brain.virality.slice(0, 800)}...
+━━━ VIRALIDADE — use para identificar mecânicas que funcionam neste nicho ━━━
+${brain.virality}
 
-━━━ PERSUASÃO ━━━
-${brain.persuasion.slice(0, 800)}...
+━━━ PERSUASÃO — use para mapear as objeções e gatilhos centrais ━━━
+${brain.persuasion}
 ${extraContext}
 
-Agora, crie uma ESTRATÉGIA MESCLADA que:
-1. Identifique os 3 principais problemas/dores do nicho específico
-2. Mapeie quais mecânicas virais mais se aplicam a este perfil
-3. Sugira os 3-4 ângulos de roteiros mais promissores
-4. Defina o tom de voz EXATO para esta audiência
+━━━ RESTRIÇÕES ABSOLUTAS DE TOM (NUNCA VIOLE) ━━━
+${brain.constraints}
 
-RESTRIÇÕES A CONSIDERAR (NUNCA VIOLE):
-${brain.constraints.slice(0, 1000)}
+Retorne um bloco de texto estruturado com EXATAMENTE estas seções:
+DORES CENTRAIS: as 3 dores mais agudas e específicas deste nicho (com linguagem que o público usaria — não academizada)
+ÂNGULOS PROMISSORES: 3-4 situações reais do dia a dia deste público que geram identificação imediata
+TOM DE VOZ: como esta audiência fala, o que a repele, o nível de cinismo em relação a soluções do mercado
 
-Retorne em um parágrafo fluido, não em listas. Deve ser usável diretamente como contexto estratégico.`;
+Seja clínico e específico. Proibido generalizar. Proibido coach-speak.`;
 
   return await llmChat(
     mergePrompt,
@@ -187,6 +185,7 @@ Retorne em um parágrafo fluido, não em listas. Deve ser usável diretamente co
     ['openai/gpt-oss-120b', 'openai/gpt-4.1-mini', 'deepseek/deepseek-v3.2'],
   );
 }
+
 
 // ─── Diagnosis extractor ──────────────────────────────────────────────────────
 
@@ -330,10 +329,15 @@ Para cada ideia, defina:
 CONTEXTO ESTRATÉGICO (mesclado com brain):
 ${enrichedContext}
 
-RESTRIÇÕES (OBRIGATÓRIO):
-${brain.constraints.slice(0, 800)}
+RESTRIÇÕES DE TOM E ESTILO (PRIORIDADE MÁXIMA — ângulos que violarem serão descartados):
+${brain.constraints}
 
-REGRA: Gere ângulos NOVOS e DISTINTOS — cada ideia deve explorar uma dor ou desejo diferente do nicho, sem repetir temas ou estruturas.
+REGRA DE DISTINÇÃO: Cada ângulo deve explorar uma dor ou desejo DIFERENTE do nicho. Sem repetir tema, estrutura ou abordagem.
+
+REGRA DE FUNIL OBRIGATÓRIA:
+- Se gerar 3 ângulos: 1 TOFU + 1 MOFU + 1 BOFU
+- Se gerar 4 ângulos: 2 TOFU + 1 MOFU + 1 BOFU
+O campo funnel_stage deve refletir isso — não coloque TOFU em todos.
 
 Retorne APENAS JSON array:
 [{"title":"...","context":"...","framework":"PAS","funnel_stage":"TOFU","virality_angle":"...","audience_profile":"..."}]`,

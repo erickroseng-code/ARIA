@@ -270,6 +270,86 @@ Responda APENAS com JSON: { "keywords": ["termo 1", "termo 2", "termo 3"] }`;
         }
       }
 
+      // Brief expansion: quando apenas keywords foram fornecidas (sem análise de perfil real),
+      // infere ICP completo via LLM para dar ao copywriter contexto equivalente a uma análise de perfil.
+      // Detecta "plan sintético" pela ausência de audience_profile no ICP.
+      const hasParsedProfile = (() => {
+        try {
+          const p = JSON.parse(effectivePlan);
+          const icp = p?.strategy?.suggested_icp;
+          return !!(icp?.inferred_audience && icp.inferred_audience.length > 30);
+        } catch { return true; }
+      })();
+
+      if (keywords && keywords.length > 0 && !hasParsedProfile && skipTrendResearch) {
+        sendEvent(raw, 'step', { message: '🎯 Mapeando perfil de audiência e dores...' });
+        try {
+          const apiKey = process.env.OPENROUTER_API_KEY;
+          if (apiKey) {
+            const briefRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'deepseek/deepseek-v3.2',
+                temperature: 0.3,
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'Você é um estrategista de ICP para o mercado brasileiro. Retorne APENAS JSON válido, sem markdown, sem explicações.',
+                  },
+                  {
+                    role: 'user',
+                    content: `Com base nas palavras-chave abaixo, identifique o perfil de público real com precisão cirúrgica.
+
+PALAVRAS-CHAVE: ${keywords.join(', ')}
+
+INSTRUÇÕES:
+- Seja específico: cargo real, situação real, faixa etária plausível
+- A dor principal deve ser concreta — o que mantém essa pessoa acordada às 23h
+- Proibido generalizar: "empreendedores" sem especificação, "pessoas que querem crescer", etc.
+
+Retorne JSON:
+{
+  "inferred_audience": "descrição específica de quem é esse público (cargo, situação, contexto)",
+  "main_pain_addressed": "dor principal concreta e específica (não genérica)",
+  "inferred_product": "o que provavelmente se vende nesse nicho",
+  "key_concept": "conceito central que esse público precisa entender para tomar ação",
+  "diagnosis": "gap em 2 linhas: onde esse público está vs onde quer chegar, com linguagem crua"
+}`,
+                  },
+                ],
+              }),
+            });
+
+            if (briefRes.ok) {
+              const briefData = await briefRes.json() as any;
+              const briefRaw: string = briefData.choices?.[0]?.message?.content || '';
+              const match = briefRaw.match(/\{[\s\S]*\}/);
+              if (match) {
+                const icp = JSON.parse(match[0]);
+                const parsedPlan = JSON.parse(effectivePlan);
+                if (parsedPlan?.strategy) {
+                  if (icp.diagnosis) parsedPlan.strategy.diagnosis = icp.diagnosis;
+                  if (icp.key_concept) parsedPlan.strategy.key_concept = icp.key_concept;
+                  if (!parsedPlan.strategy.suggested_icp) parsedPlan.strategy.suggested_icp = {};
+                  if (icp.inferred_audience) parsedPlan.strategy.suggested_icp.inferred_audience = icp.inferred_audience;
+                  if (icp.main_pain_addressed) parsedPlan.strategy.suggested_icp.main_pain_addressed = icp.main_pain_addressed;
+                  if (icp.inferred_product) parsedPlan.strategy.suggested_icp.inferred_product = icp.inferred_product;
+                }
+                effectivePlan = JSON.stringify(parsedPlan);
+                console.log(`[/scripts] Brief expansion aplicado — ICP inferido: ${icp.inferred_audience?.slice(0, 80)}`);
+              }
+            }
+          }
+        } catch (briefErr) {
+          console.warn('[/scripts] Brief expansion falhou — continuando sem enriquecimento:', briefErr instanceof Error ? briefErr.message : String(briefErr));
+        }
+      }
+
+
       let trendResearch;
       if (!skipTrendResearch) {
         try {
