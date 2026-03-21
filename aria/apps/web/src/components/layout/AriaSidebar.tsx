@@ -55,6 +55,15 @@ const squads: SquadDef[] = [
         accentClass: "text-red-400 bg-red-500/10 border-red-500/20",
         status: "active",
     },
+    {
+        id: "maverick",
+        name: "Maverick V2",
+        icon: Zap, // Reuse Zap or maybe another imported icon if needed, let's stick to Zap as it was used in MaverickSession
+        description: "Copywriter A-List",
+        color: "#8b5cf6", // Violet-ish (violet-500)
+        accentClass: "text-violet-400 bg-violet-500/10 border-violet-500/20",
+        status: "active",
+    },
 ];
 
 const STATUS_DOT: Record<SquadDef['status'], string> = {

@@ -168,18 +168,26 @@ export interface ContentPyramid {
 }
 
 export async function generateContentPyramid(input: OnboardingInput): Promise<ContentPyramid> {
-  const systemPrompt = `Você é um estrategista de conteúdo especialista em marketing digital.
-Sua tarefa é criar uma Pirâmide de Conteúdo estruturada para um criador de conteúdo.
+  const persona = readBrainFile('core/persona.md');
+
+  const systemPrompt = `<PERSONA>
+${persona}
+</PERSONA>
+
+Você está na FASE 1 (O ESTRATEGISTA). Sua missão aqui é analisar o nicho e público fornecidos
+e construir uma Pirâmide de Conteúdo estratégica com Pilares que refletem o Inimigo Comum,
+a Dor Latejante e o Desejo Inconfessável daquele nicho.
 Retorne APENAS um JSON válido, sem markdown, sem explicações extras.`;
 
   const userPrompt = `Nicho: ${input.niche}
 Público-alvo: ${input.targetAudience}
 
-Crie uma pirâmide de conteúdo com 3 Pilares Macro e 5 Micro-temas por pilar.
+Crie uma pirâmide de conteúdo com 3 Pilares Macro estratégicos e 5 Micro-temas por pilar.
+Os temas devem ser ultra-específicos — não genéricos. Use números, situações e personagens concretos.
 Retorne neste formato JSON exato:
 {
   "pillars": [
-    { "name": "Nome do Pilar", "topics": ["tema1", "tema2", "tema3", "tema4", "tema5"] }
+    { "name": "Nome do Pilar", "topics": ["tema específico 1", "tema específico 2", "tema específico 3", "tema específico 4", "tema específico 5"] }
   ]
 }`;
 
@@ -206,30 +214,41 @@ export interface IdeaCard {
 }
 
 export async function generateIdeaCards(input: IdeatorInput): Promise<IdeaCard[]> {
+  const persona = readBrainFile('core/persona.md');
+  const hooks = readBrainFile('hooks.md'); // Carrega o arquivo de hooks do brain
+
   // Selecionar 3 fórmulas rotativas para injetar
   const formulas = selectFormulasForTopic(input.topic, 3);
   const formulasText = formulas.length > 0
     ? formulas.map((f, i) => `## FÓRMULA ${i + 1}\n${f}`).join('\n\n---\n\n')
     : 'Use técnicas de copywriting persuasivo e específico.';
 
-  const systemPrompt = `Você é um especialista em Copywriting e Engenharia de Ângulos de Conteúdo.
-Sua função exclusiva é: dado um tema genérico + um nicho, gerar ângulos ultra-específicos que parem o scroll.
-Você NÃO inventa nada do zero. Você injeta o tema nas FÓRMULAS abaixo e cospe os resultados.
+  const systemPrompt = `<PERSONA>
+${persona}
+</PERSONA>
 
+Você está na FASE 2 (O IDEATOR). Sua missão: NUNCA inventar ângulos do zero.
+Injetar o tema nas FÓRMULAS abaixo e usar os HOOKS do brain para garantir ganchos de parada de scroll.
+
+<HOOKS_REFERENCE>
+${hooks}
+</HOOKS_REFERENCE>
+
+<FORMULAS>
 ${formulasText}
+</FORMULAS>
 
 REGRAS ABSOLUTAS:
-- Nunca use perguntas retóricas ("Você já se sentiu...?")
-- Nunca use adjetivos de hype ("incrível", "fantástico")
-- Seja específico: números quebrados, nomes de personagens, cenas fotográficas
-- Cada ângulo deve ter no máximo 2 linhas
-- Retorne APENAS JSON válido`;
+- Hook: NUNCA pergunta retórica. Use afirmação chocante, número específico ou cena fotográfica.
+- Ângulo: máximo 1 linha. Ultra-específico. Com número, personagem ou situação concreta.
+- Anti-IA: zero clichês. Zero "incrível", "transformador", "essencial".
+- Retorne APENAS JSON válido, sem markdown.`;
 
   const userPrompt = `Nicho: ${input.niche}
 Público-alvo: ${input.targetAudience}
 Tema: ${input.topic}
 
-Gere 5 cards de ângulo altamente específicos e diferentes entre si.
+Gere 5 cards de ângulo com personagens e situações ultra-específicas. Cada card deve ser radicalmente diferente em abordagem.
 Retorne neste formato JSON exato:
 {
   "cards": [
@@ -256,20 +275,44 @@ export interface GenerateInput {
 }
 
 export async function* generateScript(input: GenerateInput): AsyncGenerator<string> {
-  // 1. Montar a Constituição (sempre incluída)
+  // 1. Carregar a Persona Mestre + Constituição
+  const persona = readBrainFile('core/persona.md');
   const vetoes = readBrainFile('core/vetoes.md');
   const tone = readBrainFile('core/tone.md');
 
-  // 2. Selecionar o Swipe File mais aderente ao formato (RAG)
+  // 2. Selecionar o Swipe File RAG aderente ao formato
   const swipe = selectSwipeForFormat(input.format);
 
   // 3. Selecionar 2 fórmulas complementares via Router
   const formulas = selectFormulasForTopic(input.angle, 2);
   const formulasText = formulas.map((f, i) => `### FÓRMULA DE ESTRUTURA ${i + 1}\n${f}`).join('\n\n');
 
-  // 4. Montar o Super-Prompt via XML Tags para máxima obediência do LLM
-  const systemPrompt = `Você é um Copywriter Nível A-List. Sua missão é redigir uma copy de alta conversão para o formato solicitado.
-Você obedece estritamente os blocos abaixo. Qualquer conflito entre blocos: <CONSTITUTION> tem prioridade máxima.
+  // 4. Definir estrutura exata por formato (FASE 3 da Persona)
+  const formatStructure = input.format === 'reels'
+    ? `ESTRUTURA OBRIGATÓRIA PARA REELS:
+- 00-03s: Hook Visual e Auditivo agressivo (use o GANCHO INICIAL como base)
+- 03-10s: Entrega rápida do valor ou promessa
+- 10-45s: Conteúdo em bullets (frases curtas e quebradas)
+- Final: CTA baseado em curiosidade (ex: "Leia a legenda para o passo a passo")`
+    : input.format === 'carousel'
+    ? `ESTRUTURA OBRIGATÓRIA PARA CARROSSEL:
+- Slide 1: Headline de revista (Curiosidade + Benefício)
+- Slide 2: O Problema (Agitar a dor)
+- Slides 3-7: A Solução em passos práticos
+- Slide 8: Checklist ou Resumo (Para gerar o print/salvamento)
+- Slide 9: CTA`
+    : `ESTRUTURA OBRIGATÓRIA PARA PÁGINA DE VENDAS:
+- Headline: Mecanismo Único + Resultado Desejado
+- Lead: Narrativa de transformação
+- Oferta: O que é, para quem é, bônus e garantia
+- FAQ: Quebra de objeções reais com prova social e urgência`;
+
+  // 5. Super-Prompt final com hierarquia XML
+  const systemPrompt = `<PERSONA>
+${persona}
+</PERSONA>
+
+Você está na FASE 3 (O EXECUTOR). Prioridade de obediência: PERSONA > CONSTITUTION > FRAMEWORK > SWIPE.
 
 <CONSTITUTION>
 ${vetoes}
@@ -284,22 +327,25 @@ ${formulasText}
 </FRAMEWORK>
 
 <SWIPE_FILE_SKELETON>
-Use o esqueleto abaixo como REFERÊNCIA DE RITMO E CADÊNCIA, não de conteúdo literal.
-Mantenha a proporção de blocos, tamanho de frases e posição da virada narrativa.
-ADAPTE completamente para o nicho e tema do usuário.
+Use como REFERÊNCIA DE RITMO E CADÊNCIA, não de conteúdo literal.
+Mantenha proporção de blocos, tamanho de frases e posição da virada narrativa.
+ADAPTE completamente para o nicho e tema.
 
 ${swipe}
 </SWIPE_FILE_SKELETON>
 
-FORMATO DE ENTREGA: ${input.format === 'reels' ? 'Roteiro de Reels (60-90 segundos de fala)' : input.format === 'carousel' ? 'Texto para Carrossel (slides curtos, máx 30 palavras por slide)' : 'Página de Vendas (long-form, múltiplos blocos com CTAs progressivos)'}
-Entregue APENAS a copy final, sem explicações, sem meta-comentários.`;
+<FORMAT_STRUCTURE>
+${formatStructure}
+</FORMAT_STRUCTURE>
+
+Entregue APENAS a copy final, sem explicações, sem meta-comentários, sem títulos de seção.`;
 
   const userPrompt = `NICHO: ${input.niche}
 PÚBLICO-ALVO: ${input.targetAudience}
 ÂNGULO ESCOLHIDO: ${input.angle}
 GANCHO INICIAL: ${input.hook}
 
-Escreva a copy completa seguindo a <CONSTITUTION>, moldando este ângulo dentro do <FRAMEWORK>, com a cadência e ritmo do <SWIPE_FILE_SKELETON>.`;
+Escreva a copy completa. Siga a <FORMAT_STRUCTURE> à risca. Use o <SWIPE_FILE_SKELETON> para cadência. Aplique a <CONSTITUTION> e o <FRAMEWORK> para garantir alta conversão. Assuma a <PERSONA> do Maverick — direto, visceral, sem clichês.`;
 
   yield* callGroqStream(systemPrompt, userPrompt, 'meta-llama/llama-4-maverick');
 }
