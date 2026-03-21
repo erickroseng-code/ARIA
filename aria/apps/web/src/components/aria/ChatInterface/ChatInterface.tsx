@@ -355,7 +355,6 @@ export function ChatInterface() {
                 state={orbState}
                 energy={energyLevel}
                 lastTranscript={lastTranscript}
-                isActive={voiceState !== 'idle'}
                 onToggle={() => {
                   if (voiceState === 'idle' || voiceState === 'error') {
                     // Clique em idle/error: ativa direto para cmd_listening
