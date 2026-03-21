@@ -277,6 +277,34 @@ export class TrafficService {
     };
   }
 
+  /** Fetch ad-level insights (CTR, CPC, spend) for a given account */
+  async getAdInsights(
+    accountId: string,
+    workspace: string,
+    datePreset: string = 'last_7d'
+  ): Promise<{ ad_id: string; ad_name: string; ctr: number; cpc: number; spend: number; impressions: number }[]> {
+    const token = this.getToken(workspace);
+    try {
+      const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
+        fields: 'ad_id,ad_name,impressions,inline_link_clicks,inline_link_click_ctr,spend,cpc',
+        date_preset: datePreset,
+        level: 'ad',
+        access_token: token,
+        limit: '100',
+      });
+      return (data.data ?? []).map((row: any) => ({
+        ad_id: row.ad_id,
+        ad_name: row.ad_name,
+        ctr: parseFloat(row.inline_link_click_ctr || '0'),
+        cpc: parseFloat(row.cpc || '0'),
+        spend: parseFloat(row.spend || '0'),
+        impressions: parseInt(row.impressions || '0', 10),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   async getAdSets(campaignId: string, workspace: string): Promise<AdSet[]> {
     const token = this.getToken(workspace);
     const data = await metaGet<{ data: AdSet[] }>(`/${campaignId}/adsets`, {

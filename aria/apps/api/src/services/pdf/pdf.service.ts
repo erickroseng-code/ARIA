@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer';
 import * as path from 'path';
 
-export type SquadTheme = 'maverick' | 'atlas' | 'graham';
+export type SquadTheme = 'atlas' | 'graham';
 
 export interface ReportLayoutData {
   title: string;
@@ -14,11 +14,6 @@ export interface ReportLayoutData {
 }
 
 const THEMES: Record<SquadTheme, { name: string; primaryColor: string; accentColor: string }> = {
-  maverick: {
-    name: 'MAVERICK',
-    primaryColor: '#8a2be2', // Roxo vibrante (Complementar à criatividade / Conteúdo)
-    accentColor: '#9b4dca',
-  },
   atlas: {
     name: 'ATLAS',
     primaryColor: '#00f2fe', // Azul Ciano Bright (Complementar à tecnologia/Ads/Performance)
@@ -114,7 +109,7 @@ export class PdfService {
         <header class="pt-6 pb-2">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 rounded-full flex items-center justify-center pt-0.5" style="background: linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor})">
-              <i data-lucide="${squad === 'atlas' ? 'zap' : squad === 'maverick' ? 'pen-tool' : 'pie-chart'}" class="text-foreground w-[18px] h-[18px]"></i>
+              <i data-lucide="${squad === 'atlas' ? 'zap' : 'pie-chart'}" class="text-foreground w-[18px] h-[18px]"></i>
             </div>
             <div>
               <h1 class="text-lg font-semibold tracking-tight text-foreground leading-tight">

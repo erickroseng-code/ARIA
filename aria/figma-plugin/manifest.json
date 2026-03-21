@@ -6,6 +6,7 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"]
+    "allowedDomains": ["*"],
+    "reasoning": "This plugin requires access to the Aria API and Unsplash to fetch carousel generation scripts and images."
   }
 }

@@ -120,24 +120,4 @@ export async function registerScheduledTasksRoutes(fastify: FastifyInstance): Pr
     }
   });
 
-  // POST /api/tasks/maverick-research — Trigger Maverick trend research
-  fastify.post('/maverick-research', async (req, reply) => {
-    if (!checkSchedulerAuth(req, reply)) return;
-
-    const executedAt = new Date().toISOString();
-
-    // Maverick research will be implemented in Epic 10
-    if (!process.env.MAVERICK_ENABLED || process.env.MAVERICK_ENABLED !== 'true') {
-      return reply.send({
-        task: 'maverick-research',
-        executedAt,
-        success: true,
-        skipped: true,
-        reason: 'Maverick not configured (set MAVERICK_ENABLED=true after Epic 10)',
-      });
-    }
-
-    // Placeholder — Epic 10 will implement the actual logic
-    return reply.send({ task: 'maverick-research', executedAt, success: true, result: 'Not yet implemented' });
-  });
 }

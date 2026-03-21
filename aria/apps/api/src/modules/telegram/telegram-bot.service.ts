@@ -20,7 +20,7 @@ import { routeByNlp, transcribeVoice } from './nlp-router';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AgentMode = 'aria' | 'atlas' | 'graham' | 'maverick' | 'workspace';
+type AgentMode = 'aria' | 'atlas' | 'graham' | 'workspace';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
@@ -120,7 +120,6 @@ const AGENT_EMOJI: Record<AgentMode, string> = {
   aria: '🤖',
   atlas: '🎯',
   graham: '💰',
-  maverick: '🚀',
   workspace: '🗂️',
 };
 
@@ -128,7 +127,6 @@ const AGENT_NAME: Record<AgentMode, string> = {
   aria: 'ARIA',
   atlas: 'Atlas',
   graham: 'Graham',
-  maverick: 'Maverick',
   workspace: 'Workspace',
 };
 
@@ -177,7 +175,6 @@ export async function handleTelegramUpdate(update: any, trafficService: TrafficS
     case '/menu':     await handleMenu(chatId); break;
     case '/atlas':    await handleSetMode(chatId, 'atlas'); break;
     case '/graham':   await handleSetMode(chatId, 'graham'); break;
-    case '/maverick':   await handleSetMode(chatId, 'maverick'); break;
     case '/workspace':  await handleSetMode(chatId, 'workspace'); break;
     case '/email':      await handleWorkspaceCmd(chatId, 'email ' + parts.slice(1).join(' ')); break;
     case '/agenda':     await handleWorkspaceCmd(chatId, 'agenda ' + parts.slice(1).join(' ')); break;
@@ -288,7 +285,6 @@ async function handleHelp(chatId: number): Promise<void> {
     `/menu — Selecionar agente ativo\n` +
     `/atlas — Ativar Atlas (tráfego Meta)\n` +
     `/graham — Ativar Graham (finanças pessoais)\n` +
-    `/maverick — Ativar Maverick (conteúdo)\n` +
     `/workspace — Ativar Google Workspace\n\n` +
     `<b>Atlas — Tráfego:</b>\n` +
     `/conta — Selecionar conta Meta Ads\n` +
@@ -319,9 +315,6 @@ async function handleMenu(chatId: number): Promise<void> {
         ],
         [
           { text: '💰 Graham (Finanças)', callback_data: 'mode:graham' },
-        ],
-        [
-          { text: '🚀 Maverick (Conteúdo)', callback_data: 'mode:maverick' },
         ],
         [
           { text: '🗂️ Workspace (Google)', callback_data: 'mode:workspace' },
@@ -740,16 +733,6 @@ async function handleGrahamChat(chatId: number, text: string): Promise<void> {
   }
 }
 
-// ── Maverick chat ─────────────────────────────────────────────────────────────
-
-async function handleMaverickChat(chatId: number, text: string): Promise<void> {
-  await send(chatId,
-    `🚀 <b>Maverick</b> recebeu: <i>${text.slice(0, 100)}</i>\n\n` +
-    `⏳ Em breve o Maverick terá acesso completo via Telegram. ` +
-    `Por enquanto, acesse pelo painel web para gerar carrosséis e conteúdo.`
-  );
-}
-
 // ── Workspace chat ────────────────────────────────────────────────────────────
 
 async function handleWorkspaceCmd(chatId: number, text: string): Promise<void> {
@@ -773,9 +756,6 @@ async function handleAgentChat(chatId: number, text: string, trafficService: Tra
       break;
     case 'graham':
       await handleGrahamChat(chatId, text);
-      break;
-    case 'maverick':
-      await handleMaverickChat(chatId, text);
       break;
     case 'workspace':
       await handleWorkspaceCmd(chatId, text);

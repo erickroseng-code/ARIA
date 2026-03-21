@@ -1,6 +1,7 @@
 'use client';
 
-import { LayoutGrid, Target, BarChart2, Home, Zap } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LayoutGrid, Target, BarChart2, Home, Zap, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import IntegrationHub from "@/components/layout/IntegrationHub";
 import { useChatStore } from "@/stores/chatStore";
@@ -28,15 +29,6 @@ interface SquadDef {
 
 const squads: SquadDef[] = [
     {
-        id: "maverick",
-        name: "Maverick",
-        icon: Target,
-        description: "Estratégia & Visão",
-        color: "#a855f7",
-        accentClass: "text-purple-400 bg-purple-500/10 border-purple-500/20",
-        status: "active",
-    },
-    {
         id: "finance",
         name: "Graham",
         icon: BarChart2,
@@ -54,6 +46,15 @@ const squads: SquadDef[] = [
         accentClass: "text-orange-400 bg-orange-500/10 border-orange-500/20",
         status: "active",
     },
+    {
+        id: "trendmaster",
+        name: "TrendMaster",
+        icon: TrendingUp, // Usaremos TrendingUp depois
+        description: "Monitoramento Viral",
+        color: "#ef4444", // Red-ish for trends
+        accentClass: "text-red-400 bg-red-500/10 border-red-500/20",
+        status: "active",
+    },
 ];
 
 const STATUS_DOT: Record<SquadDef['status'], string> = {
@@ -68,6 +69,7 @@ const AriaSidebar = ({
     activeSquad,
 }: AriaSidebarProps) => {
     const { isHubOpen, setHubOpen } = useChatStore();
+    const router = useRouter();
 
     return (
         <>
@@ -84,7 +86,14 @@ const AriaSidebar = ({
                         <img src={ariaLogo} alt="ARIA" className="w-8 h-8 rounded-lg flex-shrink-0" />
                         <span className="text-xl font-semibold tracking-tight text-white drop-shadow-md flex-1">ARIA</span>
                         <button
-                            onClick={() => onSelectSquad?.(null)}
+                            onClick={() => {
+                                if (onSelectSquad) {
+                                    onSelectSquad(null);
+                                } else {
+                                    localStorage.removeItem('aria_active_squad');
+                                    router.push('/');
+                                }
+                            }}
                             title="Dashboard Principal"
                             className={cn(
                                 "p-1.5 rounded-lg transition-colors",
@@ -123,7 +132,18 @@ const AriaSidebar = ({
                                 return (
                                     <button
                                         key={squad.id}
-                                        onClick={() => onSelectSquad?.(squad.id)}
+                                        onClick={() => {
+                                            if (squad.id === "trendmaster") {
+                                                router.push("/trendmaster");
+                                            } else {
+                                                if (onSelectSquad) {
+                                                    onSelectSquad(squad.id);
+                                                } else {
+                                                    localStorage.setItem('aria_active_squad', squad.id);
+                                                    router.push("/");
+                                                }
+                                            }
+                                        }}
                                         title={squad.description}
                                         className={cn(
                                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group/squad",

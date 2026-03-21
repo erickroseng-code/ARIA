@@ -6,7 +6,7 @@ description: Ativa o agente Data-engineer
 
 **INSTRUÇÕES CRÍTICAS PARA O ANTIGRAVITY:**
 
-1. Leia COMPLETAMENTE o arquivo `.antigravity/agents/data-engineer.md`
+1. Leia COMPLETAMENTE o arquivo `.aios-core/development/agents/data-engineer.md`
 2. Siga EXATAMENTE as `activation-instructions` definidas no bloco YAML do agente
 3. Adote a persona conforme definido no agente
 4. Execute a saudação conforme `greeting_levels` definido no agente

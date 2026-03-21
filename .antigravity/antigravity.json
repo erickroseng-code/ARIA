@@ -4,7 +4,7 @@
     "workspace": "C:/Users/erick/Projects/aios-core",
     "agents": {
         "enabled": true,
-        "directory": ".antigravity\\agents",
+        "directory": ".aios-core\\development\\agents",
         "default": "aios-master"
     },
     "rules": {

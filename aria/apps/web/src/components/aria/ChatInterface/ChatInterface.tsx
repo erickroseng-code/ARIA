@@ -7,7 +7,6 @@ import { ExecutiveDashboard } from "@/components/chat/ExecutiveDashboard";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-import { MaverickSession } from "@/components/chat/MaverickSession";
 import { FinanceSession } from "@/components/chat/FinanceSession";
 import { TrafficSession } from "@/components/chat/TrafficSession";
 import { VoiceOrb } from "@/components/VoiceOrb";
@@ -21,12 +20,6 @@ import { ToastProvider } from "@/components/ui/Toast";
 export function ChatInterface() {
   const [prefill, setPrefill] = useState("");
   const [energy, setEnergy] = useState(0);
-  const [maverickOpen, setMaverickOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('aria_active_squad') === 'maverick';
-    }
-    return false;
-  });
   const [financeOpen, setFinanceOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('aria_active_squad') === 'finance';
@@ -50,18 +43,15 @@ export function ChatInterface() {
   const [revealLength, setRevealLength] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Efeito para persistir aba do squad ativo após F5
   useEffect(() => {
-    if (maverickOpen) {
-      localStorage.setItem('aria_active_squad', 'maverick');
-    } else if (financeOpen) {
+    if (financeOpen) {
       localStorage.setItem('aria_active_squad', 'finance');
     } else if (trafficOpen) {
       localStorage.setItem('aria_active_squad', 'traffic');
     } else {
       localStorage.removeItem('aria_active_squad');
     }
-  }, [maverickOpen, financeOpen, trafficOpen]);
+  }, [financeOpen, trafficOpen]);
 
   // Store — for sidebar props
   const { conversations, activeConversationId, streamingConversationId, startNewConversation, switchConversation, deleteConversation } = useChatStore();
@@ -231,13 +221,12 @@ export function ChatInterface() {
   const orbState = isSpeaking ? 'processing' : voiceState;
 
   // Derive active squad id for sidebar highlight
-  const activeSquad = maverickOpen ? 'maverick' : financeOpen ? 'finance' : trafficOpen ? 'traffic' : null;
+  const activeSquad = financeOpen ? 'finance' : trafficOpen ? 'traffic' : null;
 
   const handleSelectSquad = useCallback((squadId: string | null) => {
-    if (squadId === 'maverick') { setMaverickOpen(true); setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(false); }
-    else if (squadId === 'finance') { setFinanceOpen(true); setMaverickOpen(false); setTrafficOpen(false); setShowDashboard(false); }
-    else if (squadId === 'traffic') { setTrafficOpen(true); setMaverickOpen(false); setFinanceOpen(false); setShowDashboard(false); }
-    else { setMaverickOpen(false); setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(true); }
+    if (squadId === 'finance') { setFinanceOpen(true); setTrafficOpen(false); setShowDashboard(false); }
+    else if (squadId === 'traffic') { setTrafficOpen(true); setFinanceOpen(false); setShowDashboard(false); }
+    else { setFinanceOpen(false); setTrafficOpen(false); setShowDashboard(true); }
   }, []);
 
   return (
@@ -254,10 +243,7 @@ export function ChatInterface() {
           />
 
           <div className="h-full flex flex-col relative z-10 lg:pl-64">
-            {/* ── Modo Squad Maverick: painel inline, largura total do chat ── */}
-            {maverickOpen ? (
-              <MaverickSession onClose={() => setMaverickOpen(false)} />
-            ) : financeOpen ? (
+            {financeOpen ? (
               <FinanceSession onClose={() => setFinanceOpen(false)} />
             ) : trafficOpen ? (
               <TrafficSession onClose={() => setTrafficOpen(false)} />
@@ -351,7 +337,7 @@ export function ChatInterface() {
           </div>
 
           {/* VoiceOrb fixo no canto inferior direito — visível sempre */}
-          {voiceSupported && !maverickOpen && !financeOpen && !trafficOpen && (
+          {voiceSupported && !financeOpen && !trafficOpen && (
             <div className="fixed bottom-6 right-6 z-50">
               <VoiceOrb
                 state={orbState}

@@ -6,7 +6,7 @@ description: Ativa o agente Devops
 
 **INSTRUÇÕES CRÍTICAS PARA O ANTIGRAVITY:**
 
-1. Leia COMPLETAMENTE o arquivo `.antigravity/agents/devops.md`
+1. Leia COMPLETAMENTE o arquivo `.aios-core/development/agents/devops.md`
 2. Siga EXATAMENTE as `activation-instructions` definidas no bloco YAML do agente
 3. Adote a persona conforme definido no agente
 4. Execute a saudação conforme `greeting_levels` definido no agente
