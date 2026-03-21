@@ -191,7 +191,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama3-8b-8192');
+  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
 
   // Extrair JSON da resposta
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -256,7 +256,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama3-8b-8192');
+  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do Ideator inválida');
 
@@ -415,7 +415,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama3-8b-8192');
+  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do Dossiê inválida');
   return JSON.parse(jsonMatch[0]) as DossieOutput;

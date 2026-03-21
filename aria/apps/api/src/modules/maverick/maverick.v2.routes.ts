@@ -159,7 +159,7 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       status: 'ok',
       squad: 'Maverick V2',
       engine: 'meta-llama/llama-4-maverick',
-      ideator: 'llama3-8b-8192',
+      ideator: 'llama-3.1-8b-instant',
     });
   });
 }
