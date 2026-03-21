@@ -349,7 +349,7 @@ export function ChatInterface() {
           </div>
 
           {/* VoiceOrb fixo no canto inferior direito — visível sempre */}
-          {voiceSupported && !financeOpen && !trafficOpen && (
+          {false && voiceSupported && !financeOpen && !trafficOpen && (
             <div className="fixed bottom-6 right-6 z-50">
               <VoiceOrb
                 state={orbState}
