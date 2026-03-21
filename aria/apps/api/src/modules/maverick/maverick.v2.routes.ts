@@ -11,6 +11,7 @@ import {
   type DossieInput,
   type GenerateV2Input,
 } from './copywriter.v2.service';
+import { runOracle, type OracleInput } from './oracle.service';
 
 export async function registerMaverickRoutes(fastify: FastifyInstance) {
   // ── POST /api/maverick/onboarding ──────────────────────────────────────────
@@ -150,6 +151,25 @@ export async function registerMaverickRoutes(fastify: FastifyInstance) {
       }
       reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
       reply.raw.end();
+    }
+  });
+
+  // ── POST /api/maverick/oracle ──────────────────────────────────────────────
+  // Oráculo: pesquisa web real via Tavily + síntese LLM para descoberta de nicho
+  fastify.post('/oracle', async (
+    req: FastifyRequest<{ Body: OracleInput }>,
+    reply: FastifyReply,
+  ) => {
+    const { rawIdea } = req.body;
+    if (!rawIdea?.trim()) {
+      return reply.status(400).send({ error: 'rawIdea é obrigatório (ex: "sou nutricionista")' });
+    }
+    try {
+      const blueprint = await runOracle({ rawIdea });
+      return reply.send({ success: true, blueprint });
+    } catch (err: any) {
+      console.error('[Maverick] /oracle error:', err);
+      return reply.status(500).send({ error: err.message ?? 'Erro ao executar o Oráculo' });
     }
   });
 

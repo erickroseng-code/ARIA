@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, DollarSign, Type, ChevronRight, Copy, Check, RotateCcw } from 'lucide-react';
+import { X, Zap, DollarSign, Type, ChevronRight, Copy, Check, RotateCcw, Compass, Loader2, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -131,7 +131,62 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [copied, setCopied] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Oracle state
+  const [oracleOpen, setOracleOpen] = useState(false);
+  const [oracleIdea, setOracleIdea] = useState('');
+  const [oracleLoading, setOracleLoading] = useState(false);
+  const [oracleResult, setOracleResult] = useState<{
+    niche: string; targetAudience: string; enemy: string;
+    mechanism: string; pains: string[];
+    sources: { title: string; url: string; snippet: string }[];
+  } | null>(null);
+
   const modeConfig = MODES.find(m => m.id === mode);
+
+  // ── Oracle (Tavily Web Search) ──────────────────────────────────────────────
+  const handleOracle = async () => {
+    if (!oracleIdea.trim()) return;
+    setOracleLoading(true);
+    setError(null);
+    setOracleResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/maverick/oracle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawIdea: oracleIdea }),
+      });
+      if (!res.ok) throw new Error('Falha no Oráculo');
+      const data = await res.json();
+      setOracleResult(data.blueprint);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro no oráculo');
+    } finally {
+      setOracleLoading(false);
+    }
+  };
+
+  const applyOracleToScoping = () => {
+    if (!oracleResult || !mode) return;
+    if (mode === 'content') {
+      setScopingAnswers(prev => ({
+        ...prev,
+        temaInimigo: `${oracleResult.niche} — Inimigo: ${oracleResult.enemy}`,
+      }));
+    } else if (mode === 'sales') {
+      setScopingAnswers(prev => ({
+        ...prev,
+        produto: oracleResult.mechanism,
+        objecao: oracleResult.pains[0] ?? '',
+      }));
+    } else if (mode === 'microcopy') {
+      setScopingAnswers(prev => ({
+        ...prev,
+        contexto: `${oracleResult.niche}: ${oracleResult.pains.join(', ')}`,
+      }));
+    }
+    setOracleOpen(false);
+    setOracleResult(null);
+  };
 
   // ── Scoping → Dossiê ────────────────────────────────────────────────────────
   const handleScoping = async () => {
@@ -331,6 +386,141 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                     {modeConfig?.label}
                   </span>
                 </div>
+
+                {/* Oracle Button */}
+                <button
+                  onClick={() => { setOracleOpen(!oracleOpen); setOracleResult(null); }}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 text-left',
+                    oracleOpen
+                      ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                      : 'bg-white/[0.02] border-white/[0.06] text-white/40 hover:border-cyan-500/30 hover:text-cyan-400 hover:bg-cyan-500/5'
+                  )}
+                >
+                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                    <Compass className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">🔮 Perguntar ao Oráculo</p>
+                    <p className="text-[11px] text-white/30 mt-0.5">Não sabe o que preencher? O Oráculo pesquisa a internet por você.</p>
+                  </div>
+                </button>
+
+                {/* Oracle Panel */}
+                <AnimatePresence>
+                  {oracleOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 rounded-2xl bg-cyan-500/[0.03] border border-cyan-500/15 space-y-4">
+                        <div>
+                          <label className="block text-cyan-400/70 text-[10px] font-bold uppercase tracking-widest mb-2">
+                            Descreva sua ideia bruta
+                          </label>
+                          <textarea
+                            rows={2}
+                            placeholder='Ex: "Sou dentista e quero vender clareamento premium"'
+                            value={oracleIdea}
+                            onChange={e => setOracleIdea(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-white/80 text-sm placeholder-white/20 focus:outline-none focus:border-cyan-500/30 resize-none transition-colors"
+                          />
+                        </div>
+                        <button
+                          onClick={handleOracle}
+                          disabled={oracleLoading || !oracleIdea.trim()}
+                          className="w-full py-3 rounded-xl text-sm font-semibold bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 hover:bg-cyan-500/25 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                        >
+                          {oracleLoading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Pesquisando Reddit, YouTube, Quora...
+                            </>
+                          ) : (
+                            '🔮 Pesquisar na Internet'
+                          )}
+                        </button>
+
+                        {/* Oracle Result */}
+                        {oracleResult && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-3 pt-2"
+                          >
+                            <p className="text-[10px] font-bold text-cyan-400/50 uppercase tracking-widest">Niche Blueprint (baseado em dados reais)</p>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Nicho</p>
+                                <p className="text-white/80 text-xs leading-relaxed">{oracleResult.niche}</p>
+                              </div>
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Público</p>
+                                <p className="text-white/80 text-xs leading-relaxed">{oracleResult.targetAudience}</p>
+                              </div>
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Inimigo</p>
+                                <p className="text-white/80 text-xs leading-relaxed">{oracleResult.enemy}</p>
+                              </div>
+                              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Mecanismo</p>
+                                <p className="text-white/80 text-xs leading-relaxed">{oracleResult.mechanism}</p>
+                              </div>
+                            </div>
+
+                            {/* Dores Reais */}
+                            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                              <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Dores Reais Encontradas</p>
+                              <ul className="space-y-1">
+                                {oracleResult.pains.map((pain, i) => (
+                                  <li key={i} className="text-white/60 text-xs flex items-start gap-2">
+                                    <span className="text-red-400/60 mt-0.5">•</span>
+                                    {pain}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Fontes */}
+                            {oracleResult.sources.length > 0 && (
+                              <details className="group">
+                                <summary className="text-[10px] text-white/25 uppercase tracking-widest cursor-pointer hover:text-white/40 transition-colors flex items-center gap-1">
+                                  <ExternalLink className="w-3 h-3" />
+                                  {oracleResult.sources.length} fontes da web
+                                </summary>
+                                <div className="mt-2 space-y-1.5">
+                                  {oracleResult.sources.map((s, i) => (
+                                    <a
+                                      key={i}
+                                      href={s.url}
+                                      target="_blank"
+                                      rel="noopener"
+                                      className="block p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] text-xs text-white/40 hover:text-white/60 transition-colors truncate"
+                                    >
+                                      {s.title || s.url}
+                                    </a>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+
+                            {/* Apply button */}
+                            <button
+                              onClick={applyOracleToScoping}
+                              className="w-full py-3 rounded-xl text-sm font-semibold bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 transition-all flex items-center justify-center gap-2"
+                            >
+                              ⚡ Aceitar e Preencher Campos
+                            </button>
+                          </motion.div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <div className="space-y-5">
                   {SCOPING_FIELDS[mode].map((field) => (
