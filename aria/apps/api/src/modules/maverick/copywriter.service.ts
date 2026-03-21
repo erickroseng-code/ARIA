@@ -384,6 +384,7 @@ Retorne APENAS JSON array:
   // ── Pass 2: gerar cada roteiro sequencialmente para forçar diversidade ──────
   const usedHookTechniques: string[] = [];
   const usedBodyTechniques: string[] = [];
+  const generatedHooksContext: string[] = [];
 
   const scripts: GeneratedScript[] = [];
   for (const idea of ideas) {
@@ -408,6 +409,10 @@ ${hookExamples}
 ${usedHookTechniques.length > 0 ? `⛔ TÉCNICAS JÁ USADAS NESTE BATCH — PROIBIDO reutilizar:
 ${usedHookTechniques.map(t => `- ${t}`).join('\n')}
 Escolha obrigatoriamente uma técnica DIFERENTE.
+
+` : ''}${generatedHooksContext.length > 0 ? `⛔ HOOKS JÁ GERADOS NESTA SESSÃO — PROIBIDO TER ESTRUTURA SINTÁTICA PARECIDA:
+${generatedHooksContext.map(h => `- "${h}"`).join('\n')}
+REGRA ABSOLUTA: O seu novo hook DEVE começar com uma classe gramatical diferente e abordar o problema por um ângulo novo. Evite o loop de mesma estrutura!
 
 ` : ''}━━━ CATÁLOGO DE TÉCNICAS DE HOOK ━━━
 ${brain.hooks}
@@ -843,6 +848,7 @@ Retorne APENAS JSON:
 
     // Registra técnicas usadas para forçar diversidade nos próximos roteiros
     if (hookData.hook_technique) usedHookTechniques.push(hookData.hook_technique);
+    if (hookData.hook) generatedHooksContext.push(hookData.hook);
     if (techniquePlan.storytelling) usedBodyTechniques.push(techniquePlan.storytelling);
     if (techniquePlan.persuasion) usedBodyTechniques.push(techniquePlan.persuasion);
     if (techniquePlan.virality) usedBodyTechniques.push(techniquePlan.virality);
