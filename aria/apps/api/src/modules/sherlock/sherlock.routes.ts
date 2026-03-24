@@ -1,4 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { spawn } from 'child_process';
+import path from 'path';
 
 interface TrendReport {
   date: string;
@@ -84,5 +86,59 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
       fastify.log.error(`[Sherlock] Erro ao chamar GitHub API: ${err.message}`);
       return reply.status(500).send({ error: err.message });
     }
+  });
+
+  // POST /api/sherlock/instagram-research — pesquisa Reels com keywords + período
+  fastify.post('/instagram-research', async (
+    req: FastifyRequest<{ Body: { keywords: string[]; days: number } }>,
+    reply: FastifyReply,
+  ) => {
+    const { keywords, days } = req.body;
+
+    if (!keywords?.length || keywords.length > 3) {
+      return reply.status(400).send({ error: 'Envie entre 1 e 3 keywords.' });
+    }
+    if (![30, 45, 60, 90].includes(days)) {
+      return reply.status(400).send({ error: 'Período deve ser 30, 45, 60 ou 90 dias.' });
+    }
+
+    fastify.log.info(`[Sherlock] Instagram research: keywords=${keywords.join(',')} days=${days}`);
+
+    return new Promise((resolve) => {
+      const sherlockDir = path.join(process.cwd(), '..', '..', '..', '..', 'sherlock');
+      const script = path.join(sherlockDir, 'src', 'instagram_research.py');
+
+      const proc = spawn('python', [script, '--keywords', ...keywords, '--days', String(days)], {
+        cwd: path.join(sherlockDir, 'src'),
+        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      });
+
+      let output = '';
+      let errOutput = '';
+
+      proc.stdout.on('data', (d) => { output += d.toString(); });
+      proc.stderr.on('data', (d) => { errOutput += d.toString(); });
+
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          fastify.log.error(`[Sherlock] Instagram research falhou: ${errOutput}`);
+          resolve(reply.status(500).send({ error: 'Falha na pesquisa do Instagram', details: errOutput.slice(-500) }));
+          return;
+        }
+
+        try {
+          const result = JSON.parse(output.trim().split('\n').pop() || '[]');
+          resolve(reply.send({ status: 'success', reels: result, count: result.length }));
+        } catch {
+          resolve(reply.status(500).send({ error: 'Falha ao parsear resultado', raw: output.slice(-300) }));
+        }
+      });
+
+      // Timeout de 5 minutos (scraping pode demorar)
+      setTimeout(() => {
+        proc.kill();
+        resolve(reply.status(408).send({ error: 'Timeout — pesquisa demorou mais de 5 minutos.' }));
+      }, 5 * 60 * 1000);
+    });
   });
 }
