@@ -24,7 +24,7 @@ export default function TrendMasterPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://localhost:8000/api/dashboard");
+      const response = await fetch("/api/trendmaster/dashboard");
       if (!response.ok) {
         throw new Error(`API retornou ${response.status}`);
       }
@@ -42,7 +42,7 @@ export default function TrendMasterPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://localhost:8000/api/trigger", {
+      const response = await fetch("/api/trendmaster/trigger", {
         method: "POST",
       });
       if (!response.ok) {

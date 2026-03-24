@@ -19,8 +19,7 @@ jobs:
       - name: Install dependencies
         working-directory: trendmaster
         run: |
-          pip install fastapi uvicorn playwright-stealth apify-client sqlmodel anthropic openai python-dotenv pytrends beautifulsoup4 lxml httpx
-          playwright install
+          pip install apify-client sqlmodel anthropic openai python-dotenv pytrends beautifulsoup4 lxml httpx
 
       - name: Run TrendMaster Agent
         working-directory: trendmaster
@@ -29,6 +28,6 @@ jobs:
           APIFY_API_TOKEN: ${{ secrets.APIFY_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          RENDER_WEBHOOK_URL: ${{ secrets.RENDER_WEBHOOK_URL }}
+          RENDER_WEBHOOK_URL: ${{ secrets.ARIA_API_URL }}/api/trendmaster/webhook
         run: |
           cd src && python main.py
