@@ -4,7 +4,6 @@ import logging
 from typing import List, Dict, Any
 from sqlmodel import Session, select
 from models.trend import Trend
-from main import engine # Usamos a engine do main
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +24,7 @@ def is_duplicate(session: Session, content_hash: str, days: int = 7) -> bool:
 
 def filter_new_trends(trends: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filtra as trends retornando apenas as novas."""
+    from main import engine # Usamos a engine do main
     logger.info("Executando deduplicação em SQLite...")
     new_trends = []
     
@@ -41,6 +41,7 @@ def filter_new_trends(trends: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def save_processed_trend(trend_data: Dict[str, Any]):
     """Salva a tendência no banco para futura deduplicação."""
+    from main import engine # Usamos a engine do main
     with Session(engine) as session:
         # Verifica duplicatas de novo por segurança
         if not is_duplicate(session, trend_data["content_hash"]):

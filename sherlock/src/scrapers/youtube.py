@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from .base import BaseScraper
+from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,12 @@ class YouTubeScraper(BaseScraper):
         logger.info("Iniciando extracao do YouTube Trending Brasil...")
         trends = []
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                locale="pt-BR",
-            )
+        shared = self._pw_context is not None
+
+        async def _run(context):
             page = await context.new_page()
             await stealth_async(page)
-
+            nonlocal trends
             try:
                 await page.goto(
                     "https://www.youtube.com/feed/trending?gl=BR&hl=pt-BR",
@@ -105,7 +103,17 @@ class YouTubeScraper(BaseScraper):
             except Exception as e:
                 logger.error(f"Erro ao acessar YouTube Trending: {e}")
             finally:
-                await browser.close()
+                await page.close()
+
+        if shared:
+            await _run(self._pw_context)
+        else:
+            async with async_playwright() as p:
+                context = await new_persistent_context(p, headless=True)
+                try:
+                    await _run(context)
+                finally:
+                    await context.close()
 
         logger.info(f"YouTube Trending: {len(trends)} videos extraidos")
         return trends

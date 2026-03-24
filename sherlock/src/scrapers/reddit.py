@@ -1,60 +1,130 @@
+import asyncio
 import datetime
 import logging
+import re
 from typing import List, Dict, Any
-import httpx
+from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async
 from .base import BaseScraper
+from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": "sherlock-agent/1.0 (trend intelligence; contact: erick@synkra.io)",
-    "Accept": "application/json",
-}
+# Subreddits representing what's trending globally and in Brazil.
+# r/popular → cross-reddit hot posts (global)
+# r/brasil, r/investimentos, r/empreendedorismo → BR community trending
+SUBREDDITS = ["popular", "brasil", "investimentos", "empreendedorismo"]
+
 
 class RedditScraper(BaseScraper):
-    """Scraper for Reddit via official JSON API (no auth needed for public subreddits)."""
+    """Scraper for Reddit Brazil subreddits via Playwright."""
 
-    def __init__(self, subreddits: List[str] = ["brasil", "investimentos", "marketing", "empreendedorismo"]):
+    def __init__(self, subreddits: List[str] = SUBREDDITS):
+        super().__init__()
         self.subreddits = subreddits
 
     async def fetch_trends(self) -> List[Dict[str, Any]]:
-        logger.info(f"Iniciando extracao do Reddit JSON API para: {self.subreddits}")
-        all_trends = []
+        logger.info(f"Iniciando extração Reddit via Playwright: {self.subreddits}")
+        shared = self._pw_context is not None
 
-        async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
-            for subreddit in self.subreddits:
+        async def _scrape_all(context):
+            page = await context.new_page()
+            await stealth_async(page)
+            all_trends = []
+            try:
+                for sub in self.subreddits:
+                    sub_trends = await _scrape_subreddit(page, sub)
+                    all_trends.extend(sub_trends)
+            finally:
+                await page.close()
+            return all_trends
+
+        if shared:
+            trends = await _scrape_all(self._pw_context)
+        else:
+            async with async_playwright() as p:
+                context = await new_persistent_context(p, headless=True)
                 try:
-                    url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit=5"
-                    resp = await client.get(url)
-                    resp.raise_for_status()
-                    data = resp.json()
+                    trends = await _scrape_all(context)
+                finally:
+                    await context.close()
 
-                    children = data.get("data", {}).get("children", [])
-                    for post in children:
-                        d = post.get("data", {})
-                        title = d.get("title", "")
-                        if not title:
-                            continue
+        logger.info(f"Reddit total: {len(trends)} posts extraídos")
+        return trends
 
-                        score = d.get("score", 0)
-                        comments = d.get("num_comments", 0)
-                        created_utc = d.get("created_utc", 0)
-                        url_post = d.get("url", f"https://reddit.com{d.get('permalink', '')}")
-                        selftext = d.get("selftext", "") or ""
-                        content = selftext[:300] if selftext else title
 
-                        all_trends.append({
-                            "source": f"reddit_r_{subreddit}",
-                            "title": title,
-                            "content": content,
-                            "url": url_post,
-                            "engagement": float(score + comments * 2),
-                            "published_at": datetime.datetime.utcfromtimestamp(created_utc) if created_utc else datetime.datetime.utcnow(),
-                        })
+async def _scrape_subreddit(page, subreddit: str) -> List[Dict[str, Any]]:
+    trends = []
+    
+    try:
+        await page.goto(
+            f"https://www.reddit.com/r/{subreddit}/hot/",
+            timeout=30000,
+            wait_until="domcontentloaded",
+        )
+        await page.wait_for_timeout(2500)
 
-                    logger.info(f"Reddit r/{subreddit}: {len(children)} posts extraidos")
-                except Exception as e:
-                    logger.error(f"Erro em r/{subreddit}: {e}")
+        # New Reddit layout — article cards
+        posts = await page.locator('article, [data-testid="post-container"], shreddit-post').all()
 
-        logger.info(f"Reddit total: {len(all_trends)} tendencias")
-        return all_trends
+        # Fallback: old Reddit
+        if not posts:
+            await page.goto(
+                f"https://old.reddit.com/r/{subreddit}/hot/",
+                timeout=25000,
+                wait_until="domcontentloaded",
+            )
+            await page.wait_for_timeout(1500)
+            posts = await page.locator(".thing.link").all()
+
+        for post in posts[:8]:
+            try:
+                # Title
+                title_el = post.locator('a[data-click-id="body"], h3, .title > a').first
+                title = (await title_el.inner_text()).strip()
+                if not title or len(title) < 5:
+                    continue
+
+                # URL
+                href = await title_el.get_attribute("href") or ""
+                url = f"https://www.reddit.com{href}" if href.startswith("/") else href
+
+                # Score
+                score_text = ""
+                try:
+                    score_el = post.locator('[id*="vote-arrows"] faceplate-number, .score.unvoted').first
+                    score_text = await score_el.inner_text()
+                except Exception:
+                    pass
+                score = _parse_score(score_text)
+
+                trends.append({
+                    "source": f"reddit_r_{subreddit}",
+                    "title": title,
+                    "content": title,
+                    "url": url,
+                    "engagement": float(score),
+                    "published_at": datetime.datetime.utcnow(),
+                })
+            except Exception:
+                continue
+
+        logger.info(f"Reddit r/{subreddit}: {len(trends)} posts")
+    except Exception as e:
+        logger.error(f"Erro Reddit r/{subreddit}: {e}")
+
+    return trends
+
+
+def _parse_score(text: str) -> int:
+    text = text.strip().upper().replace(",", ".")
+    m = re.search(r"([\d.]+)\s*([KkMm]?)", text)
+    if not m:
+        return 100
+    num = float(m.group(1))
+    suffix = m.group(2).upper()
+    if suffix == "K":
+        return int(num * 1_000)
+    if suffix == "M":
+        return int(num * 1_000_000)
+    return int(num) if num > 0 else 100

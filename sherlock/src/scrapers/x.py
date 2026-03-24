@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from .base import BaseScraper
+from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +16,12 @@ class XScraper(BaseScraper):
         logger.info("Iniciando extracao das trends do X Brasil via Playwright...")
         trends = []
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                locale="pt-BR",
-                geolocation={"latitude": -23.5505, "longitude": -46.6333},  # Sao Paulo
-                permissions=["geolocation"],
-            )
+        shared = self._pw_context is not None
+
+        async def _run(context):
             page = await context.new_page()
             await stealth_async(page)
-
+            nonlocal trends
             try:
                 # Tentar página de trends do X
                 await page.goto("https://x.com/explore/tabs/trending", timeout=30000, wait_until="domcontentloaded")
@@ -70,7 +66,17 @@ class XScraper(BaseScraper):
             except Exception as e:
                 logger.error(f"Erro ao acessar X Trending: {e}")
             finally:
-                await browser.close()
+                await page.close()
+
+        if shared:
+            await _run(self._pw_context)
+        else:
+            async with async_playwright() as p:
+                context = await new_persistent_context(p, headless=True)
+                try:
+                    await _run(context)
+                finally:
+                    await context.close()
 
         logger.info(f"X Twitter Trending: {len(trends)} trends extraidas")
         return trends

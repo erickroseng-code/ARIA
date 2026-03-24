@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from "react";
-import { AlertCircle, RefreshCw, Zap, Presentation, Search, Instagram, X, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, RefreshCw, Zap, Presentation, Search, Instagram, X, ExternalLink, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AriaSidebar from "@/components/layout/AriaSidebar";
 
@@ -29,6 +29,125 @@ const PERIOD_OPTIONS = [
   { label: "60 dias", value: 60 },
   { label: "90 dias", value: 90 },
 ];
+
+function LogoG1() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#E3002B"/>
+      <text x="20" y="27" textAnchor="middle" fill="white" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="17">G1</text>
+    </svg>
+  );
+}
+
+function LogoGoogleTrends() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#fff"/>
+      <path d="M28.6 20.2c0-.6-.1-1.2-.2-1.8H20v3.4h4.8c-.2 1.1-.9 2-1.9 2.6v2.2h3.1c1.8-1.7 2.6-4.1 2.6-6.4z" fill="#4285F4"/>
+      <path d="M20 29c2.4 0 4.5-.8 6-2.2l-3.1-2.2c-.8.6-1.8.9-2.9.9-2.2 0-4.1-1.5-4.8-3.5H12v2.3C13.5 27.3 16.6 29 20 29z" fill="#34A853"/>
+      <path d="M15.2 22c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2v-2.3H12C11.4 17.1 11 18.5 11 20s.4 2.9 1 4.3l3.2-2.3z" fill="#FBBC05"/>
+      <path d="M20 14.5c1.2 0 2.3.4 3.2 1.2l2.4-2.4C24.5 12 22.4 11 20 11c-3.4 0-6.5 1.7-8 4.7l3.2 2.3c.7-2 2.6-3.5 4.8-3.5z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+function LogoReddit() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#FF4500"/>
+      <circle cx="20" cy="21" r="10" fill="white"/>
+      <circle cx="16.5" cy="21" r="1.5" fill="#FF4500"/>
+      <circle cx="23.5" cy="21" r="1.5" fill="#FF4500"/>
+      <path d="M16 24.5c1 1 6 1 8 0" stroke="#FF4500" strokeWidth="1.2" strokeLinecap="round"/>
+      <circle cx="26" cy="13" r="2" fill="white"/>
+      <line x1="20" y1="12" x2="26" y2="13" stroke="white" strokeWidth="1.5"/>
+      <circle cx="26" cy="13" r="1.2" fill="#FF4500"/>
+      <path d="M30 17c0-1.1-.9-2-2-2s-2 .9-2 2c0 .7.4 1.3.9 1.7-.1.4-.1.7-.1 1.1 0 4.4-4.9 8-11 8S5 26.2 5 21.8c0-.4 0-.8-.1-1.1.5-.4.9-1 .9-1.7 0-1.1-.9-2-2-2s-2 .9-2 2c0 .8.5 1.5 1.1 1.8C2.7 27 10.6 32 20 32s17.3-5 17.9-11.2c.6-.3 1.1-1 1.1-1.8z" fill="none"/>
+      <path d="M31 16.5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z" fill="#FF4500"/>
+      <path d="M14 16.5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z" fill="#FF4500"/>
+    </svg>
+  );
+}
+
+function LogoYouTube() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#FF0000"/>
+      <path d="M31.7 14.8c-.4-1.4-1.5-2.4-2.9-2.8C26.5 11.5 20 11.5 20 11.5s-6.5 0-8.8.6c-1.4.4-2.5 1.4-2.9 2.8C7.7 17 7.7 20 7.7 20s0 3 .6 5.2c.4 1.4 1.5 2.4 2.9 2.8 2.3.6 8.8.6 8.8.6s6.5 0 8.8-.6c1.4-.4 2.5-1.4 2.9-2.8.6-2.2.6-5.2.6-5.2s0-3-.6-5.2z" fill="white" fillOpacity="0.2"/>
+      <path d="M17.5 24.5v-9l8 4.5-8 4.5z" fill="white"/>
+    </svg>
+  );
+}
+
+function LogoInstagram() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <defs>
+        <linearGradient id="ig-grad" x1="0" y1="40" x2="40" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFDC80"/>
+          <stop offset="25%" stopColor="#FCAF45"/>
+          <stop offset="50%" stopColor="#F77737"/>
+          <stop offset="75%" stopColor="#C13584"/>
+          <stop offset="100%" stopColor="#833AB4"/>
+        </linearGradient>
+      </defs>
+      <rect width="40" height="40" rx="10" fill="url(#ig-grad)"/>
+      <rect x="10" y="10" width="20" height="20" rx="6" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="20" cy="20" r="5" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="26.5" cy="13.5" r="1.5" fill="white"/>
+    </svg>
+  );
+}
+
+function LogoTikTok() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#010101"/>
+      <path d="M28 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S17 25.9 17 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S16.5 30 19.5 30 25 27.5 25 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="#EE1D52"/>
+      <path d="M27 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S16 25.9 16 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S15.5 30 18.5 30 24 27.5 24 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="#69C9D0"/>
+      <path d="M27.5 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S16.5 25.9 16.5 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S16 30 19 30 24.5 27.5 24.5 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="white"/>
+    </svg>
+  );
+}
+
+function LogoX() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <rect width="40" height="40" rx="8" fill="#000"/>
+      <path d="M22.3 18.5L29.5 10h-1.7l-6.2 7.2L16.5 10H11l7.5 10.9L11 30h1.7l6.6-7.6 5.2 7.6H30L22.3 18.5zm-2.3 2.7l-.8-1.1-6.1-8.7h2.6l4.9 7 .8 1.1 6.3 9h-2.6l-5.1-7.3z" fill="white"/>
+    </svg>
+  );
+}
+
+const SOURCE_LOGOS: Record<string, React.ReactNode> = {
+  g1:            <LogoG1 />,
+  google_trends: <LogoGoogleTrends />,
+  reddit:        <LogoReddit />,
+  youtube:       <LogoYouTube />,
+  instagram:     <LogoInstagram />,
+  tiktok:        <LogoTikTok />,
+  x:             <LogoX />,
+};
+
+const SOURCES = [
+  { id: "g1",            label: "G1 News",       description: "Notícias do G1",          color: "blue" },
+  { id: "google_trends", label: "Google Trends",  description: "Tendências de busca",     color: "yellow" },
+  { id: "reddit",        label: "Reddit",          description: "r/brasil, investimentos", color: "orange" },
+  { id: "youtube",       label: "YouTube",         description: "Vídeos em alta",          color: "red" },
+  { id: "instagram",     label: "Instagram",       description: "Posts e Reels",           color: "pink" },
+  { id: "tiktok",        label: "TikTok",          description: "Vídeos virais",           color: "teal" },
+  { id: "x",             label: "X / Twitter",     description: "Trending topics",         color: "white" },
+];
+
+const colorMap: Record<string, string> = {
+  blue:   "border-blue-500/40 bg-blue-500/10 text-blue-300",
+  yellow: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
+  orange: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+  red:    "border-red-500/40 bg-red-500/10 text-red-300",
+  pink:   "border-pink-500/40 bg-pink-500/10 text-pink-300",
+  teal:   "border-teal-500/40 bg-teal-500/10 text-teal-300",
+  white:  "border-white/20 bg-white/5 text-white/70",
+};
 
 function InstagramModal({ onClose }: { onClose: () => void }) {
   const [keywords, setKeywords] = useState(["", "", ""]);
@@ -181,40 +300,78 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function SherlockPage() {
-  const [loading, setLoading] = useState(true);
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(SOURCES.map(s => s.id)));
+  const [running, setRunning] = useState(false);
   const [report, setReport] = useState<TrendReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInstagram, setShowInstagram] = useState(false);
 
+  const toggleSource = (id: string) => {
+    setSelectedSources(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedSources.size === SOURCES.length) {
+      setSelectedSources(new Set());
+    } else {
+      setSelectedSources(new Set(SOURCES.map(s => s.id)));
+    }
+  };
+
   const fetchDashboardData = async () => {
-    setLoading(true);
-    setError(null);
     try {
       const response = await fetch("/api/sherlock/dashboard");
       if (!response.ok) throw new Error(`API retornou ${response.status}`);
       const data = await response.json();
       setReport(data);
-    } catch (err: any) {
-      setError("Não foi possível conectar ao servidor Sherlock. O backend está rodando?");
-    } finally {
-      setLoading(false);
+    } catch {
+      // silently ignore polling errors
     }
   };
 
   const triggerAgent = async () => {
-    setLoading(true);
+    if (selectedSources.size === 0) return;
+    setRunning(true);
     setError(null);
+    setReport(null);
+
     try {
-      const response = await fetch("/api/sherlock/trigger", { method: "POST" });
+      const response = await fetch("/api/sherlock/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sources: Array.from(selectedSources) }),
+      });
       if (!response.ok) throw new Error(`API retornou ${response.status}`);
-      setTimeout(fetchDashboardData, 1000);
+
+      // poll every 10s until report arrives (GitHub Actions takes ~2-3min)
+      const poll = setInterval(async () => {
+        const res = await fetch("/api/sherlock/dashboard");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "ready") {
+            setReport(data);
+            setRunning(false);
+            clearInterval(poll);
+          }
+        }
+      }, 10_000);
+
+      // stop polling after 10 minutes
+      setTimeout(() => {
+        clearInterval(poll);
+        setRunning(false);
+      }, 10 * 60 * 1000);
+
     } catch (err: any) {
-      setError("Não foi possível acionar o backend do Sherlock.");
-      setLoading(false);
+      setError("Não foi possível acionar o pipeline do Sherlock.");
+      setRunning(false);
     }
   };
-
-  useEffect(() => { fetchDashboardData(); }, []);
 
   const renderSlides = (script: string) => {
     if (!script) return null;
@@ -273,70 +430,132 @@ export default function SherlockPage() {
               <h1 className="text-3xl font-bold tracking-tight text-white">Sherlock</h1>
             </div>
             <p className="text-white/40 text-[13px] ml-13">
-              G1 · Google Trends · Reddit · YouTube · X · Instagram
+              Inteligência de tendências multi-plataforma
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowInstagram(true)}
-              className="px-4 py-2.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-medium text-sm transition-colors flex items-center gap-2"
-            >
-              <Instagram className="w-4 h-4" />
-              Pesquisar Reels
-            </button>
-            <button
-              onClick={triggerAgent}
-              disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-violet-500 hover:bg-violet-600 text-white font-medium text-sm transition-colors shadow-[0_0_15px_rgba(139,92,246,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Executar Pipeline
-            </button>
-            <button
-              onClick={fetchDashboardData}
-              disabled={loading}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-white/50 hover:text-white"
-            >
-              <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
-            </button>
-          </div>
+          <button
+            onClick={() => setShowInstagram(true)}
+            className="px-4 py-2.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-medium text-sm transition-colors flex items-center gap-2"
+          >
+            <Instagram className="w-4 h-4" />
+            Pesquisar Reels
+          </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 space-y-8">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-64 gap-5">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full border border-white/10 border-t-violet-500 animate-spin" />
-                <div className="absolute inset-0 bg-violet-500 blur-xl opacity-20 animate-pulse" />
-              </div>
-              <p className="text-white/40 text-sm tracking-wide">Sherlock investigando tendências...</p>
-            </div>
-          ) : error ? (
-            <div className="bg-violet-500/5 border border-violet-500/20 rounded-3xl p-10 flex flex-col items-center justify-center text-center gap-4">
-              <AlertCircle className="w-12 h-12 text-violet-400" />
+        {/* Source selector */}
+        {!report && (
+          <div className="bg-[#09090A] border border-white/5 rounded-3xl p-6 mb-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-lg font-semibold text-white">Falha na Conexão</h3>
-                <p className="text-white/50 text-sm mt-1 mb-6 max-w-md mx-auto">{error}</p>
+                <h2 className="text-sm font-semibold text-white">Fontes de tendências</h2>
+                <p className="text-white/40 text-[12px] mt-0.5">Selecione onde o Sherlock deve investigar</p>
               </div>
-              <button onClick={fetchDashboardData} className="px-6 py-2.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-lg transition-colors border border-violet-500/20 text-sm font-medium">
-                Tentar novamente
+              <button
+                onClick={toggleAll}
+                className="text-[11px] text-violet-400 hover:text-violet-300 font-medium transition-colors"
+              >
+                {selectedSources.size === SOURCES.length ? "Desmarcar todas" : "Selecionar todas"}
               </button>
             </div>
-          ) : report?.status === "waiting" ? (
-            <div className="bg-[#09090A] border border-white/5 shadow-2xl rounded-3xl p-16 flex flex-col items-center text-center">
-              <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center mb-6">
-                <Search className="w-8 h-8 text-white/30" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3 text-white">Aguardando Investigação</h3>
-              <p className="text-white/40 text-sm max-w-lg mb-8 leading-relaxed">
-                Nenhum relatório foi processado hoje. O Sherlock executa via GitHub Actions diariamente às 07:00 BRT.
-                Dispare manualmente ou pesquise Reels do Instagram com o botão acima.
-              </p>
-            </div>
-          ) : report?.status === "ready" ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+              {SOURCES.map(source => {
+                const selected = selectedSources.has(source.id);
+                return (
+                  <button
+                    key={source.id}
+                    onClick={() => toggleSource(source.id)}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all duration-150",
+                      selected
+                        ? "border-white/20 bg-white/[0.05] text-white"
+                        : "border-white/5 bg-white/[0.02] text-white/30 hover:border-white/10 hover:text-white/50"
+                    )}
+                  >
+                    {/* Platform logo */}
+                    <div className={cn(
+                      "w-9 h-9 rounded-xl shrink-0 overflow-hidden transition-all",
+                      selected ? "opacity-100" : "opacity-30 grayscale"
+                    )}>
+                      {SOURCE_LOGOS[source.id]}
+                    </div>
+
+                    {/* Text */}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold leading-tight truncate">{source.label}</p>
+                      <p className="text-[11px] opacity-50 mt-0.5 leading-tight truncate">{source.description}</p>
+                    </div>
+
+                    {/* Checkmark */}
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
+                      selected ? "border-white/40 bg-white/10" : "border-white/10"
+                    )}>
+                      {selected && (
+                        <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={triggerAgent}
+              disabled={running || selectedSources.size === 0}
+              className={cn(
+                "w-full py-3.5 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5",
+                running || selectedSources.size === 0
+                  ? "bg-white/5 text-white/30 cursor-not-allowed"
+                  : "bg-violet-500 hover:bg-violet-600 text-white shadow-[0_0_20px_rgba(139,92,246,0.25)]"
+              )}
+            >
+              {running ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Sherlock investigando... aguarde ~2 min
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  Executar Pipeline ({selectedSources.size} fonte{selectedSources.size !== 1 ? "s" : ""})
+                </>
+              )}
+            </button>
+
+            {running && (
+              <p className="text-center text-white/30 text-[11px] mt-3">
+                Pipeline rodando no GitHub Actions. A página atualiza automaticamente.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Results */}
+        {report?.status === "ready" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white/60">Resultado da Investigação</h2>
+              <button
+                onClick={() => { setReport(null); fetchDashboardData(); }}
+                className="text-[11px] text-violet-400 hover:text-violet-300 font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Nova investigação
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-4 flex flex-col gap-6">
                 <div className="bg-[#09090A] border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/[0.03] to-transparent pointer-events-none" />
@@ -384,10 +603,9 @@ export default function SherlockPage() {
                   {renderSlides(report.script || "")}
                 </div>
               </div>
-
             </div>
-          ) : null}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

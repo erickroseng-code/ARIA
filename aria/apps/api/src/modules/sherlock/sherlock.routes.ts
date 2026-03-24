@@ -42,10 +42,13 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
     return reply.send({ status: 'success' });
   });
 
-  // POST /api/sherlock/trigger — dispara GitHub Actions workflow_dispatch
-  fastify.post('/trigger', async (_req: FastifyRequest, reply: FastifyReply) => {
-    const token = process.env.GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO ?? 'erick/aios-core';
+  // POST /api/sherlock/trigger — executa pipeline localmente
+  fastify.post('/trigger', async (
+    req: FastifyRequest<{ Body: { sources?: string[] } }>,
+    reply: FastifyReply,
+  ) => {
+    const sources = req.body?.sources ?? [];
+    const port = process.env.PORT ?? '3001';
 
     LATEST_REPORT = {
       date: new Date().toISOString(),
@@ -55,37 +58,36 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
       top_trend: { source: 'Processando...' },
     };
 
-    if (!token) {
-      fastify.log.warn('[Sherlock] GITHUB_TOKEN não configurado — trigger ignorado');
-      return reply.send({ status: 'processing', message: 'Relatório em geração (sem trigger automático).' });
-    }
+    const sherlockDir = path.resolve(__dirname, '..', '..', '..', '..', '..', 'sherlock');
+    const scriptPath = path.join(sherlockDir, 'src', 'main.py');
 
-    try {
-      const res = await fetch(
-        `https://api.github.com/repos/${repo}/actions/workflows/sherlock-daily.yml/dispatches`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ref: 'master' }),
-        },
-      );
+    // Resolve Python executable — tenta python, python3 e fallback para path fixo no Windows
+    const pythonExe = process.env.PYTHON_EXE
+      ?? (process.platform === 'win32' ? 'C:\\Python314\\python.exe' : 'python3');
 
-      if (!res.ok) {
-        const err = await res.text();
-        fastify.log.error(`[Sherlock] GitHub Actions trigger falhou: ${err}`);
-        return reply.status(500).send({ error: 'Falha ao disparar GitHub Actions' });
-      }
+    const args = [scriptPath];
+    if (sources.length > 0) args.push('--sources', sources.join(','));
 
-      fastify.log.info('[Sherlock] GitHub Actions workflow_dispatch disparado');
-      return reply.send({ status: 'success', message: 'Pipeline Sherlock iniciado via GitHub Actions.' });
-    } catch (err: any) {
-      fastify.log.error(`[Sherlock] Erro ao chamar GitHub API: ${err.message}`);
-      return reply.status(500).send({ error: err.message });
-    }
+    fastify.log.info(`[Sherlock] Iniciando pipeline local — fontes: ${sources.join(', ') || 'todas'}`);
+
+    const proc = spawn(pythonExe, args, {
+      cwd: path.join(sherlockDir, 'src'),
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        RENDER_WEBHOOK_URL: `http://localhost:${port}/api/sherlock/webhook`,
+      },
+      detached: false,
+    });
+
+    proc.stdout.on('data', (d: Buffer) => fastify.log.info(`[Sherlock] ${d.toString().trim()}`));
+    proc.stderr.on('data', (d: Buffer) => fastify.log.warn(`[Sherlock] ${d.toString().trim()}`));
+    proc.on('close', (code: number) => {
+      if (code === 0) fastify.log.info('[Sherlock] Pipeline concluído com sucesso.');
+      else fastify.log.error(`[Sherlock] Pipeline encerrou com código ${code}.`);
+    });
+
+    return reply.send({ status: 'running', message: 'Pipeline Sherlock iniciado localmente.' });
   });
 
   // POST /api/sherlock/instagram-research — pesquisa Reels com keywords + período
