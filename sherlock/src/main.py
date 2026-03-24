@@ -25,6 +25,8 @@ from scrapers.youtube import YouTubeScraper
 from scrapers.instagram import InstagramScraper
 from scrapers.tiktok import TikTokScraper
 from scrapers.x import XScraper
+from scrapers._chrome import new_persistent_context
+from playwright.async_api import async_playwright
 
 from logic.deduplication import filter_new_trends, save_processed_trend
 from logic.strategist import ContentStrategist
@@ -58,20 +60,53 @@ async def dispatch_webhook(payload: dict):
     except Exception as e:
         logger.error(f"Erro no POST do Webhook: {e}")
 
-async def run_agent():
-    logger.info("Iniciando Pipeline Sherlock...")
-    scrapers = [
-        G1Scraper(),
-        GTrendsScraper(),
-        RedditScraper(),
-        YouTubeScraper(),
-        InstagramScraper(),
-        TikTokScraper(),
-        XScraper(),
-    ]
+def _instagram_keywords() -> list[str] | None:
+    """Lê INSTAGRAM_KEYWORDS do env (ex: 'finanças,marketing,empreendedorismo')."""
+    raw = os.environ.get("INSTAGRAM_KEYWORDS", "").strip()
+    if not raw:
+        return None
+    return [k.strip() for k in raw.split(",") if k.strip()]
+
+ALL_SCRAPERS = {
+    "g1":            lambda: G1Scraper(),
+    "google_trends": lambda: GTrendsScraper(),
+    "reddit":        lambda: RedditScraper(),
+    "youtube":       lambda: YouTubeScraper(),
+    "instagram":     lambda: InstagramScraper(keywords=_instagram_keywords(), periods=[30, 45, 60, 90], min_views=100_000),
+    "tiktok":        lambda: TikTokScraper(),
+    "x":             lambda: XScraper(),
+}
+
+# Instagram entra no contexto compartilhado quando tem keywords configuradas
+PLAYWRIGHT_SCRAPERS = {"g1", "youtube", "x", "reddit", "google_trends", "tiktok"}
+if _instagram_keywords():
+    PLAYWRIGHT_SCRAPERS.add("instagram")
+
+async def run_agent(sources: list[str] | None = None):
+    active = sources if sources else list(ALL_SCRAPERS.keys())
+    logger.info(f"Iniciando Pipeline Sherlock — fontes: {', '.join(active)}")
+    active_valid = [s for s in active if s in ALL_SCRAPERS]
+    scrapers = [ALL_SCRAPERS[s]() for s in active_valid]
+
+    # Injecta contexto compartilhado nos scrapers Playwright
+    pw_scrapers = [scraper for scraper, key in zip(scrapers, active_valid) if key in PLAYWRIGHT_SCRAPERS]
 
     raw_trends = []
-    results = await asyncio.gather(*(s.fetch_trends() for s in scrapers), return_exceptions=True)
+
+    async with async_playwright() as p:
+        if pw_scrapers:
+            from scrapers._chrome import IS_CI
+            shared_ctx = await new_persistent_context(p, headless=IS_CI)
+            for s in pw_scrapers:
+                s.set_playwright_context(shared_ctx)
+        else:
+            shared_ctx = None
+
+        try:
+            results = await asyncio.gather(*(s.fetch_trends() for s in scrapers), return_exceptions=True)
+        finally:
+            if shared_ctx:
+                await shared_ctx.close()
 
     for res in results:
         if isinstance(res, list):
@@ -117,8 +152,20 @@ async def run_agent():
     logger.info("Pipeline Sherlock Concluido com Sucesso!")
 
 async def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Sherlock Intelligence Engine")
+    parser.add_argument(
+        "--sources",
+        type=str,
+        default=None,
+        help="Comma-separated list of sources to scrape (e.g. g1,reddit,youtube). Default: all.",
+    )
+    args = parser.parse_args()
+
+    sources = [s.strip() for s in args.sources.split(",")] if args.sources else None
+
     create_db_and_tables()
-    await run_agent()
+    await run_agent(sources=sources)
 
 if __name__ == "__main__":
     asyncio.run(main())

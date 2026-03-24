@@ -1,18 +1,12 @@
 import datetime
 import re
 import logging
-import os
 from typing import List, Dict, Any, Optional
 from playwright.async_api import async_playwright
 from .base import BaseScraper
+from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
-
-CHROME_USER_DATA = os.environ.get(
-    "CHROME_USER_DATA_DIR",
-    r"C:\Users\erick\AppData\Local\Google\Chrome\User Data"
-)
-CHROME_PROFILE = os.environ.get("CHROME_PROFILE", "Default")
 
 
 class InstagramScraper(BaseScraper):
@@ -25,11 +19,12 @@ class InstagramScraper(BaseScraper):
     def __init__(
         self,
         keywords: Optional[List[str]] = None,
-        days: int = 30,
+        periods: Optional[List[int]] = None,
         min_views: int = 100_000,
     ):
+        super().__init__()
         self.keywords = keywords
-        self.days = days
+        self.periods = periods or [30]
         self.min_views = min_views
 
     async def fetch_trends(self) -> List[Dict[str, Any]]:
@@ -37,33 +32,56 @@ class InstagramScraper(BaseScraper):
             logger.info("InstagramScraper: sem keywords, pulando (modo automatico).")
             return []
 
-        logger.info(f"Instagram Reels: {self.keywords} | ultimos {self.days} dias | min {self.min_views//1000}k views")
+        logger.info(f"Instagram Reels: {self.keywords} | periodos {self.periods}d | min {self.min_views//1000}k views")
         all_reels = []
+        seen_urls: set = set()
+        # Usa o maior período como cutoff para cobrir tudo de uma vez
+        max_days = max(self.periods)
+        cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=max_days)
 
-        async with async_playwright() as p:
+        shared = self._pw_context is not None
+
+        async def _run(context):
+            page = await context.new_page()
             try:
-                context = await p.chromium.launch_persistent_context(
-                    user_data_dir=CHROME_USER_DATA,
-                    channel="chrome",
-                    headless=False,
-                    args=[f"--profile-directory={CHROME_PROFILE}"],
-                    slow_mo=200,
-                )
-            except Exception as e:
-                logger.error(f"Erro ao abrir Chrome com perfil: {e}")
-                return []
-
-            try:
-                page = await context.new_page()
-                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=self.days)
-
                 for keyword in self.keywords[:3]:
                     reels = await self._search_keyword(page, keyword, cutoff_date)
-                    all_reels.extend(reels)
-                    logger.info(f"Instagram '{keyword}': {len(reels)} Reels encontrados")
-
+                    new_reels = 0
+                    for reel in reels:
+                        url = reel.get("url", "")
+                        if url in seen_urls:
+                            continue
+                        seen_urls.add(url)
+                        # Calcula period_days: menor período que contém o reel
+                        pub = reel.get("published_at")
+                        if pub:
+                            days_ago = (datetime.datetime.utcnow() - pub).days
+                            reel["period_days"] = next(
+                                (p for p in sorted(self.periods) if p >= days_ago),
+                                max(self.periods),
+                            )
+                        else:
+                            reel["period_days"] = max(self.periods)
+                        all_reels.append(reel)
+                        new_reels += 1
+                    logger.info(f"Instagram '{keyword}': {new_reels} Reels novos encontrados")
             finally:
-                await context.close()
+                await page.close()
+
+        if shared:
+            await _run(self._pw_context)
+        else:
+            from scrapers._chrome import IS_CI
+            async with async_playwright() as p:
+                try:
+                    context = await new_persistent_context(p, headless=IS_CI)
+                except Exception as e:
+                    logger.error(f"Erro ao abrir Chromium: {e}")
+                    return []
+                try:
+                    await _run(context)
+                finally:
+                    await context.close()
 
         logger.info(f"Instagram total: {len(all_reels)} Reels")
         return all_reels

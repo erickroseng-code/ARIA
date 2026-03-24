@@ -1,0 +1,45 @@
+name: Sherlock Daily Agent
+
+on:
+  schedule:
+    - cron: '0 10 * * *' # 10:00 UTC = 07:00 BRT
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Fontes separadas por vírgula (g1,google_trends,reddit,youtube,instagram,tiktok,x). Vazio = todas.'
+        required: false
+        default: ''
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright playwright-stealth sqlmodel anthropic openai python-dotenv httpx
+          playwright install chromium --with-deps
+
+      - name: Run Sherlock Agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          RENDER_WEBHOOK_URL: ${{ secrets.ARIA_WEBHOOK_URL }}
+          # Cookies exportados do perfil local (Instagram, TikTok, X)
+          PLAYWRIGHT_COOKIES: ${{ secrets.PLAYWRIGHT_COOKIES }}
+          # Keywords para o scraper do Instagram (ex: "finanças,marketing,empreendedorismo")
+          INSTAGRAM_KEYWORDS: ${{ secrets.INSTAGRAM_KEYWORDS }}
+          INSTAGRAM_MIN_VIEWS: ${{ secrets.INSTAGRAM_MIN_VIEWS }}
+        run: |
+          cd sherlock/src
+          if [ -n "${{ github.event.inputs.sources }}" ]; then
+            python main.py --sources "${{ github.event.inputs.sources }}"
+          else
+            python main.py
+          fi
