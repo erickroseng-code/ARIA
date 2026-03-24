@@ -116,7 +116,7 @@ services:
       - key: GITHUB_TOKEN
         sync: false
       - key: GITHUB_REPO
-        value: erick-melo-de-brito/aios-core
+        value: erickroseng-code/ARIA
 
       # ElevenLabs TTS (opcional)
       - key: ELEVENLABS_API_KEY
