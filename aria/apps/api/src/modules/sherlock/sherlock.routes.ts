@@ -28,12 +28,7 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
     return reply.send({
       status: 'ready',
       date: LATEST_REPORT!.date,
-      mashup: LATEST_REPORT!.mashup_angle,
-      script: LATEST_REPORT!.carousel_script,
-      top_sources: [
-        LATEST_REPORT!.top_news?.source ?? 'N/A',
-        LATEST_REPORT!.top_trend?.source ?? 'N/A',
-      ],
+      trends: LATEST_REPORT!.scored_trends ?? [],
     });
   });
 

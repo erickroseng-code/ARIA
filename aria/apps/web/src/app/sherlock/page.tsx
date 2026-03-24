@@ -1,17 +1,25 @@
 'use client';
 
 import { useState } from "react";
-import { AlertCircle, RefreshCw, Zap, Presentation, Search, Instagram, X, ExternalLink, Play } from "lucide-react";
+import { AlertCircle, RefreshCw, Search, Instagram, X, ExternalLink, Play, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AriaSidebar from "@/components/layout/AriaSidebar";
+
+interface Trend {
+  source: string;
+  title: string;
+  content: string;
+  url: string;
+  engagement: number;
+  viral_score: number;
+  published_at: string;
+}
 
 interface TrendReport {
   status: string;
   message?: string;
   date?: string;
-  mashup?: string;
-  script?: string;
-  top_sources?: string[];
+  trends?: Trend[];
 }
 
 interface InstagramReel {
@@ -60,9 +68,7 @@ function LogoReddit() {
       <circle cx="23.5" cy="21" r="1.5" fill="#FF4500"/>
       <path d="M16 24.5c1 1 6 1 8 0" stroke="#FF4500" strokeWidth="1.2" strokeLinecap="round"/>
       <circle cx="26" cy="13" r="2" fill="white"/>
-      <line x1="20" y1="12" x2="26" y2="13" stroke="white" strokeWidth="1.5"/>
       <circle cx="26" cy="13" r="1.2" fill="#FF4500"/>
-      <path d="M30 17c0-1.1-.9-2-2-2s-2 .9-2 2c0 .7.4 1.3.9 1.7-.1.4-.1.7-.1 1.1 0 4.4-4.9 8-11 8S5 26.2 5 21.8c0-.4 0-.8-.1-1.1.5-.4.9-1 .9-1.7 0-1.1-.9-2-2-2s-2 .9-2 2c0 .8.5 1.5 1.1 1.8C2.7 27 10.6 32 20 32s17.3-5 17.9-11.2c.6-.3 1.1-1 1.1-1.8z" fill="none"/>
       <path d="M31 16.5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z" fill="#FF4500"/>
       <path d="M14 16.5a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z" fill="#FF4500"/>
     </svg>
@@ -73,7 +79,6 @@ function LogoYouTube() {
   return (
     <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <rect width="40" height="40" rx="8" fill="#FF0000"/>
-      <path d="M31.7 14.8c-.4-1.4-1.5-2.4-2.9-2.8C26.5 11.5 20 11.5 20 11.5s-6.5 0-8.8.6c-1.4.4-2.5 1.4-2.9 2.8C7.7 17 7.7 20 7.7 20s0 3 .6 5.2c.4 1.4 1.5 2.4 2.9 2.8 2.3.6 8.8.6 8.8.6s6.5 0 8.8-.6c1.4-.4 2.5-1.4 2.9-2.8.6-2.2.6-5.2.6-5.2s0-3-.6-5.2z" fill="white" fillOpacity="0.2"/>
       <path d="M17.5 24.5v-9l8 4.5-8 4.5z" fill="white"/>
     </svg>
   );
@@ -85,9 +90,7 @@ function LogoInstagram() {
       <defs>
         <linearGradient id="ig-grad" x1="0" y1="40" x2="40" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#FFDC80"/>
-          <stop offset="25%" stopColor="#FCAF45"/>
           <stop offset="50%" stopColor="#F77737"/>
-          <stop offset="75%" stopColor="#C13584"/>
           <stop offset="100%" stopColor="#833AB4"/>
         </linearGradient>
       </defs>
@@ -103,8 +106,6 @@ function LogoTikTok() {
   return (
     <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <rect width="40" height="40" rx="8" fill="#010101"/>
-      <path d="M28 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S17 25.9 17 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S16.5 30 19.5 30 25 27.5 25 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="#EE1D52"/>
-      <path d="M27 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S16 25.9 16 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S15.5 30 18.5 30 24 27.5 24 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="#69C9D0"/>
       <path d="M27.5 15.5c-1.7 0-3-1.3-3-3V9h-3v15.5c0 1.4-1.1 2.5-2.5 2.5S16.5 25.9 16.5 24.5s1.1-2.5 2.5-2.5c.3 0 .5 0 .8.1V19c-.3 0-.5-.1-.8-.1-3 0-5.5 2.5-5.5 5.5S16 30 19 30 24.5 27.5 24.5 24.5V18c1 .7 2.2 1 3.5 1v-3c-.2 0-.3 0-.5 0z" fill="white"/>
     </svg>
   );
@@ -122,21 +123,50 @@ function LogoX() {
 const SOURCE_LOGOS: Record<string, React.ReactNode> = {
   g1:            <LogoG1 />,
   google_trends: <LogoGoogleTrends />,
-  reddit:        <LogoReddit />,
-  youtube:       <LogoYouTube />,
+  reddit_r_popular: <LogoReddit />,
+  reddit_r_brasil: <LogoReddit />,
+  reddit_r_investimentos: <LogoReddit />,
+  reddit_r_empreendedorismo: <LogoReddit />,
+  youtube_trending: <LogoYouTube />,
   instagram:     <LogoInstagram />,
   tiktok:        <LogoTikTok />,
-  x:             <LogoX />,
+  x_twitter:     <LogoX />,
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  g1: "G1",
+  google_trends: "Google Trends",
+  reddit_r_popular: "Reddit Popular",
+  reddit_r_brasil: "Reddit Brasil",
+  reddit_r_investimentos: "Reddit Invest.",
+  reddit_r_empreendedorismo: "Reddit Empreend.",
+  youtube_trending: "YouTube",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  x_twitter: "X / Twitter",
+};
+
+const SOURCE_COLOR: Record<string, string> = {
+  g1: "bg-red-500/10 text-red-300 border-red-500/20",
+  google_trends: "bg-blue-500/10 text-blue-300 border-blue-500/20",
+  reddit_r_popular: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+  reddit_r_brasil: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+  reddit_r_investimentos: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+  reddit_r_empreendedorismo: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+  youtube_trending: "bg-red-500/10 text-red-300 border-red-500/20",
+  instagram: "bg-pink-500/10 text-pink-300 border-pink-500/20",
+  tiktok: "bg-white/10 text-white/70 border-white/10",
+  x_twitter: "bg-white/10 text-white/70 border-white/10",
 };
 
 const SOURCES = [
-  { id: "g1",            label: "G1 News",       description: "Notícias do G1",          color: "blue" },
-  { id: "google_trends", label: "Google Trends",  description: "Tendências de busca",     color: "yellow" },
-  { id: "reddit",        label: "Reddit",          description: "r/brasil, investimentos", color: "orange" },
-  { id: "youtube",       label: "YouTube",         description: "Vídeos em alta",          color: "red" },
-  { id: "instagram",     label: "Instagram",       description: "Posts e Reels",           color: "pink" },
-  { id: "tiktok",        label: "TikTok",          description: "Vídeos virais",           color: "teal" },
-  { id: "x",             label: "X / Twitter",     description: "Trending topics",         color: "white" },
+  { id: "g1",            label: "G1 News",       color: "blue" },
+  { id: "google_trends", label: "Google Trends",  color: "yellow" },
+  { id: "reddit",        label: "Reddit",          color: "orange" },
+  { id: "youtube",       label: "YouTube",         color: "red" },
+  { id: "instagram",     label: "Instagram",       color: "pink" },
+  { id: "tiktok",        label: "TikTok",          color: "teal" },
+  { id: "x",             label: "X / Twitter",     color: "white" },
 ];
 
 const colorMap: Record<string, string> = {
@@ -149,6 +179,21 @@ const colorMap: Record<string, string> = {
   white:  "border-white/20 bg-white/5 text-white/70",
 };
 
+function formatEngagement(val: number, source: string): string {
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
+  return String(Math.round(val));
+}
+
+function engagementLabel(source: string): string {
+  if (source.startsWith("reddit")) return "pontos";
+  if (source === "youtube_trending") return "views";
+  if (source === "google_trends") return "buscas";
+  if (source === "instagram" || source === "tiktok") return "views";
+  if (source === "x_twitter") return "tweets";
+  return "engaj.";
+}
+
 function InstagramModal({ onClose }: { onClose: () => void }) {
   const [keywords, setKeywords] = useState(["", "", ""]);
   const [days, setDays] = useState(30);
@@ -160,11 +205,9 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
   const handleSearch = async () => {
     const validKeywords = keywords.filter(k => k.trim().length > 0);
     if (!validKeywords.length) return;
-
     setLoading(true);
     setError(null);
     setSearched(false);
-
     try {
       const res = await fetch("/api/sherlock/instagram-research", {
         method: "POST",
@@ -185,8 +228,6 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-[#0d0d0f] border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
@@ -194,96 +235,60 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <h2 className="text-white font-semibold text-base">Pesquisa de Reels</h2>
-              <p className="text-white/40 text-[11px]">+100k views · Chrome com sua sessão logada</p>
+              <p className="text-white/40 text-[11px]">+100k views · sessão logada</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors"
-          >
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Form */}
         <div className="p-6 space-y-5">
           <div className="space-y-3">
             <label className="text-[11px] uppercase tracking-widest text-white/40 font-bold">Keywords (até 3)</label>
             {keywords.map((kw, i) => (
-              <input
-                key={i}
-                value={kw}
+              <input key={i} value={kw}
                 onChange={e => setKeywords(prev => prev.map((v, j) => j === i ? e.target.value : v))}
                 placeholder={`Keyword ${i + 1}${i === 0 ? " (obrigatória)" : " (opcional)"}`}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-pink-500/40 transition-colors"
               />
             ))}
           </div>
-
           <div className="space-y-2">
             <label className="text-[11px] uppercase tracking-widest text-white/40 font-bold">Período</label>
             <div className="flex gap-2">
               {PERIOD_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setDays(opt.value)}
-                  className={cn(
-                    "flex-1 py-2 rounded-xl text-sm font-medium border transition-colors",
-                    days === opt.value
-                      ? "bg-pink-500/20 border-pink-500/40 text-pink-300"
-                      : "bg-white/5 border-white/10 text-white/50 hover:text-white"
-                  )}
-                >
-                  {opt.label}
-                </button>
+                <button key={opt.value} onClick={() => setDays(opt.value)}
+                  className={cn("flex-1 py-2 rounded-xl text-sm font-medium border transition-colors",
+                    days === opt.value ? "bg-pink-500/20 border-pink-500/40 text-pink-300" : "bg-white/5 border-white/10 text-white/50 hover:text-white"
+                  )}>{opt.label}</button>
               ))}
             </div>
           </div>
-
-          <button
-            onClick={handleSearch}
-            disabled={loading || !keywords.some(k => k.trim())}
-            className="w-full py-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(236,72,153,0.2)]"
-          >
-            {loading ? "Abrindo Chrome e pesquisando..." : "Buscar Reels"}
+          <button onClick={handleSearch} disabled={loading || !keywords.some(k => k.trim())}
+            className="w-full py-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            {loading ? "Pesquisando..." : "Buscar Reels"}
           </button>
-
           {error && (
             <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+              <AlertCircle className="w-4 h-4 shrink-0" />{error}
             </div>
           )}
         </div>
-
-        {/* Results */}
         {searched && (
           <div className="border-t border-white/5 flex-1 overflow-y-auto p-6 space-y-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] uppercase tracking-widest text-white/40 font-bold">
-                Resultados
-              </span>
+              <span className="text-[11px] uppercase tracking-widest text-white/40 font-bold">Resultados</span>
               <span className="text-[11px] text-white/30">{reels.length} Reels encontrados</span>
             </div>
-
             {reels.length === 0 ? (
-              <p className="text-white/30 text-sm text-center py-6">
-                Nenhum Reel com +100k views encontrado no período.
-              </p>
+              <p className="text-white/30 text-sm text-center py-6">Nenhum Reel com +100k views encontrado.</p>
             ) : (
               reels.map((reel, i) => (
-                <a
-                  key={i}
-                  href={reel.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl px-4 py-3 transition-colors group"
-                >
+                <a key={i} href={reel.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl px-4 py-3 transition-colors group">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded-full font-medium">
-                        #{reel.keyword}
-                      </span>
+                      <span className="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded-full font-medium">#{reel.keyword}</span>
                       <span className="text-[10px] text-emerald-400 font-bold">{reel.views} views</span>
                     </div>
                     <p className="text-white/60 text-xs truncate">{reel.url}</p>
@@ -299,6 +304,48 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function TrendCard({ trend }: { trend: Trend }) {
+  const logo = SOURCE_LOGOS[trend.source];
+  const label = SOURCE_LABEL[trend.source] ?? trend.source;
+  const badgeColor = SOURCE_COLOR[trend.source] ?? "bg-white/10 text-white/60 border-white/10";
+  const eng = formatEngagement(trend.engagement, trend.source);
+  const engLabel = engagementLabel(trend.source);
+  const score = trend.viral_score?.toFixed(0) ?? "—";
+
+  return (
+    <a href={trend.url} target="_blank" rel="noopener noreferrer"
+      className="group flex flex-col gap-3 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 rounded-2xl p-4 transition-all duration-150">
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-xl shrink-0 overflow-hidden opacity-80 group-hover:opacity-100 transition-opacity">
+          {logo ?? <div className="w-full h-full bg-white/10 rounded-xl" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white/90 text-[13px] font-medium leading-snug line-clamp-2 group-hover:text-white transition-colors">
+            {trend.title}
+          </p>
+        </div>
+        <ExternalLink className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 shrink-0 transition-colors mt-0.5" />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", badgeColor)}>
+          {label}
+        </span>
+        {trend.engagement > 1 && (
+          <span className="text-[10px] text-emerald-400/80 font-medium">
+            {eng} {engLabel}
+          </span>
+        )}
+        {trend.viral_score > 0 && (
+          <span className="text-[10px] text-violet-400/60 ml-auto flex items-center gap-1">
+            <TrendingUp className="w-3 h-3" />
+            {score}
+          </span>
+        )}
+      </div>
+    </a>
+  );
+}
+
 export default function SherlockPage() {
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(SOURCES.map(s => s.id)));
   const [running, setRunning] = useState(false);
@@ -309,29 +356,14 @@ export default function SherlockPage() {
   const toggleSource = (id: string) => {
     setSelectedSources(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
   const toggleAll = () => {
-    if (selectedSources.size === SOURCES.length) {
-      setSelectedSources(new Set());
-    } else {
-      setSelectedSources(new Set(SOURCES.map(s => s.id)));
-    }
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await fetch("/api/sherlock/dashboard");
-      if (!response.ok) throw new Error(`API retornou ${response.status}`);
-      const data = await response.json();
-      setReport(data);
-    } catch {
-      // silently ignore polling errors
-    }
+    if (selectedSources.size === SOURCES.length) setSelectedSources(new Set());
+    else setSelectedSources(new Set(SOURCES.map(s => s.id)));
   };
 
   const triggerAgent = async () => {
@@ -348,7 +380,6 @@ export default function SherlockPage() {
       });
       if (!response.ok) throw new Error(`API retornou ${response.status}`);
 
-      // poll every 10s until report arrives (GitHub Actions takes ~2-3min)
       const poll = setInterval(async () => {
         const res = await fetch("/api/sherlock/dashboard");
         if (res.ok) {
@@ -361,61 +392,25 @@ export default function SherlockPage() {
         }
       }, 10_000);
 
-      // stop polling after 10 minutes
-      setTimeout(() => {
-        clearInterval(poll);
-        setRunning(false);
-      }, 10 * 60 * 1000);
-
+      setTimeout(() => { clearInterval(poll); setRunning(false); }, 10 * 60 * 1000);
     } catch (err: any) {
       setError("Não foi possível acionar o pipeline do Sherlock.");
       setRunning(false);
     }
   };
 
-  const renderSlides = (script: string) => {
-    if (!script) return null;
-    const slides = script.split(/\[SLIDE \d+\]/).filter(s => s.trim().length > 0);
-    return (
-      <div className="flex overflow-x-auto snap-x space-x-4 pb-6 scrollbar-hidden">
-        {slides.map((slideText, index) => {
-          const isHook = index === 0;
-          const isCTA = index === slides.length - 1;
-          return (
-            <div
-              key={index}
-              className={cn(
-                "snap-center shrink-0 w-80 h-96 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center text-center",
-                "border border-white/5 shadow-lg relative overflow-hidden group transition-all duration-300",
-                isHook ? "bg-violet-500/10 text-white" :
-                isCTA ? "bg-emerald-500/10 text-emerald-50" :
-                "bg-[#09090A] text-white/90"
-              )}
-            >
-              <div className={cn(
-                "absolute inset-0 bg-gradient-to-br opacity-5 transition-opacity group-hover:opacity-10",
-                isHook ? "from-violet-500 to-transparent" : isCTA ? "from-emerald-500 to-transparent" : "from-white/20 to-transparent"
-              )} />
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4 text-white/40">Slide {index + 1}</div>
-              <p className={cn(
-                "whitespace-pre-wrap flex-1 flex items-center justify-center relative z-10",
-                isHook ? "text-xl font-bold" : "text-[15px] font-medium leading-relaxed"
-              )}>
-                {slideText.trim()}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  const trends = report?.trends ?? [];
+
+  // Agrupa por source para exibir contagem
+  const sourceCount = trends.reduce<Record<string, number>>((acc, t) => {
+    acc[t.source] = (acc[t.source] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="h-screen w-full overflow-hidden relative bg-background text-white flex">
       <div className="absolute inset-0 bg-gradient-to-br from-[#09090A] via-[#09090A] to-[rgba(139,92,246,0.05)] pointer-events-none" />
-
       <AriaSidebar activeSquad="sherlock" />
-
       {showInstagram && <InstagramModal onClose={() => setShowInstagram(false)} />}
 
       <div className="h-full flex flex-col relative z-10 p-6 lg:p-10 max-w-6xl mx-auto flex-1 overflow-y-auto w-full lg:pl-64">
@@ -429,21 +424,16 @@ export default function SherlockPage() {
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-white">Sherlock</h1>
             </div>
-            <p className="text-white/40 text-[13px] ml-13">
-              Inteligência de tendências multi-plataforma
-            </p>
+            <p className="text-white/40 text-[13px] ml-13">Inteligência de tendências multi-plataforma</p>
           </div>
-
-          <button
-            onClick={() => setShowInstagram(true)}
-            className="px-4 py-2.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-medium text-sm transition-colors flex items-center gap-2"
-          >
+          <button onClick={() => setShowInstagram(true)}
+            className="px-4 py-2.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-medium text-sm transition-colors flex items-center gap-2">
             <Instagram className="w-4 h-4" />
             Pesquisar Reels
           </button>
         </div>
 
-        {/* Source selector */}
+        {/* Source selector — esconde quando tem resultados */}
         {!report && (
           <div className="bg-[#09090A] border border-white/5 rounded-3xl p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-between mb-5">
@@ -451,10 +441,7 @@ export default function SherlockPage() {
                 <h2 className="text-sm font-semibold text-white">Fontes de tendências</h2>
                 <p className="text-white/40 text-[12px] mt-0.5">Selecione onde o Sherlock deve investigar</p>
               </div>
-              <button
-                onClick={toggleAll}
-                className="text-[11px] text-violet-400 hover:text-violet-300 font-medium transition-colors"
-              >
+              <button onClick={toggleAll} className="text-[11px] text-violet-400 hover:text-violet-300 font-medium transition-colors">
                 {selectedSources.size === SOURCES.length ? "Desmarcar todas" : "Selecionar todas"}
               </button>
             </div>
@@ -463,35 +450,18 @@ export default function SherlockPage() {
               {SOURCES.map(source => {
                 const selected = selectedSources.has(source.id);
                 return (
-                  <button
-                    key={source.id}
-                    onClick={() => toggleSource(source.id)}
-                    className={cn(
-                      "flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all duration-150",
-                      selected
-                        ? "border-white/20 bg-white/[0.05] text-white"
-                        : "border-white/5 bg-white/[0.02] text-white/30 hover:border-white/10 hover:text-white/50"
-                    )}
-                  >
-                    {/* Platform logo */}
-                    <div className={cn(
-                      "w-9 h-9 rounded-xl shrink-0 overflow-hidden transition-all",
-                      selected ? "opacity-100" : "opacity-30 grayscale"
+                  <button key={source.id} onClick={() => toggleSource(source.id)}
+                    className={cn("flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all duration-150",
+                      selected ? "border-white/20 bg-white/[0.05] text-white" : "border-white/5 bg-white/[0.02] text-white/30 hover:border-white/10 hover:text-white/50"
                     )}>
-                      {SOURCE_LOGOS[source.id]}
+                    <div className={cn("w-9 h-9 rounded-xl shrink-0 overflow-hidden transition-all", selected ? "opacity-100" : "opacity-30 grayscale")}>
+                      {SOURCE_LOGOS[source.id] ?? SOURCE_LOGOS[source.id + "_trending"]}
                     </div>
-
-                    {/* Text */}
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-semibold leading-tight truncate">{source.label}</p>
-                      <p className="text-[11px] opacity-50 mt-0.5 leading-tight truncate">{source.description}</p>
                     </div>
-
-                    {/* Checkmark */}
-                    <div className={cn(
-                      "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
-                      selected ? "border-white/40 bg-white/10" : "border-white/10"
-                    )}>
+                    <div className={cn("w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
+                      selected ? "border-white/40 bg-white/10" : "border-white/10")}>
                       {selected && (
                         <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
                           <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -505,105 +475,66 @@ export default function SherlockPage() {
 
             {error && (
               <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error}
+                <AlertCircle className="w-4 h-4 shrink-0" />{error}
               </div>
             )}
 
-            <button
-              onClick={triggerAgent}
-              disabled={running || selectedSources.size === 0}
-              className={cn(
-                "w-full py-3.5 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5",
+            <button onClick={triggerAgent} disabled={running || selectedSources.size === 0}
+              className={cn("w-full py-3.5 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5",
                 running || selectedSources.size === 0
                   ? "bg-white/5 text-white/30 cursor-not-allowed"
                   : "bg-violet-500 hover:bg-violet-600 text-white shadow-[0_0_20px_rgba(139,92,246,0.25)]"
-              )}
-            >
+              )}>
               {running ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Sherlock investigando... aguarde ~2 min
-                </>
+                <><RefreshCw className="w-4 h-4 animate-spin" />Sherlock investigando... aguarde</>
               ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Executar Pipeline ({selectedSources.size} fonte{selectedSources.size !== 1 ? "s" : ""})
-                </>
+                <><Play className="w-4 h-4" />Executar Pipeline ({selectedSources.size} fonte{selectedSources.size !== 1 ? "s" : ""})</>
               )}
             </button>
 
             {running && (
               <p className="text-center text-white/30 text-[11px] mt-3">
-                Pipeline rodando no GitHub Actions. A página atualiza automaticamente.
+                Abrindo navegador e coletando tendências. Atualizará automaticamente.
               </p>
             )}
           </div>
         )}
 
-        {/* Results */}
+        {/* Resultados — lista de tendências */}
         {report?.status === "ready" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            {/* Header dos resultados */}
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white/60">Resultado da Investigação</h2>
-              <button
-                onClick={() => { setReport(null); fetchDashboardData(); }}
-                className="text-[11px] text-violet-400 hover:text-violet-300 font-medium flex items-center gap-1.5 transition-colors"
-              >
+              <div>
+                <h2 className="text-sm font-semibold text-white">
+                  {trends.length} tendências encontradas
+                </h2>
+                <p className="text-white/30 text-[11px] mt-0.5">
+                  {new Date(report.date ?? "").toLocaleString("pt-BR")}
+                  {Object.entries(sourceCount).map(([src, count]) =>
+                    ` · ${SOURCE_LABEL[src] ?? src}: ${count}`
+                  ).join("")}
+                </p>
+              </div>
+              <button onClick={() => setReport(null)}
+                className="text-[11px] text-violet-400 hover:text-violet-300 font-medium flex items-center gap-1.5 transition-colors">
                 <RefreshCw className="w-3 h-3" />
                 Nova investigação
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-4 flex flex-col gap-6">
-                <div className="bg-[#09090A] border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/[0.03] to-transparent pointer-events-none" />
-                  <div className="flex flex-col gap-6 relative z-10">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-white/80 flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-emerald-400" />
-                        Sinais Detectados
-                      </h3>
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-white/30 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
-                        {new Date(report.date || "").toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {report.top_sources?.map((src, i) => (
-                        <div key={i} className="px-3 py-1.5 bg-white/5 rounded-lg text-[11px] font-medium tracking-wide text-white/60 border border-white/5">
-                          {src}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-b from-[#09090A] to-[#09090A] border border-violet-500/20 rounded-3xl p-8 flex-1 shadow-[0_0_40px_rgba(139,92,246,0.05)] relative overflow-hidden">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
-                  <h3 className="text-xs font-bold uppercase tracking-widest mb-6 text-violet-400 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
-                    Ângulo Criativo
-                  </h3>
-                  <p className="text-[15px] leading-relaxed text-white/80 italic font-light">
-                    "{report.mashup}"
-                  </p>
-                </div>
+            {/* Grid de cards */}
+            {trends.length === 0 ? (
+              <div className="text-center py-16 text-white/30 text-sm">
+                Nenhuma tendência nova encontrada (já processadas antes).
               </div>
-
-              <div className="lg:col-span-8 flex flex-col gap-4">
-                <div className="flex items-center justify-between ml-2">
-                  <h3 className="text-sm font-semibold text-white/80 flex items-center gap-2">
-                    <Presentation className="w-4 h-4 text-blue-400" />
-                    Copywriter Pro
-                  </h3>
-                  <span className="text-[10px] uppercase tracking-widest text-white/40">Carrossel / 7 Slides</span>
-                </div>
-                <div className="w-full">
-                  {renderSlides(report.script || "")}
-                </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {trends.map((trend, i) => (
+                  <TrendCard key={i} trend={trend} />
+                ))}
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
