@@ -18,6 +18,36 @@ function readBrainFile(relativePath: string): string {
   }
 }
 
+/**
+ * Carrega o cérebro completo na hierarquia DNS:
+ * P1 (ABSOLUTE OVERRIDE): 06_constraints + 10_vetoes
+ * P2 (Voz): 09_tone + 07_persona
+ * P3 (Execução): 03_hooks → 01_virality → 04_storytelling → 08_persuasion → 05_closing
+ */
+function loadBrainDNS(): {
+  constraints: string;
+  vetoes: string;
+  tone: string;
+  persona: string;
+  hooks: string;
+  virality: string;
+  storytelling: string;
+  persuasion: string;
+  closing: string;
+} {
+  return {
+    constraints:  readBrainFile('06_constraints.md'),
+    vetoes:       readBrainFile('10_vetoes.md'),
+    tone:         readBrainFile('09_tone.md'),
+    persona:      readBrainFile('07_persona.md'),
+    hooks:        readBrainFile('03_hooks.md'),
+    virality:     readBrainFile('01_virality.md'),
+    storytelling: readBrainFile('04_storytelling.md'),
+    persuasion:   readBrainFile('08_persuasion.md'),
+    closing:      readBrainFile('05_closing.md'),
+  };
+}
+
 function readAllFormulas(): { name: string; content: string }[] {
   const formulasDir = path.join(BRAIN_PATH, 'formulas');
   try {
@@ -168,14 +198,22 @@ export interface ContentPyramid {
 }
 
 export async function generateContentPyramid(input: OnboardingInput): Promise<ContentPyramid> {
-  const persona = readBrainFile('core/persona.md');
+  const brain = loadBrainDNS();
 
-  const systemPrompt = `<PERSONA>
-${persona}
+  const systemPrompt = `<CONSTRAINTS_AND_VETOES>
+${brain.constraints}
+
+---
+
+${brain.vetoes}
+</CONSTRAINTS_AND_VETOES>
+
+<PERSONA>
+${brain.persona}
 </PERSONA>
 
-Você está na FASE 1 (O ESTRATEGISTA). Sua missão aqui é analisar o nicho e público fornecidos
-e construir uma Pirâmide de Conteúdo estratégica com Pilares que refletem o Inimigo Comum,
+Você está na FASE 1 (O ESTRATEGISTA). Sua missão: analisar o nicho e público fornecidos
+e construir uma Pirâmide de Conteúdo com Pilares que refletem o Inimigo Comum,
 a Dor Latejante e o Desejo Inconfessável daquele nicho.
 Retorne APENAS um JSON válido, sem markdown, sem explicações extras.`;
 
@@ -214,8 +252,7 @@ export interface IdeaCard {
 }
 
 export async function generateIdeaCards(input: IdeatorInput): Promise<IdeaCard[]> {
-  const persona = readBrainFile('core/persona.md');
-  const hooks = readBrainFile('hooks.md'); // Carrega o arquivo de hooks do brain
+  const brain = loadBrainDNS();
 
   // Selecionar 3 fórmulas rotativas para injetar
   const formulas = selectFormulasForTopic(input.topic, 3);
@@ -223,15 +260,23 @@ export async function generateIdeaCards(input: IdeatorInput): Promise<IdeaCard[]
     ? formulas.map((f, i) => `## FÓRMULA ${i + 1}\n${f}`).join('\n\n---\n\n')
     : 'Use técnicas de copywriting persuasivo e específico.';
 
-  const systemPrompt = `<PERSONA>
-${persona}
+  const systemPrompt = `<CONSTRAINTS_AND_VETOES>
+${brain.constraints}
+
+---
+
+${brain.vetoes}
+</CONSTRAINTS_AND_VETOES>
+
+<PERSONA>
+${brain.persona}
 </PERSONA>
 
 Você está na FASE 2 (O IDEATOR). Sua missão: NUNCA inventar ângulos do zero.
-Injetar o tema nas FÓRMULAS abaixo e usar os HOOKS do brain para garantir ganchos de parada de scroll.
+Injetar o tema nas FÓRMULAS e usar as TÉCNICAS DE HOOK para garantir ganchos de parada de scroll.
 
 <HOOKS_REFERENCE>
-${hooks}
+${brain.hooks}
 </HOOKS_REFERENCE>
 
 <FORMULAS>
@@ -239,9 +284,9 @@ ${formulasText}
 </FORMULAS>
 
 REGRAS ABSOLUTAS:
-- Hook: NUNCA pergunta retórica. Use afirmação chocante, número específico ou cena fotográfica.
+- Hook: NUNCA pergunta retórica. Começa com fato, reação crua ou número. Máximo 20 palavras.
 - Ângulo: máximo 1 linha. Ultra-específico. Com número, personagem ou situação concreta.
-- Anti-IA: zero clichês. Zero "incrível", "transformador", "essencial".
+- Zero palavras da Veto List. Zero clichês de IA.
 - Retorne APENAS JSON válido, sem markdown.`;
 
   const userPrompt = `Nicho: ${input.niche}
@@ -275,62 +320,52 @@ export interface GenerateInput {
 }
 
 export async function* generateScript(input: GenerateInput): AsyncGenerator<string> {
-  // 1. Carregar a Persona Mestre + Constituição
-  const persona = readBrainFile('core/persona.md');
-  const vetoes = readBrainFile('core/vetoes.md');
-  const tone = readBrainFile('core/tone.md');
-
-  // 2. Selecionar o Swipe File RAG aderente ao formato
+  const brain = loadBrainDNS();
   const swipe = selectSwipeForFormat(input.format);
-
-  // 3. Selecionar 2 fórmulas complementares via Router
   const formulas = selectFormulasForTopic(input.angle, 2);
   const formulasText = formulas.map((f, i) => `### FÓRMULA DE ESTRUTURA ${i + 1}\n${f}`).join('\n\n');
 
-  // 4. Definir estrutura exata por formato (FASE 3 da Persona)
   const formatStructure = input.format === 'reels'
-    ? `ESTRUTURA OBRIGATÓRIA PARA REELS:
-- 00-03s: Hook Visual e Auditivo agressivo (use o GANCHO INICIAL como base)
-- 03-10s: Entrega rápida do valor ou promessa
-- 10-45s: Conteúdo em bullets (frases curtas e quebradas)
-- Final: CTA baseado em curiosidade (ex: "Leia a legenda para o passo a passo")`
+    ? `[HOOK] (máx. 20 palavras — fato, reação crua ou número. NUNCA pergunta)
+[CORPO] (200–220 palavras total. Bullets curtos. Ritmo estacato. 1 técnica por camada)
+[CTA] (1 única ação)`
     : input.format === 'carousel'
-    ? `ESTRUTURA OBRIGATÓRIA PARA CARROSSEL:
-- Slide 1: Headline de revista (Curiosidade + Benefício)
-- Slide 2: O Problema (Agitar a dor)
-- Slides 3-7: A Solução em passos práticos
-- Slide 8: Checklist ou Resumo (Para gerar o print/salvamento)
-- Slide 9: CTA`
-    : `ESTRUTURA OBRIGATÓRIA PARA PÁGINA DE VENDAS:
-- Headline: Mecanismo Único + Resultado Desejado
-- Lead: Narrativa de transformação
-- Oferta: O que é, para quem é, bônus e garantia
-- FAQ: Quebra de objeções reais com prova social e urgência`;
+    ? `[SLIDE 1] Headline — fato contraintuitivo + dado. Sem pergunta.
+[SLIDE 2] Custo — o que a pessoa perde por não saber isso.
+[SLIDE 3] a [SLIDE 6] — 1 insight acionável por slide. Título curto + 2-3 linhas cruas.
+[SLIDE 7] Resumo — feito para ser salvo.
+[SLIDE 8] CTA — 1 única ação.`
+    : `Headline: Mecanismo Único + Resultado Desejado
+Lead: Narrativa de transformação concreta
+Oferta: o que é, para quem, bônus, garantia
+FAQ: quebra das 3 maiores objeções com prova social`;
 
-  // 5. Super-Prompt final com hierarquia XML
-  const systemPrompt = `<PERSONA>
-${persona}
-</PERSONA>
-
-Você está na FASE 3 (O EXECUTOR). Prioridade de obediência: PERSONA > CONSTITUTION > FRAMEWORK > SWIPE.
-
-<CONSTITUTION>
-${vetoes}
+  const systemPrompt = `<CONSTRAINTS_AND_VETOES>
+${brain.constraints}
 
 ---
 
-${tone}
-</CONSTITUTION>
+${brain.vetoes}
+</CONSTRAINTS_AND_VETOES>
 
-<FRAMEWORK>
+<VOICE_AND_PERSONA>
+${brain.tone}
+
+---
+
+${brain.persona}
+</VOICE_AND_PERSONA>
+
+<HOOKS>
+${brain.hooks}
+</HOOKS>
+
+<FORMULAS>
 ${formulasText}
-</FRAMEWORK>
+</FORMULAS>
 
 <SWIPE_FILE_SKELETON>
-Use como REFERÊNCIA DE RITMO E CADÊNCIA, não de conteúdo literal.
-Mantenha proporção de blocos, tamanho de frases e posição da virada narrativa.
-ADAPTE completamente para o nicho e tema.
-
+Referência de ritmo e cadência — NÃO copie o conteúdo. Copie a proporção de blocos e tamanho de frases.
 ${swipe}
 </SWIPE_FILE_SKELETON>
 
@@ -338,16 +373,16 @@ ${swipe}
 ${formatStructure}
 </FORMAT_STRUCTURE>
 
-Entregue APENAS a copy final, sem explicações, sem meta-comentários, sem títulos de seção.`;
+REGRA FINAL: 1 técnica por camada (hook, corpo, persuasão, fechamento). Entregue APENAS a copy. Sem títulos de seção, sem meta-comentários.`;
 
   const userPrompt = `NICHO: ${input.niche}
 PÚBLICO-ALVO: ${input.targetAudience}
 ÂNGULO ESCOLHIDO: ${input.angle}
 GANCHO INICIAL: ${input.hook}
 
-Escreva a copy completa. Siga a <FORMAT_STRUCTURE> à risca. Use o <SWIPE_FILE_SKELETON> para cadência. Aplique a <CONSTITUTION> e o <FRAMEWORK> para garantir alta conversão. Assuma a <PERSONA> do Maverick — direto, visceral, sem clichês.`;
+Escreva a copy completa seguindo a FORMAT_STRUCTURE. Voz do Maverick: analista sênior em ligação de consultoria — direto, cético, zero clichê.`;
 
-  yield* callGroqStream(systemPrompt, userPrompt, 'meta-llama/llama-4-maverick');
+  yield* callGroqStream(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
 }
 
 // ─── Serviço de Dossiê: Estratégia + 3 Ganchos ───────────────────────────────
@@ -365,8 +400,7 @@ export interface DossieOutput {
 }
 
 export async function generateDossie(input: DossieInput): Promise<DossieOutput> {
-  const persona = readBrainFile('core/persona.md');
-  const hooks = readBrainFile('hooks.md');
+  const brain = loadBrainDNS();
 
   const modeContext = input.mode === 'content'
     ? `MODO: Criador de Conteúdo (Reels/Carrossel)
@@ -383,24 +417,32 @@ Local da Copy: ${input.scopingAnswers['local'] ?? ''}
 Contexto/Gatilho: ${input.scopingAnswers['contexto'] ?? ''}
 Ação Imediata: ${input.scopingAnswers['acao'] ?? ''}`;
 
-  const systemPrompt = `<PERSONA>
-${persona}
+  const systemPrompt = `<CONSTRAINTS_AND_VETOES>
+${brain.constraints}
+
+---
+
+${brain.vetoes}
+</CONSTRAINTS_AND_VETOES>
+
+<PERSONA>
+${brain.persona}
 </PERSONA>
 
-Você está gerando o DOSSIÊ MAVERICK. Seu trabalho aqui é:
-1. Definir a ESTRATÉGIA de ataque em exatamente 1 frase curta e cirúrgica (sem adjetivos desnecessários).
-2. Gerar 3 GANCHOS agressivos baseados nas técnicas do arquivo de hooks abaixo.
+Você está gerando o DOSSIÊ MAVERICK. Seu trabalho:
+1. Estratégia: 1 frase curta e cirúrgica. Sem adjetivos.
+2. 3 ganchos com técnicas dramaticamente diferentes entre si.
 
 <HOOKS_REFERENCE>
-${hooks}
+${brain.hooks}
 </HOOKS_REFERENCE>
 
 REGRAS DOS GANCHOS:
-- Cada gancho deve ser dramaticamente diferente em técnica (ex: Contraste, Inimigo Comum, Especificidade Numérica)
-- NUNCA pergunta retórica
-- Máximo 2 linhas por gancho
-- Linguagem visceral, humana, anticlímax
-- Retorne APENAS JSON válido, sem markdown`;
+- NUNCA pergunta retórica. Começa com fato, reação crua ou número.
+- Máximo 20 palavras por gancho.
+- Técnicas diferentes: ex. Contraste Extremo, Inimigo Comum, Especificidade Cirúrgica.
+- Zero palavras da Veto List.
+- Retorne APENAS JSON válido, sem markdown.`;
 
   const userPrompt = `${modeContext}
 
@@ -430,74 +472,101 @@ export interface GenerateV2Input {
 }
 
 export async function* generateScriptV2(input: GenerateV2Input): AsyncGenerator<string> {
-  const persona = readBrainFile('core/persona.md');
-  const vetoes = readBrainFile('core/vetoes.md');
-  const tone = readBrainFile('core/tone.md');
+  const brain = loadBrainDNS();
 
   const format = input.mode === 'content' ? 'reels' : input.mode === 'sales' ? 'sales_page' : 'microcopy';
   const swipe = selectSwipeForFormat(format);
   const formulas = selectFormulasForTopic(input.chosenHook, 2);
   const formulasText = formulas.map((f, i) => `### FÓRMULA ${i + 1}\n${f}`).join('\n\n');
 
-  const formatStructure = input.mode === 'content'
-    ? `ESTRUTURA OBRIGATÓRIA:
-- 00-03s: Hook (use o GANCHO ESCOLHIDO como abertura literal)
-- 03-10s: Entrega rápida do valor ou promessa
-- 10-45s: Bullets curtos e quebrados (máx 8 palavras por linha)
-- Final: CTA baseado em curiosidade — NUNCA "siga para mais", use o CTA informado pelo usuário`
+  // Sub-protocolo por modo — estrutura + técnicas ativas
+  const subProtocol = input.mode === 'content'
+    ? `SUB-PROTOCOLO: REELS
+[HOOK] — 00-03s. Use o gancho escolhido como abertura literal. Máx. 20 palavras. Fato, reação ou número.
+[CORPO] — 03-45s. Bullets curtos, máx. 8 palavras por linha. Ritmo estacato. 200-220 palavras no total.
+[CTA] — 1 única ação. Use o CTA informado pelo usuário.
+
+Técnicas ativas (1 por camada):
+- Hook: Ancoragem por Contraste Extremo ou Promessa Imperativa (03_hooks)
+- Corpo: Densidade Proposicional ou Emoção Nomeada como Âncora (04_storytelling)
+- Persuasão: Injeção de Fracasso ou Inimigo Comum Oculto (08_persuasion)
+- Fechamento: Próximo Passo Único e Desobstruído (05_closing)`
     : input.mode === 'sales'
-    ? `ESTRUTURA OBRIGATÓRIA PARA PÁGINA DE VENDAS:
-- Headline: Mecanismo Único + Resultado (use a diferenciação do usuário)
-- Lead: Cena de transformação (antes/depois concreto)
-- Oferta: o que é, para quem, bônus, garantia
-- FAQ: quebre as 3 maiores objeções com prova social`
-    : `ESTRUTURA OBRIGATÓRIA PARA MICRO-COPY:
-- Gere 5 variações da copy para o local informado
-- Cada variação com técnica diferente (curiosidade, urgência, contraste, prova social, FOMO)
-- Máximo 1 linha por variação`;
+    ? `SUB-PROTOCOLO: CARROSSEL - VENDER
+[SLIDE 1] Headline — mecanismo da dor + custo real de ignorar.
+[SLIDE 2] Agitação — cena específica do problema no dia a dia.
+[SLIDES 3-5] Prova — antes × depois com números reais.
+[SLIDE 6] Oferta — o que é, em 3 linhas. Sem adjetivo. Sem hype.
+[SLIDE 7] Objeção — 1 objeção real respondida de forma cirúrgica.
+[SLIDE 8] CTA — "Se você [dor validada], então [próximo passo único]."
+
+Técnicas ativas (1 por camada):
+- Hook: Ancoragem por Contraste Extremo (03_hooks #1)
+- Corpo: Enquadramento de Magnitude (04_storytelling)
+- Persuasão: Inimigo Comum Oculto (08_persuasion #3)
+- Fechamento: Sintaxe do Compromisso Lógico (05_closing #3)`
+    : `SUB-PROTOCOLO: MICRO-COPY
+Gere 5 variações da copy para o local informado.
+Cada variação usa 1 técnica diferente: Contraste, Urgência, Especificidade Numérica, Prova Social, FOMO.
+Máximo 1-2 linhas por variação. Zero adjetivos. Zero palavra da Veto List.`;
 
   const modeContext = input.mode === 'content'
-    ? `Objetivo: ${input.scopingAnswers['objetivo']}\nTema/Inimigo: ${input.scopingAnswers['temaInimigo']}\nCTA: ${input.scopingAnswers['cta']}`
+    ? `Objetivo: ${input.scopingAnswers['objetivo'] ?? ''}\nTema/Inimigo: ${input.scopingAnswers['temaInimigo'] ?? ''}\nCTA: ${input.scopingAnswers['cta'] ?? ''}`
     : input.mode === 'sales'
-    ? `Produto: ${input.scopingAnswers['produto']}\nMecanismo: ${input.scopingAnswers['mecanismo']}\nMaior Objeção: ${input.scopingAnswers['objecao']}`
-    : `Local: ${input.scopingAnswers['local']}\nContexto: ${input.scopingAnswers['contexto']}\nAção: ${input.scopingAnswers['acao']}`;
+    ? `Produto: ${input.scopingAnswers['produto'] ?? ''}\nMecanismo: ${input.scopingAnswers['mecanismo'] ?? ''}\nMaior Objeção: ${input.scopingAnswers['objecao'] ?? ''}`
+    : `Local: ${input.scopingAnswers['local'] ?? ''}\nContexto: ${input.scopingAnswers['contexto'] ?? ''}\nAção: ${input.scopingAnswers['acao'] ?? ''}`;
 
-  const systemPrompt = `<PERSONA>
-${persona}
-</PERSONA>
-
-Você está na FASE 3 (O EXECUTOR). Hierarquia de obediência: PERSONA > CONSTITUTION > FRAMEWORK > SWIPE.
-
-<CONSTITUTION>
-${vetoes}
+  const systemPrompt = `<CONSTRAINTS_AND_VETOES>
+${brain.constraints}
 
 ---
 
-${tone}
-</CONSTITUTION>
+${brain.vetoes}
+</CONSTRAINTS_AND_VETOES>
 
-<FRAMEWORK>
+<VOICE_AND_PERSONA>
+${brain.tone}
+
+---
+
+${brain.persona}
+</VOICE_AND_PERSONA>
+
+<HOOKS>
+${brain.hooks}
+</HOOKS>
+
+<FORMULAS>
 ${formulasText}
-</FRAMEWORK>
+</FORMULAS>
 
 <SWIPE_FILE_SKELETON>
-Referência de ritmo e cadência — NÃO copie o conteúdo, copie a cadência.
+Referência de ritmo e cadência — NÃO copie o conteúdo. Copie a proporção de blocos e tamanho de frases.
 ${swipe}
 </SWIPE_FILE_SKELETON>
 
-<FORMAT_STRUCTURE>
-${formatStructure}
-</FORMAT_STRUCTURE>
+<SUB_PROTOCOL>
+${subProtocol}
+</SUB_PROTOCOL>
 
-Entregue APENAS a copy final. Sem títulos, sem meta-comentários, sem explicações.`;
+CHECKLIST PRÉ-OUTPUT (aplique antes de entregar):
+- Hook tem 20 palavras ou menos?
+- Hook começa com fato, reação crua ou número?
+- Reels: está entre 200-220 palavras?
+- 1 técnica por camada — e só ela?
+- Alguma frase soa como slide de agência? → reescrever
+- Tem palavra da Veto List? → substituir por dado concreto
+- CTA pede uma única ação?
+
+Entregue APENAS a copy final. Sem títulos de seção, sem meta-comentários, sem explicações.`;
 
   const userPrompt = `MODO: ${input.mode.toUpperCase()}
 ${modeContext}
 
 GANCHO ESCOLHIDO (use como abertura literal): ${input.chosenHook}
 
-Escreva a copy completa. Assuma a voz do Maverick: direto, visceral, sem clichês de IA.`;
+Escreva a copy completa. Voz do Maverick: analista sênior em ligação de consultoria — direto, cético, zero clichê.`;
 
-  yield* callGroqStream(systemPrompt, userPrompt, 'meta-llama/llama-4-maverick');
+  yield* callGroqStream(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
 }
 

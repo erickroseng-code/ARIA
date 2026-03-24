@@ -20,6 +20,7 @@
     "@libsql/client": "^0.17.0",
     "@prisma/adapter-libsql": "^7.4.2",
     "@prisma/client": "^7.4.1",
+    "@tavily/core": "^0.7.2",
     "@types/archiver": "^7.0.0",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.0.0",
