@@ -3,22 +3,22 @@ import os
 import json
 import base64
 import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Em CI (GitHub Actions), usa diretório temporário e headless forçado.
 # Localmente, usa o perfil persistente salvo.
 IS_CI = os.environ.get("CI", "").lower() in ("true", "1")
 
-if IS_CI:
-    PLAYWRIGHT_USER_DATA = os.path.join(tempfile.gettempdir(), "playwright-scraper")
-else:
-    PLAYWRIGHT_USER_DATA = os.environ.get(
-        "PLAYWRIGHT_USER_DATA_DIR",
-        os.path.join(
-            os.environ.get("LOCALAPPDATA", r"C:\Users\erick\AppData\Local"),
-            "Playwright",
-            "sherlock-scraper",
-        ),
-    )
+PLAYWRIGHT_PERSISTENT_DIR = os.environ.get(
+    "PLAYWRIGHT_USER_DATA_DIR",
+    os.path.join(
+        os.environ.get("LOCALAPPDATA", r"C:\Users\erick\AppData\Local"),
+        "Playwright",
+        "sherlock-scraper",
+    ),
+)
 
 
 def _load_cookies_from_env() -> list | None:
@@ -33,18 +33,39 @@ def _load_cookies_from_env() -> list | None:
         return None
 
 
+def _is_profile_locked(user_data_dir: str) -> bool:
+    """Verifica se o lockfile do perfil está em uso."""
+    lock_path = os.path.join(user_data_dir, "lockfile")
+    if not os.path.exists(lock_path):
+        return False
+    try:
+        os.rename(lock_path, lock_path)
+        return False
+    except OSError:
+        return True
+
+
 async def new_persistent_context(p, headless: bool = True):
     """Launch a persistent Chromium context.
 
-    - Local: reutiliza sessão salva em PLAYWRIGHT_USER_DATA (cookies preservados).
+    - Local: tenta usar sessão salva (cookies preservados). Se o perfil estiver
+      bloqueado por outro Chrome, cai para diretório temporário automaticamente.
     - CI: usa diretório temporário + injeta cookies do secret PLAYWRIGHT_COOKIES.
-    - Sem channel='chrome': roda em paralelo com o Chrome aberto sem conflito.
     """
-    # Em CI, sempre headless
     effective_headless = True if IS_CI else headless
 
+    if IS_CI:
+        user_data_dir = os.path.join(tempfile.gettempdir(), "playwright-scraper-ci")
+    elif _is_profile_locked(PLAYWRIGHT_PERSISTENT_DIR):
+        user_data_dir = tempfile.mkdtemp(prefix="sherlock-scraper-")
+        logger.warning(
+            f"Perfil persistente bloqueado. Usando diretório temporário: {user_data_dir}"
+        )
+    else:
+        user_data_dir = PLAYWRIGHT_PERSISTENT_DIR
+
     context = await p.chromium.launch_persistent_context(
-        user_data_dir=PLAYWRIGHT_USER_DATA,
+        user_data_dir=user_data_dir,
         headless=effective_headless,
         args=[
             "--no-sandbox",
@@ -58,10 +79,10 @@ async def new_persistent_context(p, headless: bool = True):
         permissions=["geolocation"],
     )
 
-    # Injeta cookies salvos (só relevante em CI)
-    if IS_CI:
-        cookies = _load_cookies_from_env()
-        if cookies:
-            await context.add_cookies(cookies)
+    # Injeta cookies (CI via secret, local via env se disponível)
+    cookies = _load_cookies_from_env()
+    if cookies:
+        await context.add_cookies(cookies)
+        logger.info(f"Injetados {len(cookies)} cookies no contexto Playwright.")
 
     return context
