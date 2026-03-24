@@ -117,3 +117,21 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         sync: false
+
+  - type: web
+    name: trendmaster
+    runtime: docker
+    dockerfilePath: trendmaster/Dockerfile
+    dockerContext: trendmaster
+    plan: free
+    branch: master
+    autoDeploy: true
+    healthCheckPath: /health
+
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: APIFY_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
