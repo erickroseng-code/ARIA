@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from "next/navigation";
-import { LayoutGrid, Target, BarChart2, Home, Zap, TrendingUp } from "lucide-react";
+import { LayoutGrid, Target, BarChart2, Home, Zap, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import IntegrationHub from "@/components/layout/IntegrationHub";
 import { useChatStore } from "@/stores/chatStore";
@@ -47,12 +47,12 @@ const squads: SquadDef[] = [
         status: "active",
     },
     {
-        id: "trendmaster",
-        name: "TrendMaster",
-        icon: TrendingUp, // Usaremos TrendingUp depois
-        description: "Monitoramento Viral",
-        color: "#ef4444", // Red-ish for trends
-        accentClass: "text-red-400 bg-red-500/10 border-red-500/20",
+        id: "sherlock",
+        name: "Sherlock",
+        icon: Search,
+        description: "Inteligência Viral",
+        color: "#8b5cf6",
+        accentClass: "text-violet-400 bg-violet-500/10 border-violet-500/20",
         status: "active",
     },
     {
@@ -142,8 +142,8 @@ const AriaSidebar = ({
                                     <button
                                         key={squad.id}
                                         onClick={() => {
-                                            if (squad.id === "trendmaster") {
-                                                router.push("/trendmaster");
+                                            if (squad.id === "sherlock") {
+                                                router.push("/sherlock");
                                             } else {
                                                 if (onSelectSquad) {
                                                     onSelectSquad(squad.id);

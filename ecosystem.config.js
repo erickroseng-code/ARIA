@@ -22,10 +22,10 @@ module.exports = {
       },
     },
     {
-      name: "trendmaster",
+      name: "sherlock",
       script: "C:\\Python314\\pythonw.exe",
       args: "-m uvicorn src.api.app:app --host 0.0.0.0 --port 8000",
-      cwd: "C:\\Users\\erick\\Projects\\aios-core\\trendmaster",
+      cwd: "C:\\Users\\erick\\Projects\\aios-core\\sherlock",
       interpreter: "none",
       windowsHide: true,
       watch: false,

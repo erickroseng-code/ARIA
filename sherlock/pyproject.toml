@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "sherlock"
+version = "1.0.0"
+description = "Sherlock Intelligence Engine - Viral Trend Detection"
+authors = ["Erick <erick@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "*"
+uvicorn = "*"
+playwright = "*"
+playwright-stealth = "*"
+apify-client = "*"
+sqlmodel = "*"
+anthropic = "*"
+openai = "*"
+python-dotenv = "*"
+pytrends = "*"
+beautifulsoup4 = "*"
+lxml = "*"
+httpx = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
