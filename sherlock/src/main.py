@@ -78,15 +78,24 @@ ALL_SCRAPERS = {
 }
 
 # Instagram entra no contexto compartilhado quando tem keywords configuradas
-PLAYWRIGHT_SCRAPERS = {"g1", "youtube", "x", "google_trends", "tiktok"}
+PLAYWRIGHT_SCRAPERS = {"g1", "youtube", "x", "google_trends"}  # tiktok usa TikTokApi própria
 if _instagram_keywords():
     PLAYWRIGHT_SCRAPERS.add("instagram")
 
-async def run_agent(sources: list[str] | None = None):
+async def run_agent(sources: list[str] | None = None, tiktok_keywords: list[str] | None = None, instagram_keywords: list[str] | None = None, days: int = 30):
     active = sources if sources else list(ALL_SCRAPERS.keys())
     logger.info(f"Iniciando Pipeline Sherlock — fontes: {', '.join(active)}")
     active_valid = [s for s in active if s in ALL_SCRAPERS]
-    scrapers = [ALL_SCRAPERS[s]() for s in active_valid]
+
+    # Instancia scrapers com keywords se fornecidas
+    scrapers = []
+    for s in active_valid:
+        if s == "tiktok" and tiktok_keywords:
+            scrapers.append(TikTokScraper(keywords=tiktok_keywords, periods=[30, 45, 60, 90], min_views=100_000))
+        elif s == "instagram" and instagram_keywords:
+            scrapers.append(InstagramScraper(keywords=instagram_keywords, periods=[30, 45, 60, 90], min_views=100_000))
+        else:
+            scrapers.append(ALL_SCRAPERS[s]())
 
     # Injecta contexto compartilhado nos scrapers Playwright
     pw_scrapers = [scraper for scraper, key in zip(scrapers, active_valid) if key in PLAYWRIGHT_SCRAPERS]
@@ -161,18 +170,18 @@ async def run_agent(sources: list[str] | None = None):
 async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Sherlock Intelligence Engine")
-    parser.add_argument(
-        "--sources",
-        type=str,
-        default=None,
-        help="Comma-separated list of sources to scrape (e.g. g1,reddit,youtube). Default: all.",
-    )
+    parser.add_argument("--sources", type=str, default=None, help="Comma-separated list of sources to scrape (e.g. g1,reddit,youtube). Default: all.")
+    parser.add_argument("--tiktok-keywords", type=str, default=None, help="Comma-separated keywords for TikTok search (e.g. viral,trend,marketing).")
+    parser.add_argument("--instagram-keywords", type=str, default=None, help="Comma-separated keywords for Instagram search (e.g. fashion,lifestyle).")
+    parser.add_argument("--days", type=int, default=30, help="Period in days for trend filtering (30, 45, 60, 90). Default: 30.")
     args = parser.parse_args()
 
     sources = [s.strip() for s in args.sources.split(",")] if args.sources else None
+    tiktok_kw = [k.strip() for k in args.tiktok_keywords.split(",")] if args.tiktok_keywords else None
+    instagram_kw = [k.strip() for k in args.instagram_keywords.split(",")] if args.instagram_keywords else None
 
     create_db_and_tables()
-    await run_agent(sources=sources)
+    await run_agent(sources=sources, tiktok_keywords=tiktok_kw, instagram_keywords=instagram_kw, days=args.days)
 
 if __name__ == "__main__":
     asyncio.run(main())
