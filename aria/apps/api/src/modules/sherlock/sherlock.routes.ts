@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 interface TrendReport {
   date: string;
@@ -12,34 +13,47 @@ interface TrendReport {
 }
 
 type PipelineStatus = 'waiting' | 'processing' | 'ready';
-let LATEST_REPORT: TrendReport | null = null;
 let PIPELINE_STATUS: PipelineStatus = 'waiting';
+
+const REPORT_FILE = path.resolve(__dirname, '..', '..', '..', '..', '..', '..', 'sherlock', 'last_report.json');
+
+function loadReport(): TrendReport | null {
+  try {
+    if (fs.existsSync(REPORT_FILE)) return JSON.parse(fs.readFileSync(REPORT_FILE, 'utf-8'));
+  } catch {}
+  return null;
+}
+
+function saveReport(report: TrendReport) {
+  try { fs.writeFileSync(REPORT_FILE, JSON.stringify(report, null, 2)); } catch {}
+}
 
 export async function registerSherlockRoutes(fastify: FastifyInstance) {
 
   // GET /api/sherlock/dashboard
   fastify.get('/dashboard', async (_req: FastifyRequest, reply: FastifyReply) => {
-    if (PIPELINE_STATUS === 'waiting') {
-      return reply.send({ status: 'waiting', message: 'Nenhum relatório processado ainda hoje.' });
-    }
     if (PIPELINE_STATUS === 'processing') {
       return reply.send({ status: 'processing', message: 'Pipeline em execução...' });
     }
+    const report = loadReport();
+    if (!report) {
+      return reply.send({ status: 'waiting', message: 'Nenhum relatório processado ainda.' });
+    }
     return reply.send({
       status: 'ready',
-      date: LATEST_REPORT!.date,
-      trends: LATEST_REPORT!.scored_trends ?? [],
+      date: report.date,
+      trends: report.scored_trends ?? [],
     });
   });
 
-  // POST /api/sherlock/webhook — recebe relatório do GitHub Actions
+  // POST /api/sherlock/webhook — recebe relatório do Python pipeline
   fastify.post('/webhook', async (
     req: FastifyRequest<{ Body: TrendReport }>,
     reply: FastifyReply,
   ) => {
-    LATEST_REPORT = req.body;
+    saveReport(req.body);
     PIPELINE_STATUS = 'ready';
-    fastify.log.info('[Sherlock] Relatório recebido via webhook');
+    fastify.log.info('[Sherlock] Relatório recebido e salvo em disco');
     return reply.send({ status: 'success' });
   });
 

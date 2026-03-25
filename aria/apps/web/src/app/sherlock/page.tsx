@@ -304,45 +304,47 @@ function InstagramModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TrendCard({ trend }: { trend: Trend }) {
-  const logo = SOURCE_LOGOS[trend.source];
-  const label = SOURCE_LABEL[trend.source] ?? trend.source;
-  const badgeColor = SOURCE_COLOR[trend.source] ?? "bg-white/10 text-white/60 border-white/10";
+function TrendItem({ trend }: { trend: Trend }) {
   const eng = formatEngagement(trend.engagement, trend.source);
   const engLabel = engagementLabel(trend.source);
-  const score = trend.viral_score?.toFixed(0) ?? "—";
-
   return (
     <a href={trend.url} target="_blank" rel="noopener noreferrer"
-      className="group flex flex-col gap-3 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 rounded-2xl p-4 transition-all duration-150">
-      <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-xl shrink-0 overflow-hidden opacity-80 group-hover:opacity-100 transition-opacity">
-          {logo ?? <div className="w-full h-full bg-white/10 rounded-xl" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white/90 text-[13px] font-medium leading-snug line-clamp-2 group-hover:text-white transition-colors">
-            {trend.title}
-          </p>
-        </div>
-        <ExternalLink className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 shrink-0 transition-colors mt-0.5" />
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", badgeColor)}>
-          {label}
-        </span>
+      className="group flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.04] transition-colors">
+      <div className="w-1.5 h-1.5 rounded-full bg-white/20 group-hover:bg-violet-400 mt-[5px] shrink-0 transition-colors" />
+      <div className="flex-1 min-w-0">
+        <p className="text-white/80 text-[13px] leading-snug group-hover:text-white transition-colors line-clamp-2">
+          {trend.title}
+        </p>
         {trend.engagement > 1 && (
-          <span className="text-[10px] text-emerald-400/80 font-medium">
+          <span className="text-[11px] text-emerald-400/60 font-medium mt-0.5 block">
             {eng} {engLabel}
           </span>
         )}
-        {trend.viral_score > 0 && (
-          <span className="text-[10px] text-violet-400/60 ml-auto flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
-            {score}
-          </span>
-        )}
       </div>
+      <ExternalLink className="w-3 h-3 text-white/10 group-hover:text-white/40 shrink-0 mt-1 transition-colors" />
     </a>
+  );
+}
+
+function SourceBlock({ sourceId, trends }: { sourceId: string; trends: Trend[] }) {
+  const logo = SOURCE_LOGOS[sourceId];
+  const label = SOURCE_LABEL[sourceId] ?? sourceId;
+  const badgeColor = SOURCE_COLOR[sourceId] ?? "bg-white/10 text-white/60 border-white/10";
+  return (
+    <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+        <div className="w-7 h-7 rounded-lg shrink-0 overflow-hidden opacity-90">
+          {logo ?? <div className="w-full h-full bg-white/10 rounded-lg" />}
+        </div>
+        <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full border", badgeColor)}>
+          {label}
+        </span>
+        <span className="text-[11px] text-white/30 ml-auto">{trends.length} itens</span>
+      </div>
+      <div className="py-1">
+        {trends.map((t, i) => <TrendItem key={i} trend={t} />)}
+      </div>
+    </div>
   );
 }
 
@@ -401,9 +403,9 @@ export default function SherlockPage() {
 
   const trends = report?.trends ?? [];
 
-  // Agrupa por source para exibir contagem
-  const sourceCount = trends.reduce<Record<string, number>>((acc, t) => {
-    acc[t.source] = (acc[t.source] ?? 0) + 1;
+  // Agrupa por source mantendo ordem de aparição
+  const bySource = trends.reduce<Record<string, Trend[]>>((acc, t) => {
+    (acc[t.source] ??= []).push(t);
     return acc;
   }, {});
 
@@ -523,15 +525,15 @@ export default function SherlockPage() {
               </button>
             </div>
 
-            {/* Grid de cards */}
+            {/* Blocos por fonte */}
             {trends.length === 0 ? (
               <div className="text-center py-16 text-white/30 text-sm">
                 Nenhuma tendência nova encontrada (já processadas antes).
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {trends.map((trend, i) => (
-                  <TrendCard key={i} trend={trend} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(bySource).map(([sourceId, sourceTrends]) => (
+                  <SourceBlock key={sourceId} sourceId={sourceId} trends={sourceTrends} />
                 ))}
               </div>
             )}
