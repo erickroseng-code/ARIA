@@ -354,6 +354,8 @@ export default function SherlockPage() {
   const [report, setReport] = useState<TrendReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInstagram, setShowInstagram] = useState(false);
+  const [keywords, setKeywords] = useState("");
+  const [period, setPeriod] = useState(30);
 
   useEffect(() => {
     fetch("/api/sherlock/dashboard")
@@ -382,10 +384,21 @@ export default function SherlockPage() {
     setReport(null);
 
     try {
+      const needsKeywords = selectedSources.has("tiktok") || selectedSources.has("instagram");
+      if (needsKeywords && !keywords.trim()) {
+        setError("Digite keywords para TikTok/Instagram");
+        setRunning(false);
+        return;
+      }
+
       const response = await fetch("/api/sherlock/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sources: Array.from(selectedSources) }),
+        body: JSON.stringify({
+          sources: Array.from(selectedSources),
+          keywords: keywords.trim() ? keywords.split(",").map(k => k.trim()) : undefined,
+          period_days: period,
+        }),
       });
       if (!response.ok) throw new Error(`API retornou ${response.status}`);
 
@@ -504,6 +517,37 @@ export default function SherlockPage() {
                 <AlertCircle className="w-4 h-4 shrink-0" />{error}
               </div>
             )}
+
+            {/* Parâmetros de busca */}
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 mb-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Período */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">
+                    Período
+                  </label>
+                  <select value={period} onChange={(e) => setPeriod(Number(e.target.value))}
+                    className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-violet-500/50 transition-colors">
+                    {PERIOD_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Keywords — mostrado apenas para TikTok/Instagram */}
+                {(selectedSources.has("tiktok") || selectedSources.has("instagram")) && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">
+                      Keywords (separadas por vírgula)
+                    </label>
+                    <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)}
+                      placeholder="ex: viral, reels, humor..."
+                      className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500/50 transition-colors"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
 
             <button onClick={triggerAgent} disabled={running || selectedSources.size === 0}
               className={cn("w-full py-3.5 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5",
