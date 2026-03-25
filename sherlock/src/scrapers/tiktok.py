@@ -1,171 +1,113 @@
 import datetime
-import json
 import logging
-import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
 from .base import BaseScraper
-from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
 
 class TikTokScraper(BaseScraper):
-    """Scraper for TikTok trending via Playwright (uses scraper profile session)."""
+    """Scraper for TikTok videos via TikTokApi (hashtag + trending)."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        keywords: Optional[List[str]] = None,
+        periods: Optional[List[int]] = None,
+        min_views: int = 100_000,
+    ):
         super().__init__()
+        self.keywords = keywords
+        self.periods = periods or [30]
+        self.min_views = min_views
 
     async def fetch_trends(self) -> List[Dict[str, Any]]:
-        logger.info("Iniciando extração TikTok Trending via Playwright...")
-        trends = []
-        shared = self._pw_context is not None
+        try:
+            from TikTokApi import TikTokApi
+        except ImportError:
+            logger.error("TikTokApi não instalado. Execute: pip install TikTokApi")
+            return []
 
-        async def _run(context):
-            page = await context.new_page()
-            await stealth_async(page)
+        logger.info(
+            f"TikTok: keywords={self.keywords or 'trending'} | min {self.min_views // 1000}k views"
+        )
 
-            # Intercept TikTok's internal explore/trending API
-            api_items = []
+        all_videos: List[Dict[str, Any]] = []
 
-            async def handle_response(response):
-                if "api/explore/item_list" in response.url or "trending" in response.url:
-                    try:
-                        body = await response.json()
-                        items = body.get("itemList", body.get("data", []))
-                        if isinstance(items, list):
-                            api_items.extend(items)
-                    except Exception:
-                        pass
-
-            page.on("response", handle_response)
-
-            try:
-                await page.goto(
-                    "https://www.tiktok.com/explore",
-                    timeout=40000,
-                    wait_until="domcontentloaded",
+        try:
+            async with TikTokApi() as api:
+                await api.create_sessions(
+                    num_sessions=1,
+                    sleep_after=3,
+                    headless=True,
+                    suppress_resource_load_types=["image", "media", "font", "stylesheet"],
                 )
-                await page.wait_for_timeout(5000)
 
-                # Check for login wall
-                if await page.locator('[data-e2e="login-modal"]').count() > 0:
-                    logger.warning("TikTok: login necessário no perfil 'scraper'.")
-                    return
+                if self.keywords:
+                    for keyword in self.keywords[:3]:
+                        videos = await self._fetch_hashtag(api, keyword)
+                        all_videos.extend(videos)
+                        logger.info(f"TikTok #{keyword}: {len(videos)} vídeos")
+                else:
+                    videos = await self._fetch_trending(api)
+                    all_videos.extend(videos)
+                    logger.info(f"TikTok trending: {len(videos)} vídeos")
 
-                # --- Primary: use intercepted API data ---
-                if api_items:
-                    for item in api_items[:20]:
-                        try:
-                            desc = item.get("desc", "")
-                            if not desc:
-                                continue
-                            video_id = item.get("id", "")
-                            author = item.get("author", {}).get("uniqueId", "")
-                            url = f"https://www.tiktok.com/@{author}/video/{video_id}" if author and video_id else "https://www.tiktok.com/explore"
-                            stats = item.get("stats", {})
-                            plays = stats.get("playCount", stats.get("diggCount", 1000))
-                            trends.append({
-                                "source": "tiktok",
-                                "title": desc[:80] + ("..." if len(desc) > 80 else ""),
-                                "content": desc,
-                                "url": url,
-                                "engagement": float(plays),
-                                "published_at": datetime.datetime.utcnow(),
-                            })
-                        except Exception:
-                            continue
-                    logger.info(f"TikTok: {len(trends)} vídeos extraídos via API")
-                    return
+        except Exception as e:
+            logger.error(f"TikTok erro geral: {e}")
 
-                # --- Fallback: DOM scraping with broad selectors ---
-                # Try multiple selector strategies since TikTok renames classes frequently
-                selectors = [
-                    '[data-e2e="explore-item"]',
-                    '[class*="DivVideoCardDesc"]',
-                    '[class*="video-card"]',
-                    'div[class*="explore"] a',
-                ]
-                cards = []
-                for sel in selectors:
-                    cards = await page.locator(sel).all()
-                    if cards:
-                        break
+        logger.info(f"TikTok total: {len(all_videos)} vídeos")
+        return all_videos
 
-                # Last resort: grab any anchor with /video/ in href
-                if not cards:
-                    links = await page.locator('a[href*="/video/"]').all()
-                    for link in links[:20]:
-                        try:
-                            href = await link.get_attribute("href") or ""
-                            text = (await link.inner_text()).strip()
-                            if not text or len(text) < 3:
-                                continue
-                            url = f"https://www.tiktok.com{href}" if href.startswith("/") else href
-                            trends.append({
-                                "source": "tiktok",
-                                "title": text[:80],
-                                "content": text,
-                                "url": url,
-                                "engagement": 1000.0,
-                                "published_at": datetime.datetime.utcnow(),
-                            })
-                        except Exception:
-                            continue
-                    logger.info(f"TikTok: {len(trends)} vídeos extraídos via links")
-                    return
+    async def _fetch_hashtag(self, api, keyword: str) -> List[Dict[str, Any]]:
+        videos = []
+        try:
+            tag = api.hashtag(name=keyword)
+            async for video in tag.videos(count=30):
+                item = self._video_to_dict(video, keyword=keyword)
+                if item and item["engagement"] >= self.min_views:
+                    videos.append(item)
+        except Exception as e:
+            logger.error(f"TikTok hashtag '{keyword}': {e}")
+        return videos
 
-                for card in cards[:20]:
-                    try:
-                        text = (await card.inner_text()).strip().split("\n")[0]
-                        if not text or len(text) < 3:
-                            continue
-                        link_el = card.locator("a").first
-                        href = await link_el.get_attribute("href") or ""
-                        url = f"https://www.tiktok.com{href}" if href.startswith("/") else href
-                        trends.append({
-                            "source": "tiktok",
-                            "title": text[:80],
-                            "content": text,
-                            "url": url,
-                            "engagement": 1000.0,
-                            "published_at": datetime.datetime.utcnow(),
-                        })
-                    except Exception:
-                        continue
-                logger.info(f"TikTok: {len(trends)} vídeos extraídos via DOM")
+    async def _fetch_trending(self, api) -> List[Dict[str, Any]]:
+        videos = []
+        try:
+            async for video in api.trending.videos(count=30):
+                item = self._video_to_dict(video, keyword="trending")
+                if item and item["engagement"] >= self.min_views:
+                    videos.append(item)
+        except Exception as e:
+            logger.error(f"TikTok trending: {e}")
+        return videos
 
-            except Exception as e:
-                logger.error(f"Erro TikTok: {e}")
-            finally:
-                page.remove_listener("response", handle_response)
-                await page.close()
+    def _video_to_dict(self, video, keyword: str) -> Optional[Dict[str, Any]]:
+        try:
+            stats = video.stats or {}
+            plays = int(stats.get("playCount") or 0)
+            video_id = str(video.id)
+            url = f"https://www.tiktok.com/@{video.author.username}/video/{video_id}"
 
-        if shared:
-            await _run(self._pw_context)
-        else:
-            async with async_playwright() as p:
-                context = await new_persistent_context(p, headless=True)
-                try:
-                    await _run(context)
-                finally:
-                    await context.close()
+            d = video.as_dict
+            desc = (d.get("desc") or keyword)[:120]
 
-        logger.info(f"TikTok total: {len(trends)} tendências")
-        return trends
+            return {
+                "source": "tiktok",
+                "title": f"TikTok: {desc}",
+                "content": f"#{keyword} | {_format_views(plays)} views | @{video.author.username}",
+                "url": url,
+                "engagement": float(plays),
+                "viral_score": plays / 1_000_000,
+                "published_at": datetime.datetime.utcnow(),
+            }
+        except Exception:
+            return None
 
 
-def _parse_count(text: str) -> int:
-    text = text.strip().upper().replace(",", ".")
-    m = re.search(r"([\d.]+)\s*([KkMm]?)", text)
-    if not m:
-        return 1_000
-    num = float(m.group(1))
-    suffix = m.group(2).upper()
-    if suffix == "K":
-        return int(num * 1_000)
-    if suffix == "M":
-        return int(num * 1_000_000)
-    return int(num) if num > 0 else 1_000
+def _format_views(views: int) -> str:
+    if views >= 1_000_000:
+        return f"{views/1_000_000:.1f}M"
+    if views >= 1_000:
+        return f"{views/1_000:.0f}k"
+    return str(views)
