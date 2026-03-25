@@ -24,15 +24,23 @@ class YouTubeScraper(BaseScraper):
             page = await context.new_page()
             await stealth_async(page)
             try:
-                # Navega para home primeiro — evita redirect de logados no trending direto
-                await page.goto("https://www.youtube.com/", timeout=20000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1500)
+                # Tenta trending direto. Se redirecionar (usuário logado), vai via home.
                 await page.goto(
                     "https://www.youtube.com/feed/trending",
                     timeout=40000,
                     wait_until="domcontentloaded",
                 )
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(2000)
+                if "trending" not in page.url:
+                    # Logado → redirecionou para home. Vai via home → trending.
+                    await page.goto("https://www.youtube.com/", timeout=20000, wait_until="domcontentloaded")
+                    await page.wait_for_timeout(1500)
+                    await page.goto(
+                        "https://www.youtube.com/feed/trending",
+                        timeout=40000,
+                        wait_until="domcontentloaded",
+                    )
+                    await page.wait_for_timeout(3000)
 
                 content = await page.content()
                 idx = content.find("var ytInitialData = ")
@@ -105,6 +113,29 @@ class YouTubeScraper(BaseScraper):
                                 break
                         if len(trends) >= 10:
                             break
+
+                # DOM fallback: sem login o ytInitialData pode ser mínimo mas os
+                # elementos já estão no DOM após renderização
+                if not trends:
+                    await page.wait_for_timeout(4000)
+                    video_els = await page.locator("ytd-video-renderer, ytd-rich-item-renderer").all()
+                    for el in video_els[:10]:
+                        try:
+                            title_el = el.locator("#video-title, #title").first
+                            title = (await title_el.inner_text()).strip()
+                            href = await title_el.get_attribute("href") or ""
+                            url = f"https://www.youtube.com{href}" if href.startswith("/") else href
+                            if title and len(title) > 3:
+                                trends.append({
+                                    "source": "youtube_trending",
+                                    "title": title,
+                                    "content": title,
+                                    "url": url,
+                                    "engagement": 1000.0,
+                                    "published_at": datetime.datetime.utcnow(),
+                                })
+                        except Exception:
+                            continue
 
             except Exception as e:
                 logger.error(f"Erro ao acessar YouTube Trending: {e}")
