@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertCircle, RefreshCw, Search, Instagram, X, ExternalLink, Play, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AriaSidebar from "@/components/layout/AriaSidebar";
@@ -355,6 +355,13 @@ export default function SherlockPage() {
   const [error, setError] = useState<string | null>(null);
   const [showInstagram, setShowInstagram] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/sherlock/dashboard")
+      .then(r => r.json())
+      .then(data => { if (data.status === "ready") setReport(data); })
+      .catch(() => {});
+  }, []);
+
   const toggleSource = (id: string) => {
     setSelectedSources(prev => {
       const next = new Set(prev);
@@ -382,16 +389,27 @@ export default function SherlockPage() {
       });
       if (!response.ok) throw new Error(`API retornou ${response.status}`);
 
+      let waitingCount = 0;
       const poll = setInterval(async () => {
-        const res = await fetch("/api/sherlock/dashboard");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "ready") {
-            setReport(data);
-            setRunning(false);
-            clearInterval(poll);
+        try {
+          const res = await fetch("/api/sherlock/dashboard");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === "ready") {
+              setReport(data);
+              setRunning(false);
+              clearInterval(poll);
+            } else if (data.status === "waiting") {
+              // Pipeline encerrou sem enviar dados
+              waitingCount++;
+              if (waitingCount >= 2) {
+                setError("Pipeline encerrou sem retornar dados. Verifique os logs ou tente novamente.");
+                setRunning(false);
+                clearInterval(poll);
+              }
+            }
           }
-        }
+        } catch { /* ignore network errors during polling */ }
       }, 10_000);
 
       setTimeout(() => { clearInterval(poll); setRunning(false); }, 10 * 60 * 1000);
@@ -406,6 +424,12 @@ export default function SherlockPage() {
   // Agrupa por source mantendo ordem de aparição
   const bySource = trends.reduce<Record<string, Trend[]>>((acc, t) => {
     (acc[t.source] ??= []).push(t);
+    return acc;
+  }, {});
+
+  // Conta trends por source
+  const sourceCount = Object.entries(bySource).reduce<Record<string, number>>((acc, [src, arr]) => {
+    acc[src] = arr.length;
     return acc;
   }, {});
 

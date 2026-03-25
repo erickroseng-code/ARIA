@@ -66,7 +66,6 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
     const port = process.env.PORT ?? '3001';
 
     PIPELINE_STATUS = 'processing';
-    LATEST_REPORT = null;
 
     const sherlockDir = path.resolve(__dirname, '..', '..', '..', '..', '..', '..', 'sherlock');
     const scriptPath = path.join(sherlockDir, 'src', 'main.py');
@@ -98,8 +97,10 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
     });
     proc.on('close', (code: number) => {
       if (code === 0) fastify.log.info('[Sherlock] Pipeline concluído com sucesso.');
-      else {
-        fastify.log.error(`[Sherlock] Pipeline encerrou com código ${code}.`);
+      else fastify.log.error(`[Sherlock] Pipeline encerrou com código ${code}.`);
+      // Se o webhook não foi chamado (pipeline saiu sem enviar dados), desbloqueia o status
+      if (PIPELINE_STATUS === 'processing') {
+        fastify.log.warn('[Sherlock] Pipeline encerrou sem disparar webhook — resetando status.');
         PIPELINE_STATUS = 'waiting';
       }
     });

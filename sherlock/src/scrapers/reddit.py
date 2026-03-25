@@ -8,8 +8,9 @@ from .base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-# Subreddits representing what's trending globally and in Brazil.
-SUBREDDITS = ["popular", "brasil", "investimentos", "empreendedorismo"]
+# Subreddits acessíveis publicamente via JSON API.
+# Nota: r/brasil, r/investimentos e r/empreendedorismo retornam 403 sem auth.
+SUBREDDITS = ["popular"]
 
 # Reddit JSON API — public, no auth needed, reliable
 _JSON_API = "https://www.reddit.com/r/{sub}/hot/.json?limit=10&raw_json=1"

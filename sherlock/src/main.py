@@ -122,18 +122,23 @@ async def run_agent(sources: list[str] | None = None):
     scored_trends = strategist.stage1_extraction_and_score(raw_trends)
 
     new_trends = filter_new_trends(scored_trends)
-    if not new_trends:
-        logger.info("Nenhuma tendencia nova apos deduplicacao.")
-        return
 
+    # Salva apenas trends novas no DB (para deduplicação futura)
     for t in new_trends:
         save_processed_trend(t)
+
+    if not new_trends:
+        logger.info("Nenhuma tendencia nova apos deduplicacao. Enviando relatorio com dados atuais.")
 
     news_sources = ["g1", "google_trends", "reddit_r_brasil", "reddit_r_investimentos", "reddit_r_marketing", "youtube_trending"]
     social_sources = ["instagram", "tiktok", "x_twitter"]
 
-    top_news = next((t for t in new_trends if t.get("source") in news_sources), new_trends[0])
-    top_trend = next((t for t in new_trends if t.get("source") in social_sources), new_trends[0])
+    # Usa scored_trends (todos) para o dashboard — mostra sempre dados frescos
+    display_trends = scored_trends[:20]
+    ref_trends = new_trends if new_trends else scored_trends
+
+    top_news = next((t for t in ref_trends if t.get("source") in news_sources), ref_trends[0])
+    top_trend = next((t for t in ref_trends if t.get("source") in social_sources), ref_trends[0])
 
     angle = await strategist.stage2_angle_analysis(top_news, top_trend)
     carousel_script = await strategist.stage3_copywriting_pro(angle)
@@ -144,11 +149,13 @@ async def run_agent(sources: list[str] | None = None):
         "carousel_script": carousel_script,
         "top_news": top_news,
         "top_trend": top_trend,
-        "scored_trends": new_trends[:20]
+        "scored_trends": display_trends
     }
 
     await dispatch_webhook(report)
-    await send_telegram_notification(report)
+    # Telegram só notifica se há trends novas
+    if new_trends:
+        await send_telegram_notification(report)
     logger.info("Pipeline Sherlock Concluido com Sucesso!")
 
 async def main():
