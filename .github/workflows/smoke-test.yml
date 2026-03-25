@@ -5,8 +5,6 @@ name: Smoke Test — Aria API
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 12 * * 1'  # Segunda-feira às 12h UTC = 9h BRT
 
 jobs:
   smoke:

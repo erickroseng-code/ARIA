@@ -1,8 +1,6 @@
 name: Sherlock Daily Agent
 
 on:
-  schedule:
-    - cron: '0 10 * * *' # 10:00 UTC = 07:00 BRT
   workflow_dispatch:
 
 jobs:
