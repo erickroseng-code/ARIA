@@ -84,7 +84,7 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
     if (keywords_instagram.length > 0) args.push('--instagram-keywords', keywords_instagram.join(','));
     args.push('--days', String(days));
 
-    fastify.log.info(`[Sherlock] Iniciando pipeline local — fontes: ${sources.join(', ') || 'todas'}`);
+    fastify.log.info(`[Sherlock] Iniciando pipeline local — fontes: ${sources.join(', ') || 'todas'} | tiktok_kw: ${keywords_tiktok.join(',') || 'nenhuma'}`);
 
     const proc = spawn(pythonExe, args, {
       cwd: path.join(sherlockDir, 'src'),

@@ -143,7 +143,7 @@ async def run_agent(sources: list[str] | None = None, tiktok_keywords: list[str]
     social_sources = ["instagram", "tiktok", "x_twitter"]
 
     # Usa scored_trends (todos) para o dashboard — mostra sempre dados frescos
-    display_trends = scored_trends[:20]
+    display_trends = scored_trends[:10]
     ref_trends = new_trends if new_trends else scored_trends
 
     top_news = next((t for t in ref_trends if t.get("source") in news_sources), ref_trends[0])
