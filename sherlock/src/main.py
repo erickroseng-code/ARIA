@@ -78,7 +78,7 @@ ALL_SCRAPERS = {
 }
 
 # Instagram entra no contexto compartilhado quando tem keywords configuradas
-PLAYWRIGHT_SCRAPERS = {"g1", "youtube", "x", "reddit", "google_trends", "tiktok"}
+PLAYWRIGHT_SCRAPERS = {"g1", "youtube", "x", "google_trends", "tiktok"}
 if _instagram_keywords():
     PLAYWRIGHT_SCRAPERS.add("instagram")
 

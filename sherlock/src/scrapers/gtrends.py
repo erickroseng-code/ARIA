@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import re
+import xml.etree.ElementTree as ET
 from typing import List, Dict, Any
 
 import httpx
@@ -11,8 +12,12 @@ from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
-# Google Trends internal API — returns daily trending searches by geo
+# Google Trends RSS feed — public, stable, no auth needed
+_RSS_URL = "https://trends.google.com/trending/rss?geo={geo}&hl={hl}"
+# Fallback: internal JSON API
 _DAILY_JSON = "https://trends.google.com/trends/api/dailytrends?hl={hl}&tz=-180&geo={geo}&ns=15"
+
+_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 
 class GTrendsScraper(BaseScraper):
@@ -22,50 +27,93 @@ class GTrendsScraper(BaseScraper):
         super().__init__()
 
     async def fetch_trends(self) -> List[Dict[str, Any]]:
-        logger.info("Iniciando extração Google Trends via API JSON...")
+        logger.info("Iniciando extração Google Trends via RSS...")
         trends = []
 
-        # --- Primary: JSON API (no browser needed) ---
         for geo, hl in [("BR", "pt-BR"), ("US", "en-US")]:
-            url = _DAILY_JSON.format(hl=hl, geo=geo)
-            try:
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.get(
-                        url,
-                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-                        follow_redirects=True,
-                    )
-                # Google prefixes JSON with ")]}',\n" — strip it
-                raw = resp.text.lstrip(")]}'").lstrip(",").strip()
-                data = json.loads(raw)
-                daily = (
-                    data.get("default", {})
-                    .get("trendingSearchesDays", [{}])[0]
-                    .get("trendingSearches", [])
-                )
-                for item in daily[:15]:
-                    topic = item.get("title", {}).get("query", "")
-                    if not topic:
-                        continue
-                    traffic = item.get("formattedTraffic", "1K+")
-                    articles = item.get("articles", [])
-                    snippet = articles[0].get("snippet", topic) if articles else topic
-                    link = articles[0].get("url", "") if articles else ""
-                    trends.append({
-                        "source": "google_trends",
-                        "title": topic,
-                        "content": snippet,
-                        "url": link or f"https://trends.google.com/trends/explore?q={topic.replace(' ', '+')}&geo={geo}",
-                        "engagement": float(_parse_traffic(traffic)),
-                        "published_at": datetime.datetime.utcnow(),
-                    })
-                logger.info(f"Google Trends [{geo}]: {len([t for t in trends if geo in t['url']])} tópicos")
-            except Exception as e:
-                logger.warning(f"Google Trends API [{geo}] falhou: {e} — tentando Playwright...")
-                pw_trends = await self._playwright_fallback(geo, hl)
-                trends.extend(pw_trends)
+            got = await self._fetch_rss(geo, hl)
+            if not got:
+                logger.warning(f"Google Trends RSS [{geo}] vazio — tentando JSON API...")
+                got = await self._fetch_json_api(geo, hl)
+            if not got:
+                logger.warning(f"Google Trends JSON API [{geo}] vazio — tentando Playwright...")
+                got = await self._playwright_fallback(geo, hl)
+            trends.extend(got)
+            logger.info(f"Google Trends [{geo}]: {len(got)} tópicos")
 
         logger.info(f"Google Trends total: {len(trends)} trends")
+        return trends
+
+    async def _fetch_rss(self, geo: str, hl: str) -> List[Dict[str, Any]]:
+        """Primary: RSS feed — public and stable."""
+        trends = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    _RSS_URL.format(geo=geo, hl=hl),
+                    headers=_HEADERS,
+                    follow_redirects=True,
+                )
+            if resp.status_code != 200:
+                return []
+            root = ET.fromstring(resp.text)
+            ns = {"ht": "https://trends.google.com/trending/rss"}
+            for item in root.findall(".//item")[:15]:
+                title = item.findtext("title", "").strip()
+                if not title:
+                    continue
+                link = item.findtext("link", "").strip()
+                traffic_raw = item.findtext("ht:approx_traffic", "1K+", ns)
+                # First news article snippet as content
+                news_snippet = item.findtext("ht:news_item/ht:news_item_snippet", title, ns)
+                news_url = item.findtext("ht:news_item/ht:news_item_url", link, ns)
+                trends.append({
+                    "source": "google_trends",
+                    "title": title,
+                    "content": news_snippet or title,
+                    "url": news_url or link or f"https://trends.google.com/trending?geo={geo}",
+                    "engagement": float(_parse_traffic(traffic_raw)),
+                    "published_at": datetime.datetime.utcnow(),
+                })
+        except Exception as e:
+            logger.warning(f"Google Trends RSS [{geo}] erro: {e}")
+        return trends
+
+    async def _fetch_json_api(self, geo: str, hl: str) -> List[Dict[str, Any]]:
+        """Fallback: unofficial JSON API."""
+        trends = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    _DAILY_JSON.format(hl=hl, geo=geo),
+                    headers=_HEADERS,
+                    follow_redirects=True,
+                )
+            raw = resp.text.lstrip(")]}'").lstrip(",").strip()
+            data = json.loads(raw)
+            daily = (
+                data.get("default", {})
+                .get("trendingSearchesDays", [{}])[0]
+                .get("trendingSearches", [])
+            )
+            for item in daily[:15]:
+                topic = item.get("title", {}).get("query", "")
+                if not topic:
+                    continue
+                traffic = item.get("formattedTraffic", "1K+")
+                articles = item.get("articles", [])
+                snippet = articles[0].get("snippet", topic) if articles else topic
+                link = articles[0].get("url", "") if articles else ""
+                trends.append({
+                    "source": "google_trends",
+                    "title": topic,
+                    "content": snippet,
+                    "url": link or f"https://trends.google.com/trends/explore?q={topic.replace(' ', '+')}&geo={geo}",
+                    "engagement": float(_parse_traffic(traffic)),
+                    "published_at": datetime.datetime.utcnow(),
+                })
+        except Exception as e:
+            logger.warning(f"Google Trends JSON API [{geo}] erro: {e}")
         return trends
 
     async def _playwright_fallback(self, geo: str, hl: str) -> List[Dict[str, Any]]:

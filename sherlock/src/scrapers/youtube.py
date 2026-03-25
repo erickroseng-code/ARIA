@@ -1,8 +1,8 @@
 import datetime
 import logging
 import json
-import re
 from typing import List, Dict, Any
+
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 from .base import BaseScraper
@@ -10,95 +10,101 @@ from ._chrome import new_persistent_context
 
 logger = logging.getLogger(__name__)
 
+
 class YouTubeScraper(BaseScraper):
-    """Scraper for YouTube Trending Brazil via Playwright (no API key needed)."""
+    """Scraper for YouTube Trending Brazil via Playwright (persistent context required)."""
 
     async def fetch_trends(self) -> List[Dict[str, Any]]:
         logger.info("Iniciando extracao do YouTube Trending Brasil...")
         trends = []
-
         shared = self._pw_context is not None
 
         async def _run(context):
+            nonlocal trends
             page = await context.new_page()
             await stealth_async(page)
-            nonlocal trends
             try:
+                # Navega para home primeiro — evita redirect de logados no trending direto
+                await page.goto("https://www.youtube.com/", timeout=20000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(1500)
                 await page.goto(
-                    "https://www.youtube.com/feed/trending?gl=BR&hl=pt-BR",
+                    "https://www.youtube.com/feed/trending",
                     timeout=40000,
-                    wait_until="domcontentloaded"
+                    wait_until="domcontentloaded",
+                )
+                await page.wait_for_timeout(3000)
+
+                content = await page.content()
+                idx = content.find("var ytInitialData = ")
+                if idx == -1:
+                    logger.warning("ytInitialData não encontrado na página do YouTube Trending")
+                    return
+
+                decoder = json.JSONDecoder()
+                data, _ = decoder.raw_decode(content, idx + len("var ytInitialData = "))
+
+                tab_content = (
+                    data.get("contents", {})
+                    .get("twoColumnBrowseResultsRenderer", {})
+                    .get("tabs", [{}])[0]
+                    .get("tabRenderer", {})
+                    .get("content", {})
                 )
 
-                # Extrair ytInitialData do script inline
-                content = await page.content()
-                match = re.search(r'var ytInitialData = ({.*?});</script>', content, re.DOTALL)
+                # New layout: richGridRenderer > richItemRenderer > lockupViewModel
+                grid_items = tab_content.get("richGridRenderer", {}).get("contents", [])
+                for grid_item in grid_items:
+                    vm = (
+                        grid_item.get("richItemRenderer", {})
+                        .get("content", {})
+                        .get("lockupViewModel", {})
+                    )
+                    if not vm or vm.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
+                        continue
+                    video_id = vm.get("contentId", "")
+                    title = (
+                        vm.get("metadata", {})
+                        .get("lockupMetadataViewModel", {})
+                        .get("title", {})
+                        .get("content", "")
+                    )
+                    if title and video_id:
+                        trends.append({
+                            "source": "youtube_trending",
+                            "title": title,
+                            "content": title,
+                            "url": f"https://www.youtube.com/watch?v={video_id}",
+                            "engagement": 1000.0,
+                            "published_at": datetime.datetime.utcnow(),
+                        })
+                    if len(trends) >= 10:
+                        break
 
-                if match:
-                    try:
-                        data = json.loads(match.group(1))
-                        sections = (
-                            data.get("contents", {})
-                            .get("twoColumnBrowseResultsRenderer", {})
-                            .get("tabs", [{}])[0]
-                            .get("tabRenderer", {})
-                            .get("content", {})
-                            .get("sectionListRenderer", {})
-                            .get("contents", [])
-                        )
-
-                        for section in sections:
-                            items = (
-                                section.get("itemSectionRenderer", {})
-                                .get("contents", [])
-                            )
-                            for item in items:
-                                video = item.get("videoRenderer", {})
-                                if not video:
-                                    continue
-
-                                video_id = video.get("videoId", "")
-                                title_runs = video.get("title", {}).get("runs", [])
-                                title = " ".join(r.get("text", "") for r in title_runs)
-                                views_text = video.get("viewCountText", {}).get("simpleText", "0")
-                                views_str = re.sub(r"[^0-9]", "", views_text.split(" ")[0])
-                                views = int(views_str) if views_str else 0
-
-                                if title and video_id:
-                                    trends.append({
-                                        "source": "youtube_trending",
-                                        "title": title,
-                                        "content": title,
-                                        "url": f"https://www.youtube.com/watch?v={video_id}",
-                                        "engagement": float(views),
-                                        "published_at": datetime.datetime.utcnow(),
-                                    })
-
-                                if len(trends) >= 10:
-                                    break
-                            if len(trends) >= 10:
-                                break
-                    except (json.JSONDecodeError, KeyError, IndexError) as e:
-                        logger.error(f"Erro ao parsear ytInitialData: {e}")
-                else:
-                    # Fallback: extrair via DOM
-                    video_elements = await page.locator("ytd-video-renderer").all()
-                    for el in video_elements[:10]:
-                        try:
-                            title = await el.locator("#video-title").inner_text()
-                            href = await el.locator("#video-title").get_attribute("href")
-                            url = f"https://www.youtube.com{href}" if href else ""
-                            if title:
+                # Legacy layout fallback: sectionListRenderer > videoRenderer
+                if not trends:
+                    sections = tab_content.get("sectionListRenderer", {}).get("contents", [])
+                    for section in sections:
+                        items = section.get("itemSectionRenderer", {}).get("contents", [])
+                        for item in items:
+                            video = item.get("videoRenderer", {})
+                            if not video:
+                                continue
+                            video_id = video.get("videoId", "")
+                            title_runs = video.get("title", {}).get("runs", [])
+                            title = " ".join(r.get("text", "") for r in title_runs)
+                            if title and video_id:
                                 trends.append({
                                     "source": "youtube_trending",
-                                    "title": title.strip(),
-                                    "content": title.strip(),
-                                    "url": url,
+                                    "title": title,
+                                    "content": title,
+                                    "url": f"https://www.youtube.com/watch?v={video_id}",
                                     "engagement": 1000.0,
                                     "published_at": datetime.datetime.utcnow(),
                                 })
-                        except Exception:
-                            continue
+                            if len(trends) >= 10:
+                                break
+                        if len(trends) >= 10:
+                            break
 
             except Exception as e:
                 logger.error(f"Erro ao acessar YouTube Trending: {e}")
