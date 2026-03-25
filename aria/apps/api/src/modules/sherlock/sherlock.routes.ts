@@ -59,10 +59,14 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
 
   // POST /api/sherlock/trigger — executa pipeline localmente
   fastify.post('/trigger', async (
-    req: FastifyRequest<{ Body: { sources?: string[] } }>,
+    req: FastifyRequest<{ Body: { sources?: string[]; keywords?: string[]; keywords_tiktok?: string[]; keywords_instagram?: string[]; days?: number; period_days?: number } }>,
     reply: FastifyReply,
   ) => {
     const sources = req.body?.sources ?? [];
+    const keywordsGeneric = req.body?.keywords ?? [];
+    const keywords_tiktok = req.body?.keywords_tiktok ?? (sources.includes('tiktok') ? keywordsGeneric : []);
+    const keywords_instagram = req.body?.keywords_instagram ?? (sources.includes('instagram') ? keywordsGeneric : []);
+    const days = req.body?.days ?? req.body?.period_days ?? 30;
     const port = process.env.PORT ?? '3001';
 
     PIPELINE_STATUS = 'processing';
@@ -76,6 +80,9 @@ export async function registerSherlockRoutes(fastify: FastifyInstance) {
 
     const args = [scriptPath];
     if (sources.length > 0) args.push('--sources', sources.join(','));
+    if (keywords_tiktok.length > 0) args.push('--tiktok-keywords', keywords_tiktok.join(','));
+    if (keywords_instagram.length > 0) args.push('--instagram-keywords', keywords_instagram.join(','));
+    args.push('--days', String(days));
 
     fastify.log.info(`[Sherlock] Iniciando pipeline local — fontes: ${sources.join(', ') || 'todas'}`);
 
