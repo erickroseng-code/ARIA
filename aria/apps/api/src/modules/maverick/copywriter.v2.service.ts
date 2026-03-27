@@ -98,63 +98,82 @@ function selectSwipeForFormat(format: string): string {
   return match ? match.content : swipes[0].content;
 }
 
-// ─── Chamada à LLM (Groq) ────────────────────────────────────────────────────
+// ─── Modelos ──────────────────────────────────────────────────────────────────
 
-async function callGroq(systemPrompt: string, userPrompt: string, model: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY não configurado');
+const MODEL_FAST   = 'claude-haiku-4-5-20251001';  // dossiê, ideação, pirâmide
+const MODEL_WRITER = 'claude-sonnet-4-6';           // roteiros finais
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+// ─── Anthropic — chamada simples com Prompt Caching ──────────────────────────
+// O system prompt (brain files) é marcado com cache_control: ephemeral.
+// Primeira call: escreve cache (25% mais caro). Calls seguintes: lê cache (10% do custo).
+
+async function callAnthropic(systemPrompt: string, userPrompt: string, model: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurado');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
       max_tokens: 1024,
-      temperature: 0.8,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{ role: 'user', content: userPrompt }],
     }),
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Groq error (${response.status}): ${err}`);
+    throw new Error(`Anthropic error (${response.status}): ${err}`);
   }
 
   const data = await response.json() as any;
-  return data.choices?.[0]?.message?.content ?? '';
+  return data.content?.[0]?.text ?? '';
 }
 
-async function* callGroqStream(systemPrompt: string, userPrompt: string, model: string): AsyncGenerator<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY não configurado');
+// ─── Anthropic — streaming com Prompt Caching ────────────────────────────────
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+async function* callAnthropicStream(systemPrompt: string, userPrompt: string, model: string): AsyncGenerator<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurado');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
       max_tokens: 2048,
-      temperature: 0.85,
       stream: true,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{ role: 'user', content: userPrompt }],
     }),
   });
 
   if (!response.ok || !response.body) {
     const err = await response.text();
-    throw new Error(`Groq Stream error (${response.status}): ${err}`);
+    throw new Error(`Anthropic stream error (${response.status}): ${err}`);
   }
 
   const reader = response.body.getReader();
@@ -171,12 +190,13 @@ async function* callGroqStream(systemPrompt: string, userPrompt: string, model: 
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed === 'data: [DONE]') continue;
+      if (!trimmed || trimmed.startsWith('event:')) continue;
       if (trimmed.startsWith('data: ')) {
         try {
           const chunk = JSON.parse(trimmed.slice(6));
-          const delta = chunk.choices?.[0]?.delta?.content;
-          if (delta) yield delta;
+          if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+            yield chunk.delta.text;
+          }
         } catch { /* skip malformed chunk */ }
       }
     }
@@ -229,7 +249,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
+  const raw = await callAnthropic(systemPrompt, userPrompt, MODEL_FAST);
 
   // Extrair JSON da resposta
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -301,7 +321,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
+  const raw = await callAnthropic(systemPrompt, userPrompt, MODEL_FAST);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do Ideator inválida');
 
@@ -382,16 +402,23 @@ GANCHO INICIAL: ${input.hook}
 
 Escreva a copy completa seguindo a FORMAT_STRUCTURE. Voz do Maverick: analista sênior em ligação de consultoria — direto, cético, zero clichê.`;
 
-  yield* callGroqStream(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
+  yield* callAnthropicStream(systemPrompt, userPrompt, MODEL_WRITER);
 }
 
 // ─── Serviço de Dossiê: Estratégia + 3 Ganchos ───────────────────────────────
 
 export type MaverickMode = 'content' | 'sales' | 'microcopy';
 
+export interface ReferenceVideo {
+  title: string;
+  content: string;
+  views: number;
+}
+
 export interface DossieInput {
   mode: MaverickMode;
   scopingAnswers: Record<string, string>;
+  referenceVideos?: ReferenceVideo[];
 }
 
 export interface DossieOutput {
@@ -444,7 +471,16 @@ REGRAS DOS GANCHOS:
 - Zero palavras da Veto List.
 - Retorne APENAS JSON válido, sem markdown.`;
 
-  const userPrompt = `${modeContext}
+  const referenceBlock = (input.referenceVideos && input.referenceVideos.length > 0)
+    ? `\n\nVÍDEOS REAIS QUE VIRALIZARAM NO INSTAGRAM (use as estruturas como referência):
+${input.referenceVideos.map((v, i) =>
+  `[${i + 1}] "${v.title}"${v.views > 0 ? ` — ${(v.views / 1000).toFixed(0)}K views` : ''}\n${v.content}`
+).join('\n\n')}
+
+Use esses vídeos como referência de estrutura e ângulo para os ganchos. Espelhe o que funcionou.`
+    : '';
+
+  const userPrompt = `${modeContext}${referenceBlock}
 
 Gere o dossiê estratégico.
 Retorne neste formato JSON exato:
@@ -457,7 +493,7 @@ Retorne neste formato JSON exato:
   ]
 }`;
 
-  const raw = await callGroq(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
+  const raw = await callAnthropic(systemPrompt, userPrompt, MODEL_FAST);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Resposta do Dossiê inválida');
   return JSON.parse(jsonMatch[0]) as DossieOutput;
@@ -479,18 +515,52 @@ export async function* generateScriptV2(input: GenerateV2Input): AsyncGenerator<
   const formulas = selectFormulasForTopic(input.chosenHook, 2);
   const formulasText = formulas.map((f, i) => `### FÓRMULA ${i + 1}\n${f}`).join('\n\n');
 
-  // Sub-protocolo por modo — estrutura + técnicas ativas
-  const subProtocol = input.mode === 'content'
-    ? `SUB-PROTOCOLO: REELS
-[HOOK] — 00-03s. Use o gancho escolhido como abertura literal. Máx. 20 palavras. Fato, reação ou número.
-[CORPO] — 03-45s. Bullets curtos, máx. 8 palavras por linha. Ritmo estacato. 200-220 palavras no total.
-[CTA] — 1 única ação. Use o CTA informado pelo usuário.
+  // Sub-protocolo por modo + objetivo — estrutura + técnicas ativas
+  const objetivo = input.scopingAnswers['objetivo'] ?? '';
+  const contentSubProtocol = objetivo.includes('Viral')
+    ? `SUB-PROTOCOLO: REELS - VIRALIZAR
+OBJETIVO: Máximo alcance orgânico. O algoritmo pune o tédio — cada frase deve gerar reação emocional de alta excitação (raiva, espanto, indignação).
 
-Técnicas ativas (1 por camada):
-- Hook: Ancoragem por Contraste Extremo ou Promessa Imperativa (03_hooks)
-- Corpo: Densidade Proposicional ou Emoção Nomeada como Âncora (04_storytelling)
-- Persuasão: Injeção de Fracasso ou Inimigo Comum Oculto (08_persuasion)
-- Fechamento: Próximo Passo Único e Desobstruído (05_closing)`
+ESTRUTURA OBRIGATÓRIA — use exatamente esses marcadores no output:
+[HOOK] — 00-03s. Tese oposta a uma "verdade sagrada" do nicho. Máx. 20 palavras. Começa com fato ou reação visceral. NUNCA pergunta.
+[CORPO] — 03-45s. Bullets curtos, máx. 8 palavras por linha. Ritmo estacato. 200-220 palavras no total. Leve a tese ao extremo absoluto — sem meio-termo.
+[CTA] — 1 única ação. Peça para enviar para um grupo/comunidade, não "curtir e salvar".
+
+Técnicas ativas (1 por camada — escolha a mais forte):
+- Hook: Polarização Calculada (01_virality #1) ou Ancoragem nos Extremos (01_virality #2)
+- Corpo: Engenharia de Alta Excitação — emoção dominante = raiva ou espanto (01_virality #3)
+- Persuasão: Inimigo Comum Oculto — retire a culpa do usuário (08_persuasion #3)
+- Fechamento: Ilusão Viral — mande para grupo/comunidade (01_virality #5)`
+    : objetivo.includes('Autoridade')
+    ? `SUB-PROTOCOLO: REELS - EDUCAR
+OBJETIVO: Posicionar como especialista. O analista revela o que o mercado ignora — sem hype, com dados.
+
+ESTRUTURA OBRIGATÓRIA — use exatamente esses marcadores no output:
+[HOOK] — 00-03s. Fato contraintuitivo ou número que quebra crença. Máx. 20 palavras. Começa com dado, não com pergunta.
+[CORPO] — 03-45s. Bullets curtos, máx. 8 palavras por linha. Ritmo estacato. 200-220 palavras no total. 1 mecanismo nomeado explicado com clareza cirúrgica.
+[CTA] — 1 única ação. Peça para salvar — justifique com "porque" (05_closing #1).
+
+Técnicas ativas (1 por camada — escolha a mais forte):
+- Hook: Especificidade Cirúrgica com número ímpar (03_hooks #3) ou MAYA de Familiaridade (03_hooks #9)
+- Corpo: Mecanização da Solução — dê nome tático ao processo (08_persuasion #1)
+- Persuasão: Tradução Radical do "E depois?" — característica → benefício primitivo (08_persuasion #8)
+- Fechamento: Gatilho da Justificativa Automática — "Salve porque..." (05_closing #1)`
+    : `SUB-PROTOCOLO: REELS - VENDER
+OBJETIVO: Converter visualização em lead ou compra. Diagnóstico em tempo real — o analista faz o espectador sentir a dor e apresenta a saída óbvia.
+
+ESTRUTURA OBRIGATÓRIA — use exatamente esses marcadores no output:
+[HOOK] — 00-03s. Cenário catastrófico → transição → realidade acessível. Máx. 20 palavras.
+[CORPO] — 03-45s. Bullets curtos, máx. 8 palavras por linha. Ritmo estacato. 200-220 palavras no total. Agite a dor → apresente mecanismo → quebre 1 objeção.
+[CTA] — 1 única ação. "Se você [dor validada], então [próximo passo único]." Direto para oferta.
+
+Técnicas ativas (1 por camada — escolha a mais forte):
+- Hook: Ancoragem por Contraste Extremo (03_hooks #1) ou Promessa Imperativa (03_hooks #5)
+- Corpo: Injeção de Fracasso — pinte a tragédia futura sem a solução (08_persuasion #5)
+- Persuasão: Inimigo Comum Oculto — culpa é do mercado, não do usuário (08_persuasion #3)
+- Fechamento: Sintaxe do Compromisso Lógico — "Se... então..." (05_closing #3)`;
+
+  const subProtocol = input.mode === 'content'
+    ? contentSubProtocol
     : input.mode === 'sales'
     ? `SUB-PROTOCOLO: CARROSSEL - VENDER
 [SLIDE 1] Headline — mecanismo da dor + custo real de ignorar.
@@ -549,16 +619,28 @@ ${swipe}
 ${subProtocol}
 </SUB_PROTOCOL>
 
-CHECKLIST PRÉ-OUTPUT (aplique antes de entregar):
-- Hook tem 20 palavras ou menos?
-- Hook começa com fato, reação crua ou número?
-- Reels: está entre 200-220 palavras?
-- 1 técnica por camada — e só ela?
-- Alguma frase soa como slide de agência? → reescrever
-- Tem palavra da Veto List? → substituir por dado concreto
-- CTA pede uma única ação?
+CHECKLIST PRÉ-OUTPUT (aplique silenciosamente antes de entregar):
+[ ] Hook tem 20 palavras ou menos?
+[ ] Hook começa com fato, reação crua ou número? (NUNCA pergunta)
+[ ] [CORPO] está entre 200-220 palavras? Contar antes de entregar.
+[ ] 1 técnica por camada — e só ela?
+[ ] Alguma frase soa como slide de agência? → reescrever
+[ ] Tem palavra da Veto List? → substituir por dado concreto
+[ ] CTA pede uma única ação?
 
-Entregue APENAS a copy final. Sem títulos de seção, sem meta-comentários, sem explicações.`;
+FORMATO DE OUTPUT OBRIGATÓRIO:
+O roteiro DEVE ser entregue com exatamente estes 3 marcadores de seção, em linhas separadas:
+
+[HOOK]
+<texto do hook aqui>
+
+[CORPO]
+<texto do corpo aqui>
+
+[CTA]
+<texto do CTA aqui>
+
+Sem meta-comentários, sem explicações, sem texto fora das 3 seções.`;
 
   const userPrompt = `MODO: ${input.mode.toUpperCase()}
 ${modeContext}
@@ -567,6 +649,6 @@ GANCHO ESCOLHIDO (use como abertura literal): ${input.chosenHook}
 
 Escreva a copy completa. Voz do Maverick: analista sênior em ligação de consultoria — direto, cético, zero clichê.`;
 
-  yield* callGroqStream(systemPrompt, userPrompt, 'llama-3.1-8b-instant');
+  yield* callAnthropicStream(systemPrompt, userPrompt, MODEL_WRITER);
 }
 
