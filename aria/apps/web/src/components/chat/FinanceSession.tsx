@@ -170,38 +170,34 @@ function PieChart({ data }: { data: DashboardData['transactions'][] }) {
   });
 
   const total = Array.from(categories.values()).reduce((a, b) => a + b, 0);
-  const colors = ['from-rose-500', 'from-orange-500', 'from-amber-500', 'from-yellow-500', 'from-emerald-500'];
+  const colors = ['bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-emerald-500'];
+  const entries = Array.from(categories.entries()).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 bg-gradient-to-br flex items-center justify-center relative">
-        {total === 0 ? (
-          <span className="text-white/30 text-xs">Sem dados</span>
-        ) : (
-          <svg className="w-full h-full" viewBox="0 0 100 100">
-            {Array.from(categories.entries()).reduce<{angle: number, idx: number}>((acc, [_, amount]) => {
-              const percentage = amount / total;
-              const slice = percentage * 360;
-              const start = acc.angle;
-              const end = acc.angle + slice;
-              const colorIdx = acc.idx % colors.length;
-              return {angle: end, idx: acc.idx + 1};
-            }, {angle: 0, idx: 0})}
-          </svg>
-        )}
-      </div>
-      <div className="flex-1 space-y-1 text-xs">
-        {Array.from(categories.entries()).slice(0, 3).map(([cat, amt], i) => (
-          <div key={cat} className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${colors[i % colors.length]} to-transparent`} />
-              <span className="text-white/70">{cat}</span>
-            </div>
-            <span className="text-white/90 font-semibold">{fmtCurrency(amt)}</span>
-          </div>
-        ))}
-        {categories.size > 3 && <div className="text-white/40 pt-1">+ {categories.size - 3} categoria(s)</div>}
-      </div>
+    <div className="space-y-3">
+      {total === 0 ? (
+        <div className="text-white/30 text-xs text-center py-4">Nenhuma despesa registrada</div>
+      ) : (
+        <>
+          {entries.map(([cat, amt], i) => {
+            const percentage = (amt / total) * 100;
+            return (
+              <div key={cat} className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                    <span className="text-white/70">{cat}</span>
+                  </div>
+                  <span className="text-white/90 font-semibold">{percentage.toFixed(0)}%</span>
+                </div>
+                <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
+                  <div className={`h-full ${colors[i % colors.length]}`} style={{ width: `${percentage}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
