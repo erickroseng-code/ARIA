@@ -93,31 +93,21 @@ function fmtDate(date: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function MonthSelector({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
-  const months = Array.from({ length: 3 }, (_, i) => {
-    const diff = i - 1;
-    return diff < 0 ? subMonths(currentDate, Math.abs(diff)) : diff > 0 ? addMonths(currentDate, diff) : currentDate;
-  });
+function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanks = Array.from({ length: firstDay }, (_, i) => i);
 
   return (
-    <div className="w-full border-b border-white/10 px-4 py-2 flex items-center gap-2">
-      <div className="flex items-center gap-1">
-        {months.map((d, i) => {
-          const active = i === 1;
-          return (
-            <button
-              key={d.toISOString()}
-              onClick={() => onChange(d)}
-              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap font-medium transition-all ${
-                active
-                  ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
-                  : 'text-white/40 hover:bg-white/8 hover:text-white/70'
-              }`}
-            >
-              {format(d, 'MMM', { locale: ptBR })}
-            </button>
-          );
-        })}
+    <div className="w-full border-b border-white/10 px-4 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <button onClick={() => onChange(subMonths(currentDate, 1))} className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90">←</button>
+        <button onClick={() => setShowPicker(!showPicker)} className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors">
+          {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+        </button>
+        <button onClick={() => onChange(addMonths(currentDate, 1))} className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90">→</button>
       </div>
     </div>
   );
@@ -211,7 +201,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [overdue, setOverdue] = useState<OverdueRecord[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpenseRecord[]>([]);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'planning'>('overview');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'transactions' | 'debts' | 'planning'>('resumo');
 
   const [mode, setMode] = useState<AddMode | null>(null);
   const [editingTx, setEditingTx] = useState<DashboardData['transactions'][number] | null>(null);
@@ -520,8 +510,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         </div>
       </div>
 
-      {/* Month selector */}
-      <MonthSelector currentDate={selectedMonth} onChange={setSelectedMonth} />
+      {/* Calendar Month Picker */}
+      <CalendarPicker currentDate={selectedMonth} onChange={setSelectedMonth} />
 
       {/* KPI Cards */}
       <div className="px-4 py-3 border-b border-white/10">
@@ -573,7 +563,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       {/* Tab Selector */}
       <div className="px-4 py-2 border-b border-white/10">
         <div className="flex gap-1">
-          {(['overview', 'transactions', 'planning'] as const).map((tab) => (
+          {(['resumo', 'transactions', 'debts', 'planning'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -583,8 +573,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   : 'text-white/50 hover:text-white/70 border border-transparent'
               }`}
             >
-              {tab === 'overview' && '📊 Overview'}
+              {tab === 'resumo' && '📊 Resumo'}
               {tab === 'transactions' && '💳 Transações'}
+              {tab === 'debts' && '💰 Dívidas'}
               {tab === 'planning' && '📈 Planejamento'}
             </button>
           ))}
@@ -633,7 +624,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-5 h-5 animate-spin text-white/40" />
           </div>
-        ) : activeTab === 'overview' ? (
+        ) : activeTab === 'resumo' ? (
           <div className="p-4 space-y-4">
             {/* Pie Chart Visualization */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
@@ -742,11 +733,70 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
             </section>
 
+
+            {/* Despesas fixas */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+              <SectionHeader title="Despesas fixas" count={recurring.length} />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-xs">
+                  <thead>
+                    <tr className="border-b border-white/8">
+                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Descrição</th>
+                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Categoria</th>
+                      <th className="text-right px-4 py-2.5 text-white/40 font-medium">Valor</th>
+                      <th className="text-right px-4 py-2.5 text-white/40 font-medium">Dia</th>
+                      <th className="text-center px-4 py-2.5 text-white/40 font-medium">Status</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recurring.map((r) => (
+                      <tr key={r.id} className={`border-t border-white/6 hover:bg-white/[0.02] transition-colors group ${!r.active ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-2.5 text-white/90">{r.description}</td>
+                        <td className="px-4 py-2.5 text-white/60">{r.category}</td>
+                        <td className="px-4 py-2.5 text-right text-white/80 font-medium tabular-nums">{fmtCurrency(r.amount)}</td>
+                        <td className="px-4 py-2.5 text-right text-white/60 tabular-nums">dia {r.dayOfMonth}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            onClick={() => toggleRecurring(r)}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer ${
+                              r.active
+                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/25'
+                                : 'bg-white/8 text-white/40 border-white/15 hover:bg-white/12'
+                            }`}
+                          >
+                            {r.active ? 'Ativa' : 'Inativa'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => deleteRecurring(r.id)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {recurring.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center">
+                          <div className="text-white/25 text-xs">Nenhuma despesa fixa cadastrada</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+          </div>
+        ) : activeTab === 'debts' ? (
+          <div className="p-4 space-y-3">
             {/* Dívidas */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="px-4 py-3 flex items-center justify-between border-b border-white/8">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-white/90">Dívidas</span>
+                  <span className="text-sm font-semibold text-white/90">Dívidas Ativas</span>
                   {debts.length > 0 && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
                       {debts.length}
@@ -807,11 +857,11 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
             </section>
 
-            {/* Contas atrasadas */}
+            {/* Contas Atrasadas */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="px-4 py-3 flex items-center justify-between border-b border-white/8">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-white/90">Contas atrasadas</span>
+                  <span className="text-sm font-semibold text-white/90">Contas Atrasadas</span>
                   {overdue.length > 0 && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 flex items-center gap-1">
                       <AlertTriangle className="w-2.5 h-2.5" />
@@ -868,62 +918,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 </table>
               </div>
             </section>
-
-            {/* Despesas fixas */}
-            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
-              <SectionHeader title="Despesas fixas" count={recurring.length} />
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] text-xs">
-                  <thead>
-                    <tr className="border-b border-white/8">
-                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Descrição</th>
-                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Categoria</th>
-                      <th className="text-right px-4 py-2.5 text-white/40 font-medium">Valor</th>
-                      <th className="text-right px-4 py-2.5 text-white/40 font-medium">Dia</th>
-                      <th className="text-center px-4 py-2.5 text-white/40 font-medium">Status</th>
-                      <th className="px-4 py-2.5" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recurring.map((r) => (
-                      <tr key={r.id} className={`border-t border-white/6 hover:bg-white/[0.02] transition-colors group ${!r.active ? 'opacity-50' : ''}`}>
-                        <td className="px-4 py-2.5 text-white/90">{r.description}</td>
-                        <td className="px-4 py-2.5 text-white/60">{r.category}</td>
-                        <td className="px-4 py-2.5 text-right text-white/80 font-medium tabular-nums">{fmtCurrency(r.amount)}</td>
-                        <td className="px-4 py-2.5 text-right text-white/60 tabular-nums">dia {r.dayOfMonth}</td>
-                        <td className="px-4 py-2.5 text-center">
-                          <button
-                            onClick={() => toggleRecurring(r)}
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer ${
-                              r.active
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/25'
-                                : 'bg-white/8 text-white/40 border-white/15 hover:bg-white/12'
-                            }`}
-                          >
-                            {r.active ? 'Ativa' : 'Inativa'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => deleteRecurring(r.id)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {recurring.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center">
-                          <div className="text-white/25 text-xs">Nenhuma despesa fixa cadastrada</div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
           </div>
         ) : (
           <div className="p-4 space-y-4">
