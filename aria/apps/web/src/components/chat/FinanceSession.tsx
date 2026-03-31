@@ -6,6 +6,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   AlertTriangle,
+  BarChart3,
   CreditCard,
   DollarSign,
   Download,
@@ -93,28 +94,27 @@ function fmtDate(date: string): string {
 }
 
 function MonthSelector({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
-  const months = Array.from({ length: 5 }, (_, i) => {
-    const diff = i - 2;
+  const months = Array.from({ length: 3 }, (_, i) => {
+    const diff = i - 1;
     return diff < 0 ? subMonths(currentDate, Math.abs(diff)) : diff > 0 ? addMonths(currentDate, diff) : currentDate;
   });
 
   return (
-    <div className="w-full border-b border-white/10 px-4 py-2 overflow-x-auto flex items-center gap-2">
-      <span className="text-[10px] text-white/40 uppercase tracking-widest shrink-0 font-medium">Competência</span>
+    <div className="w-full border-b border-white/10 px-4 py-2 flex items-center gap-2">
       <div className="flex items-center gap-1">
         {months.map((d, i) => {
-          const active = i === 2;
+          const active = i === 1;
           return (
             <button
               key={d.toISOString()}
               onClick={() => onChange(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs whitespace-nowrap font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap font-medium transition-all ${
                 active
                   ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
-                  : 'text-white/50 hover:bg-white/8 hover:text-white/80'
+                  : 'text-white/40 hover:bg-white/8 hover:text-white/70'
               }`}
             >
-              {format(d, 'MMM/yy', { locale: ptBR }).replace('.', '')}
+              {format(d, 'MMM', { locale: ptBR })}
             </button>
           );
         })}
@@ -163,6 +163,49 @@ function SectionHeader({ title, count, accentColor = 'white' }: { title: string;
   );
 }
 
+function PieChart({ data }: { data: DashboardData['transactions'][] }) {
+  const categories = new Map<string, number>();
+  data.filter(t => t.type === 'despesa').forEach(t => {
+    categories.set(t.category, (categories.get(t.category) || 0) + t.amount);
+  });
+
+  const total = Array.from(categories.values()).reduce((a, b) => a + b, 0);
+  const colors = ['from-rose-500', 'from-orange-500', 'from-amber-500', 'from-yellow-500', 'from-emerald-500'];
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 bg-gradient-to-br flex items-center justify-center relative">
+        {total === 0 ? (
+          <span className="text-white/30 text-xs">Sem dados</span>
+        ) : (
+          <svg className="w-full h-full" viewBox="0 0 100 100">
+            {Array.from(categories.entries()).reduce<{angle: number, idx: number}>((acc, [_, amount]) => {
+              const percentage = amount / total;
+              const slice = percentage * 360;
+              const start = acc.angle;
+              const end = acc.angle + slice;
+              const colorIdx = acc.idx % colors.length;
+              return {angle: end, idx: acc.idx + 1};
+            }, {angle: 0, idx: 0})}
+          </svg>
+        )}
+      </div>
+      <div className="flex-1 space-y-1 text-xs">
+        {Array.from(categories.entries()).slice(0, 3).map(([cat, amt], i) => (
+          <div key={cat} className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${colors[i % colors.length]} to-transparent`} />
+              <span className="text-white/70">{cat}</span>
+            </div>
+            <span className="text-white/90 font-semibold">{fmtCurrency(amt)}</span>
+          </div>
+        ))}
+        {categories.size > 3 && <div className="text-white/40 pt-1">+ {categories.size - 3} categoria(s)</div>}
+      </div>
+    </div>
+  );
+}
+
 export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -172,6 +215,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [overdue, setOverdue] = useState<OverdueRecord[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpenseRecord[]>([]);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'planning'>('overview');
 
   const [mode, setMode] = useState<AddMode | null>(null);
   const [editingTx, setEditingTx] = useState<DashboardData['transactions'][number] | null>(null);
@@ -530,39 +574,62 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="px-4 py-3 border-b border-white/10 overflow-x-auto">
-        <div className="flex gap-2 min-w-max">
-          <button
-            onClick={() => openAdd('receita')}
-            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Receita
-          </button>
-          <button
-            onClick={() => openAdd('despesa')}
-            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-rose-500/15 border border-rose-500/30 text-rose-400 hover:bg-rose-500/25 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Despesa
-          </button>
-          <button
-            onClick={() => openAdd('divida')}
-            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Dívida
-          </button>
-          <button
-            onClick={() => openAdd('atrasada')}
-            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors"
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Atrasada
-          </button>
+      {/* Tab Selector */}
+      <div className="px-4 py-2 border-b border-white/10">
+        <div className="flex gap-1">
+          {(['overview', 'transactions', 'planning'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-xs font-medium rounded-lg transition-all ${
+                activeTab === tab
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : 'text-white/50 hover:text-white/70 border border-transparent'
+              }`}
+            >
+              {tab === 'overview' && '📊 Overview'}
+              {tab === 'transactions' && '💳 Transações'}
+              {tab === 'planning' && '📈 Planejamento'}
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Action buttons (visible only in transactions tab) */}
+      {activeTab === 'transactions' && (
+        <div className="px-4 py-3 border-b border-white/10 overflow-x-auto">
+          <div className="flex gap-2 min-w-max">
+            <button
+              onClick={() => openAdd('receita')}
+              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Receita
+            </button>
+            <button
+              onClick={() => openAdd('despesa')}
+              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-rose-500/15 border border-rose-500/30 text-rose-400 hover:bg-rose-500/25 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Despesa
+            </button>
+            <button
+              onClick={() => openAdd('divida')}
+              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Dívida
+            </button>
+            <button
+              onClick={() => openAdd('atrasada')}
+              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Atrasada
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
@@ -570,7 +637,64 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-5 h-5 animate-spin text-white/40" />
           </div>
-        ) : (
+        ) : activeTab === 'overview' ? (
+          <div className="p-4 space-y-4">
+            {/* Pie Chart Visualization */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-white/90 mb-3">Distribuição de Despesas</h3>
+                <PieChart data={dashboard?.transactions ?? []} />
+              </div>
+            </section>
+
+            {/* Key Metrics */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+              <div className="px-4 py-3 border-b border-white/8">
+                <h3 className="text-sm font-semibold text-white/90">Métricas do Mês</h3>
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between py-2 border-b border-white/6">
+                  <span className="text-sm text-white/70">Receitas</span>
+                  <span className="text-sm font-semibold text-emerald-400">{fmtCurrency(totalsByType.receber)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-white/6">
+                  <span className="text-sm text-white/70">Despesas</span>
+                  <span className="text-sm font-semibold text-rose-400">{fmtCurrency(totalsByType.pagar)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-white/6">
+                  <span className="text-sm text-white/70">Dívidas Ativas</span>
+                  <span className="text-sm font-semibold text-amber-400">{fmtCurrency(totalsByType.dividas)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-white/6">
+                  <span className="text-sm text-white/70">Contas Atrasadas</span>
+                  <span className="text-sm font-semibold text-red-400">{fmtCurrency(totalsByType.atrasadas)}</span>
+                </div>
+                <div className="flex items-center justify-between py-3 pt-3 border-t border-white/10 font-semibold">
+                  <span className={`text-sm ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>Saldo Líquido</span>
+                  <span className={`text-base ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmtCurrency(totalsByType.saldo)}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Alerts */}
+            {overdue.length > 0 && (
+              <section className="rounded-xl border border-red-500/30 overflow-hidden bg-red-500/5 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                  <h3 className="text-sm font-semibold text-red-400">Atenção: {overdue.length} conta(s) atrasada(s)</h3>
+                </div>
+                <div className="space-y-1 text-xs text-red-300/80">
+                  {overdue.map((o) => (
+                    <div key={`${o.source}-${o.index}`} className="flex justify-between">
+                      <span>{o.account}</span>
+                      <span className="font-medium">{fmtCurrency(o.overdueAmount)} - {o.daysOverdue}d atraso</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : activeTab === 'transactions' ? (
           <div className="p-4 space-y-3">
 
             {/* Fluxo de caixa */}
@@ -804,6 +928,71 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
             </section>
 
+          </div>
+        ) : (
+          <div className="p-4 space-y-4">
+            {/* Planning & Forecasts */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
+              <h3 className="text-sm font-semibold text-white/90 mb-4">Próximos Vencimentos</h3>
+              <div className="space-y-2">
+                {[...debts, ...overdue].length === 0 ? (
+                  <div className="text-white/25 text-xs text-center py-6">Nenhum vencimento agendado</div>
+                ) : (
+                  <>
+                    {debts.slice(0, 3).map((d) => (
+                      <div key={`${d.source}-${d.index}`} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5 border border-white/8">
+                        <div>
+                          <div className="text-xs font-medium text-white/90">{d.creditor}</div>
+                          <div className="text-[10px] text-white/50">{fmtDate(d.dueDate)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs font-semibold text-amber-400">{fmtCurrency(d.monthlyInstallment)}</div>
+                          <div className={`text-[10px] ${d.daysOverdue > 0 ? 'text-red-400' : 'text-white/50'}`}>
+                            {d.daysOverdue > 0 ? `${d.daysOverdue}d atraso` : 'Em dia'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </section>
+
+            {/* Budget Summary */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
+              <h3 className="text-sm font-semibold text-white/90 mb-4">Resumo Orçamentário</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-white/60">Despesas vs Receitas</span>
+                    <span className="text-xs font-semibold text-white/80">{totalsByType.pagar > 0 ? Math.round((totalsByType.pagar / totalsByType.receber) * 100) : 0}%</span>
+                  </div>
+                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-emerald-500 to-rose-500" style={{ width: `${Math.min(100, totalsByType.receber > 0 ? (totalsByType.pagar / totalsByType.receber) * 100 : 0)}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-white/60">Saúde Financeira</span>
+                    <span className="text-xs font-semibold text-white/80">{totalsByType.saldo >= 0 ? '✓ Positiva' : '✗ Negativa'}</span>
+                  </div>
+                  <div className={`px-3 py-2 rounded-lg text-xs text-center font-semibold ${totalsByType.saldo >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+                    {totalsByType.saldo >= 0 ? 'Você tem saldo positivo' : 'Você está no vermelho'}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Chat Suggestion */}
+            <section className="rounded-xl border border-emerald-500/20 overflow-hidden bg-emerald-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">💬</span>
+                <div>
+                  <h4 className="text-xs font-semibold text-emerald-400 mb-1">Sugestão</h4>
+                  <p className="text-xs text-white/70">Volte para a aba de Transações para registrar receitas e despesas. Graham vai analisar seus gastos e oferecer dicas de otimização.</p>
+                </div>
+              </div>
+            </section>
           </div>
         )}
       </div>
