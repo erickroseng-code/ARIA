@@ -58,7 +58,20 @@ function normalizeMonth(month?: string): string {
   return month && /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().substring(0, 7);
 }
 
+function ensureMonthlyPlanTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS finance_monthly_plan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL UNIQUE,
+      plannedIncome REAL DEFAULT 0,
+      plannedExpenses REAL DEFAULT 0,
+      updatedAt TEXT NOT NULL
+    );
+  `);
+}
+
 function getMonthlyPlanValues(month?: string): { month: string; plannedIncome: number; plannedExpenses: number } {
+  ensureMonthlyPlanTable();
   const targetMonth = normalizeMonth(month);
   const row = db.prepare(`
     SELECT plannedIncome, plannedExpenses
@@ -97,6 +110,7 @@ export async function getMonthlyPlan(month?: string): Promise<{ month: string; p
 }
 
 export async function upsertMonthlyPlan(input: MonthlyPlanInput): Promise<{ month: string; plannedIncome: number; plannedExpenses: number }> {
+  ensureMonthlyPlanTable();
   const month = normalizeMonth(input.month);
   const plannedIncome = Math.max(0, Number(input.plannedIncome ?? 0));
   const plannedExpenses = Math.max(0, Number(input.plannedExpenses ?? 0));

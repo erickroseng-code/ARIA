@@ -329,6 +329,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [plannedIncomeInput, setPlannedIncomeInput] = useState('');
   const [plannedExpensesInput, setPlannedExpensesInput] = useState('');
   const [savingPlan, setSavingPlan] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -645,15 +646,16 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     URL.revokeObjectURL(url);
   };
 
-  const saveMonthlyPlan = async () => {
+  const saveMonthlyPlan = async (silent = false) => {
     const plannedIncome = parseCurrencyInput(plannedIncomeInput || '');
     const plannedExpenses = parseCurrencyInput(plannedExpensesInput || '');
     const safeIncome = Number.isFinite(plannedIncome) ? Math.max(0, plannedIncome) : 0;
     const safeExpenses = Number.isFinite(plannedExpenses) ? Math.max(0, plannedExpenses) : 0;
 
     setSavingPlan(true);
+    setPlanError(null);
     try {
-      await fetch(`${API_URL}/api/finance/monthly-plan`, {
+      const res = await fetch(`${API_URL}/api/finance/monthly-plan`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -662,7 +664,17 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           plannedExpenses: safeExpenses,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Falha ao salvar previsto do mês.');
+      }
       await loadAll();
+      return true;
+    } catch (err: any) {
+      const message = err?.message ?? 'Falha ao salvar previsto do mês.';
+      setPlanError(message);
+      if (!silent) window.alert(message);
+      return false;
     } finally {
       setSavingPlan(false);
     }
@@ -715,14 +727,31 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       <div className="px-4 py-3 border-b border-white/10">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {/* Receitas */}
-          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[110px] flex flex-col justify-between">
+          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[146px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">Receitas</span>
             </div>
-            <div className="space-y-0.5">
-              <div className="text-[10px] text-white/60">Previsto: <span className="font-semibold text-white/90 tabular-nums">{fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}</span></div>
-              <div className="text-[10px] text-white/60">Realizado: <span className="font-semibold text-emerald-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualIncome ?? totalsByType.receber)}</span></div>
+            <div className="space-y-1">
+              <div className="text-[10px] text-white/65 flex items-center gap-1.5">
+                <span>Previsto:</span>
+                <input
+                  value={plannedIncomeInput}
+                  onChange={(e) => setPlannedIncomeInput(formatCurrencyInput(e.target.value))}
+                  onBlur={() => { void saveMonthlyPlan(true); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void saveMonthlyPlan();
+                    }
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  className="h-5 w-full min-w-0 rounded bg-transparent border border-transparent px-1 text-[10px] font-semibold text-white/90 tabular-nums placeholder:text-white/30 focus:outline-none focus:border-emerald-500/40 focus:bg-white/5"
+                />
+              </div>
+              <div className="text-[10px] text-white/65">Realizado: <span className="font-semibold text-emerald-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualIncome ?? totalsByType.receber)}</span></div>
               <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                 Dif: {fmtCurrency(dashboard?.comparison?.incomeDelta ?? 0)}
               </div>
@@ -730,14 +759,31 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
 
           {/* Despesas */}
-          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[110px] flex flex-col justify-between">
+          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[146px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
               <span className="text-[10px] text-rose-400/70 font-medium uppercase tracking-wider">Despesas</span>
             </div>
-            <div className="space-y-0.5">
-              <div className="text-[10px] text-white/60">Previsto: <span className="font-semibold text-white/90 tabular-nums">{fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}</span></div>
-              <div className="text-[10px] text-white/60">Realizado: <span className="font-semibold text-rose-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? totalsByType.pagar)}</span></div>
+            <div className="space-y-1">
+              <div className="text-[10px] text-white/65 flex items-center gap-1.5">
+                <span>Previsto:</span>
+                <input
+                  value={plannedExpensesInput}
+                  onChange={(e) => setPlannedExpensesInput(formatCurrencyInput(e.target.value))}
+                  onBlur={() => { void saveMonthlyPlan(true); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void saveMonthlyPlan();
+                    }
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  className="h-5 w-full min-w-0 rounded bg-transparent border border-transparent px-1 text-[10px] font-semibold text-white/90 tabular-nums placeholder:text-white/30 focus:outline-none focus:border-rose-500/40 focus:bg-white/5"
+                />
+              </div>
+              <div className="text-[10px] text-white/65">Realizado: <span className="font-semibold text-rose-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? totalsByType.pagar)}</span></div>
               <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                 Dif: {fmtCurrency(dashboard?.comparison?.expensesDelta ?? 0)}
               </div>
@@ -768,6 +814,18 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             </div>
           </div>
         </div>
+        <div className="mt-2 flex justify-end">
+          <button
+            onClick={() => { void saveMonthlyPlan(); }}
+            disabled={savingPlan}
+            className="h-8 px-4 rounded-lg text-[11px] font-semibold bg-gradient-to-r from-cyan-500/30 to-emerald-500/20 border border-cyan-400/35 text-cyan-200 hover:from-cyan-500/40 hover:to-emerald-500/30 transition-colors disabled:opacity-50"
+          >
+            {savingPlan ? 'Salvando previsto...' : 'Salvar previsto'}
+          </button>
+        </div>
+        {planError && (
+          <div className="mt-1 text-[10px] text-rose-300/90">{planError}</div>
+        )}
       </div>
 
       {/* Tab Selector */}
@@ -1213,7 +1271,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
 
               <button
-                onClick={saveMonthlyPlan}
+                onClick={() => { void saveMonthlyPlan(); }}
                 disabled={savingPlan}
                 className="h-9 px-4 rounded-lg text-xs font-semibold bg-cyan-500/20 border border-cyan-500/35 text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
               >
