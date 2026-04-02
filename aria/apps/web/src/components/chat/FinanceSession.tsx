@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowDownCircle,
   ArrowUpCircle,
   AlertTriangle,
-  BarChart3,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   DollarSign,
   Download,
@@ -19,14 +21,14 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { format, subMonths, addMonths } from 'date-fns';
+import { addMonths, format, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 type TxType = 'receita' | 'despesa';
 type SourceType = 'local' | 'sheets';
-type AddMode = 'receita' | 'despesa' | 'divida' | 'atrasada';
+type AddMode = 'receita' | 'despesa' | 'divida' | 'atrasada' | 'cartao';
 
 interface FinanceSessionProps {
   onClose: () => void;
@@ -78,6 +80,17 @@ interface RecurringExpenseRecord {
   active: boolean;
 }
 
+interface CreditCardRecord {
+  id: number;
+  name: string;
+  bank: string;
+  brand: string;
+  closingDay: number;
+  dueDay: number;
+  cardLimit: number;
+  createdAt: string;
+}
+
 function monthParam(d: Date): string {
   return format(d, 'yyyy-MM');
 }
@@ -93,26 +106,63 @@ function fmtDate(date: string): string {
   return `${d}/${m}/${y}`;
 }
 
+const EXPENSE_CATEGORIES = [
+  'Alimentação',
+  'Transporte',
+  'Moradia',
+  'Saúde',
+  'Educação',
+  'Lazer',
+  'Vestuário',
+  'Tecnologia',
+  'Serviços',
+  'Assinaturas',
+  'Viagem',
+  'Pets',
+  'Outros',
+];
+
+const CARD_BRANDS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outro'];
+
 function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
-  const [showPicker, setShowPicker] = useState(false);
-  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const blanks = Array.from({ length: firstDay }, (_, i) => i);
+  const setMonthFromInput = (value: string) => {
+    if (!value) return;
+    const [year, month] = value.split('-').map(Number);
+    if (!year || !month) return;
+    onChange(new Date(year, month - 1, 1));
+  };
 
   return (
     <div className="w-full border-b border-white/10 px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <button onClick={() => onChange(subMonths(currentDate, 1))} className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90">←</button>
-        <button onClick={() => setShowPicker(!showPicker)} className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors">
-          {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-        </button>
-        <button onClick={() => onChange(addMonths(currentDate, 1))} className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90">→</button>
-      </div>
+      <button
+        onClick={() => onChange(subMonths(currentDate, 1))}
+        className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90"
+        title="Mês anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <label className="relative cursor-pointer">
+        <span className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors inline-flex items-center gap-2 select-none">
+          <CalendarDays className="w-3.5 h-3.5" />
+          <span className="capitalize">{format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}</span>
+        </span>
+        <input
+          type="month"
+          value={format(currentDate, 'yyyy-MM')}
+          onChange={(e) => setMonthFromInput(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+        />
+      </label>
+      <button
+        onClick={() => onChange(addMonths(currentDate, 1))}
+        className="p-1.5 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/90"
+        title="Próximo mês"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
-
 function TypeBadge({ type }: { type: TxType }) {
   if (type === 'receita') {
     return (
@@ -140,7 +190,7 @@ function OverdueBadge({ days }: { days: number }) {
   );
 }
 
-function SectionHeader({ title, count, accentColor = 'white' }: { title: string; count?: number; accentColor?: string }) {
+function SectionHeader({ title, count }: { title: string; count?: number }) {
   return (
     <div className={`px-4 py-3 flex items-center justify-between border-b border-white/8`}>
       <span className="text-sm font-semibold text-white/90">{title}</span>
@@ -153,7 +203,7 @@ function SectionHeader({ title, count, accentColor = 'white' }: { title: string;
   );
 }
 
-function PieChart({ data }: { data: DashboardData['transactions'][] }) {
+function PieChart({ data }: { data: DashboardData['transactions'] }) {
   const categories = new Map<string, number>();
   data.filter(t => t.type === 'despesa').forEach(t => {
     categories.set(t.category, (categories.get(t.category) || 0) + t.amount);
@@ -195,13 +245,16 @@ function PieChart({ data }: { data: DashboardData['transactions'][] }) {
 export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [overdue, setOverdue] = useState<OverdueRecord[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpenseRecord[]>([]);
+  const [cards, setCards] = useState<CreditCardRecord[]>([]);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'resumo' | 'transactions' | 'debts' | 'planning'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'cartoes' | 'dividas' | 'atrasadas' | 'planning'>('resumo');
+  const tabLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [mode, setMode] = useState<AddMode | null>(null);
   const [editingTx, setEditingTx] = useState<DashboardData['transactions'][number] | null>(null);
@@ -211,6 +264,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [txCategory, setTxCategory] = useState('Outros');
   const [txAmount, setTxAmount] = useState('');
   const [txIsFixed, setTxIsFixed] = useState(false);
+  const [txPaymentMethod, setTxPaymentMethod] = useState<'pix' | 'credito' | 'debito' | 'outros'>('outros');
+  const [txCreditCardId, setTxCreditCardId] = useState<number | null>(null);
 
   const [debtCreditor, setDebtCreditor] = useState('');
   const [debtAmount, setDebtAmount] = useState('');
@@ -223,16 +278,24 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [overdueAmount, setOverdueAmount] = useState('');
   const [overdueDueDate, setOverdueDueDate] = useState('');
 
+  const [cardName, setCardName] = useState('');
+  const [cardBank, setCardBank] = useState('');
+  const [cardBrand, setCardBrand] = useState('Visa');
+  const [cardClosingDay, setCardClosingDay] = useState('');
+  const [cardDueDay, setCardDueDay] = useState('');
+  const [cardLimit, setCardLimit] = useState('');
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const month = monthParam(selectedMonth);
-      const [dRes, debtRes, overdueRes, recurringRes, sheetRes] = await Promise.all([
+      const [dRes, debtRes, overdueRes, recurringRes, sheetRes, cardsRes] = await Promise.all([
         fetch(`${API_URL}/api/finance/dashboard?month=${month}`),
         fetch(`${API_URL}/api/finance/debts`),
         fetch(`${API_URL}/api/finance/overdue`),
         fetch(`${API_URL}/api/finance/recurring-expenses`),
         fetch(`${API_URL}/api/finance/spreadsheet`),
+        fetch(`${API_URL}/api/finance/credit-cards`),
       ]);
 
       const dData = await dRes.json();
@@ -246,6 +309,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
       const recurringData = await recurringRes.json();
       setRecurring(recurringData.recurring ?? []);
+
+      const cardsData = await cardsRes.json();
+      setCards(cardsData.cards ?? []);
 
       if (sheetRes.ok) {
         const sData = await sheetRes.json();
@@ -261,6 +327,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    return () => {
+      if (tabLoadTimeoutRef.current) {
+        clearTimeout(tabLoadTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const totalsByType = useMemo(() => {
     const tx = dashboard?.transactions ?? [];
@@ -289,6 +363,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setOverdueAccount('');
     setOverdueAmount('');
     setOverdueDueDate('');
+    setTxPaymentMethod('outros');
+    setTxCreditCardId(null);
+    setCardName('');
+    setCardBank('');
+    setCardBrand('Visa');
+    setCardClosingDay('');
+    setCardDueDay('');
+    setCardLimit('');
   };
 
   const openEditTx = (tx: DashboardData['transactions'][number]) => {
@@ -318,6 +400,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         category: txCategory.trim(),
         amount,
         date: txDate,
+        paymentMethod: mode === 'despesa' ? txPaymentMethod : undefined,
+        creditCardId: mode === 'despesa' && txPaymentMethod === 'credito' ? txCreditCardId : undefined,
       };
 
       if (editingTx) {
@@ -403,6 +487,37 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     }
   };
 
+  const saveCard = async () => {
+    const closingDay = parseInt(cardClosingDay);
+    const dueDay = parseInt(cardDueDay);
+    if (!cardName.trim() || !cardBank.trim() || isNaN(closingDay) || isNaN(dueDay)) return;
+
+    setSaving(true);
+    try {
+      await fetch(`${API_URL}/api/finance/credit-cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cardName.trim(),
+          bank: cardBank.trim(),
+          brand: cardBrand,
+          closingDay,
+          dueDay,
+          cardLimit: cardLimit ? Number(cardLimit) : 0,
+        }),
+      });
+      closeModal();
+      await loadAll();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCard = async (id: number) => {
+    await fetch(`${API_URL}/api/finance/credit-cards/${id}`, { method: 'DELETE' });
+    await loadAll();
+  };
+
   const deleteTx = async (tx: DashboardData['transactions'][number]) => {
     await fetch(`${API_URL}/api/finance/transaction/${tx.index}?source=${tx.source}`, { method: 'DELETE' });
     await loadAll();
@@ -480,6 +595,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const inputClass = "w-full h-10 rounded-lg bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/8 transition-colors";
+
+  const switchTab = (tab: 'resumo' | 'cartoes' | 'dividas' | 'atrasadas' | 'planning') => {
+    if (tab === activeTab) return;
+    setTabLoading(true);
+    setActiveTab(tab);
+    if (tabLoadTimeoutRef.current) clearTimeout(tabLoadTimeoutRef.current);
+    tabLoadTimeoutRef.current = setTimeout(() => setTabLoading(false), 220);
+  };
 
   return (
     <div className="h-full flex flex-col bg-background text-white">
@@ -561,29 +684,46 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       </div>
 
       {/* Tab Selector */}
-      <div className="px-4 py-2 border-b border-white/10">
-        <div className="flex gap-1">
-          {(['resumo', 'transactions', 'debts', 'planning'] as const).map((tab) => (
+      <div className="px-4 py-2 border-b border-white/10 overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
+          {(['resumo', 'cartoes', 'dividas', 'atrasadas', 'planning'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2.5 text-xs font-medium rounded-lg transition-all ${
+              onClick={() => switchTab(tab)}
+              className={`px-3 sm:px-4 py-2.5 text-xs font-medium rounded-lg transition-all inline-flex items-center gap-1.5 shrink-0 ${
                 activeTab === tab
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                   : 'text-white/50 hover:text-white/70 border border-transparent'
               }`}
             >
-              {tab === 'resumo' && '📊 Resumo'}
-              {tab === 'transactions' && '💳 Transações'}
-              {tab === 'debts' && '💰 Dívidas'}
-              {tab === 'planning' && '📈 Planejamento'}
+              <span>
+                {tab === 'resumo' && 'Resumo'}
+                {tab === 'cartoes' && 'Cartões'}
+                {tab === 'dividas' && 'Dívidas'}
+                {tab === 'atrasadas' && 'Atrasadas'}
+                {tab === 'planning' && 'Planejamento'}
+              </span>
+              {tab === 'dividas' && debts.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {debts.length}
+                </span>
+              )}
+              {tab === 'atrasadas' && overdue.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-300 border border-red-500/30">
+                  {overdue.length}
+                </span>
+              )}
+              {tab === 'cartoes' && cards.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                  {cards.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Action buttons (visible only in transactions tab) */}
-      {activeTab === 'transactions' && (
+      {/* Action buttons */}
+      {activeTab === 'resumo' && (
         <div className="px-4 py-3 border-b border-white/10 overflow-x-auto">
           <div className="flex gap-2 min-w-max">
             <button
@@ -600,94 +740,64 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               <Plus className="w-3.5 h-3.5" />
               Despesa
             </button>
-            <button
-              onClick={() => openAdd('divida')}
-              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Dívida
-            </button>
-            <button
-              onClick={() => openAdd('atrasada')}
-              className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors"
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Atrasada
-            </button>
           </div>
+        </div>
+      )}
+      {activeTab === 'dividas' && (
+        <div className="px-4 py-3 border-b border-white/10">
+          <button
+            onClick={() => openAdd('divida')}
+            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nova Dívida
+          </button>
+        </div>
+      )}
+      {activeTab === 'atrasadas' && (
+        <div className="px-4 py-3 border-b border-white/10">
+          <button
+            onClick={() => openAdd('atrasada')}
+            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Nova Conta Atrasada
+          </button>
+        </div>
+      )}
+      {activeTab === 'cartoes' && (
+        <div className="px-4 py-3 border-b border-white/10">
+          <button
+            onClick={() => openAdd('cartao')}
+            className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-violet-500/15 border border-violet-500/30 text-violet-400 hover:bg-violet-500/25 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Novo Cartão
+          </button>
         </div>
       )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {loading || tabLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-5 h-5 animate-spin text-white/40" />
+            <div className="flex items-center gap-2 text-white/50 text-xs">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{loading ? 'Carregando dados...' : 'Atualizando aba...'}</span>
+            </div>
           </div>
         ) : activeTab === 'resumo' ? (
           <div className="p-4 space-y-4">
             {/* Pie Chart Visualization */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold text-white/90 mb-3">Distribuição de Despesas</h3>
-                <PieChart data={dashboard?.transactions ?? []} />
-              </div>
+              <h3 className="text-sm font-semibold text-white/90 mb-3">Distribuição de Despesas</h3>
+              <PieChart data={dashboard?.transactions ?? []} />
             </section>
 
-            {/* Key Metrics */}
-            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
-              <div className="px-4 py-3 border-b border-white/8">
-                <h3 className="text-sm font-semibold text-white/90">Métricas do Mês</h3>
-              </div>
-              <div className="p-4 space-y-2">
-                <div className="flex items-center justify-between py-2 border-b border-white/6">
-                  <span className="text-sm text-white/70">Receitas</span>
-                  <span className="text-sm font-semibold text-emerald-400">{fmtCurrency(totalsByType.receber)}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-white/6">
-                  <span className="text-sm text-white/70">Despesas</span>
-                  <span className="text-sm font-semibold text-rose-400">{fmtCurrency(totalsByType.pagar)}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-white/6">
-                  <span className="text-sm text-white/70">Dívidas Ativas</span>
-                  <span className="text-sm font-semibold text-amber-400">{fmtCurrency(totalsByType.dividas)}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-white/6">
-                  <span className="text-sm text-white/70">Contas Atrasadas</span>
-                  <span className="text-sm font-semibold text-red-400">{fmtCurrency(totalsByType.atrasadas)}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 pt-3 border-t border-white/10 font-semibold">
-                  <span className={`text-sm ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>Saldo Líquido</span>
-                  <span className={`text-base ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmtCurrency(totalsByType.saldo)}</span>
-                </div>
-              </div>
-            </section>
-
-            {/* Alerts */}
-            {overdue.length > 0 && (
-              <section className="rounded-xl border border-red-500/30 overflow-hidden bg-red-500/5 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <h3 className="text-sm font-semibold text-red-400">Atenção: {overdue.length} conta(s) atrasada(s)</h3>
-                </div>
-                <div className="space-y-1 text-xs text-red-300/80">
-                  {overdue.map((o) => (
-                    <div key={`${o.source}-${o.index}`} className="flex justify-between">
-                      <span>{o.account}</span>
-                      <span className="font-medium">{fmtCurrency(o.overdueAmount)} - {o.daysOverdue}d atraso</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-        ) : activeTab === 'transactions' ? (
-          <div className="p-4 space-y-3">
-
-            {/* Fluxo de caixa */}
+            {/* Transações do mês */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <SectionHeader title="Fluxo de caixa" count={dashboard?.transactions?.length} />
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                 <table className="w-full min-w-[640px] text-xs">
                   <thead>
                     <tr className="border-b border-white/8">
@@ -710,7 +820,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           {tx.type === 'despesa' ? '- ' : '+ '}{fmtCurrency(tx.amount)}
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => openEditTx(tx)} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors">
                               <Pencil className="w-3 h-3" />
                             </button>
@@ -733,11 +843,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
             </section>
 
-
             {/* Despesas fixas */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <SectionHeader title="Despesas fixas" count={recurring.length} />
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                 <table className="w-full min-w-[560px] text-xs">
                   <thead>
                     <tr className="border-b border-white/8">
@@ -769,7 +878,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           </button>
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => deleteRecurring(r.id)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors">
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -789,10 +898,74 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               </div>
             </section>
 
+            {/* Alertas */}
+            {overdue.length > 0 && (
+              <section className="rounded-xl border border-red-500/30 overflow-hidden bg-red-500/5 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                  <h3 className="text-sm font-semibold text-red-400">Atenção: {overdue.length} conta(s) atrasada(s)</h3>
+                </div>
+                <div className="space-y-1 text-xs text-red-300/80">
+                  {overdue.map((o) => (
+                    <div key={`${o.source}-${o.index}`} className="flex justify-between">
+                      <span>{o.account}</span>
+                      <span className="font-medium">{fmtCurrency(o.overdueAmount)} - {o.daysOverdue}d atraso</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
-        ) : activeTab === 'debts' ? (
+        ) : activeTab === 'cartoes' ? (
           <div className="p-4 space-y-3">
-            {/* Dívidas */}
+            {cards.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/15 p-8 text-center">
+                <div className="text-2xl mb-2">💳</div>
+                <p className="text-sm text-white/40">Nenhum cartão cadastrado</p>
+                <p className="text-xs text-white/25 mt-1">Clique em "Novo Cartão" para adicionar</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cards.map((card) => (
+                  <div key={card.id} className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-violet-500/15 border border-violet-500/25 flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-violet-400" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-white/90">{card.name}</div>
+                          <div className="text-xs text-white/50">{card.bank} · {card.brand}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteCard(card.id)}
+                        className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/30 hover:text-rose-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg bg-white/5 px-2 py-1.5">
+                        <div className="text-[10px] text-white/40 mb-0.5">Fechamento</div>
+                        <div className="text-xs font-semibold text-white/80">dia {card.closingDay}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/5 px-2 py-1.5">
+                        <div className="text-[10px] text-white/40 mb-0.5">Vencimento</div>
+                        <div className="text-xs font-semibold text-white/80">dia {card.dueDay}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/5 px-2 py-1.5">
+                        <div className="text-[10px] text-white/40 mb-0.5">Limite</div>
+                        <div className="text-xs font-semibold text-white/80">{card.cardLimit > 0 ? fmtCurrency(card.cardLimit) : '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'dividas' ? (
+          <div className="p-4">
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="px-4 py-3 flex items-center justify-between border-b border-white/8">
                 <div className="flex items-center gap-2">
@@ -809,7 +982,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   </span>
                 )}
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                 <table className="w-full min-w-[640px] text-xs">
                   <thead>
                     <tr className="border-b border-white/8">
@@ -835,7 +1008,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           </div>
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => payDebtInstallment(d)} className="h-6 px-2 rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white/90 transition-colors">Parcela</button>
                             <button onClick={() => payDebtFull(d)} className="h-6 px-2 rounded-md border border-emerald-500/30 text-emerald-400/70 hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors">Quitar</button>
                             <button onClick={() => deleteDebt(d)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors">
@@ -856,8 +1029,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 </table>
               </div>
             </section>
-
-            {/* Contas Atrasadas */}
+          </div>
+        ) : activeTab === 'atrasadas' ? (
+          <div className="p-4">
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="px-4 py-3 flex items-center justify-between border-b border-white/8">
                 <div className="flex items-center gap-2">
@@ -875,7 +1049,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   </span>
                 )}
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                 <table className="w-full min-w-[500px] text-xs">
                   <thead>
                     <tr className="border-b border-white/8">
@@ -897,7 +1071,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           </div>
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => payOverduePartial(o)} className="h-6 px-2 rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white/90 transition-colors">Pagar</button>
                             <button onClick={() => payOverdueFull(o)} className="h-6 px-2 rounded-md border border-emerald-500/30 text-emerald-400/70 hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors">Quitar</button>
                             <button onClick={() => deleteOverdue(o)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors">
@@ -997,23 +1171,26 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               mode === 'receita' ? 'bg-emerald-500/8' :
               mode === 'despesa' ? 'bg-rose-500/8' :
               mode === 'divida' ? 'bg-amber-500/8' :
-              'bg-red-500/8'
+              mode === 'atrasada' ? 'bg-red-500/8' :
+              'bg-violet-500/8'
             }`}>
               <div className="flex items-center gap-2.5">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm ${
                   mode === 'receita' ? 'bg-emerald-500/20 border border-emerald-500/30' :
                   mode === 'despesa' ? 'bg-rose-500/20 border border-rose-500/30' :
                   mode === 'divida' ? 'bg-amber-500/20 border border-amber-500/30' :
-                  'bg-red-500/20 border border-red-500/30'
+                  mode === 'atrasada' ? 'bg-red-500/20 border border-red-500/30' :
+                  'bg-violet-500/20 border border-violet-500/30'
                 }`}>
-                  {mode === 'receita' ? '↓' : mode === 'despesa' ? '↑' : mode === 'divida' ? '💳' : '⚠️'}
+                  {mode === 'receita' ? '↓' : mode === 'despesa' ? '↑' : mode === 'divida' ? '💳' : mode === 'atrasada' ? '⚠️' : '🃏'}
                 </div>
                 <h3 className="text-sm font-semibold text-white/90">
                   {editingTx ? 'Alterar transação' :
                    mode === 'receita' ? 'Nova receita' :
                    mode === 'despesa' ? 'Nova despesa' :
                    mode === 'divida' ? 'Nova dívida' :
-                   'Conta atrasada'}
+                   mode === 'atrasada' ? 'Conta atrasada' :
+                   'Novo cartão'}
                 </h3>
               </div>
               <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors">
@@ -1037,12 +1214,50 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   </div>
                   <div>
                     <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Categoria</label>
-                    <input value={txCategory} onChange={e => setTxCategory(e.target.value)} placeholder="Ex: Alimentação, Salário..." className={inputClass} />
+                    <select
+                      value={txCategory}
+                      onChange={(e) => setTxCategory(e.target.value)}
+                      className={inputClass}
+                    >
+                      {EXPENSE_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat} style={{ background: '#0d1117' }}>{cat}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Descrição</label>
                     <input value={txDescription} onChange={e => setTxDescription(e.target.value)} placeholder="Descreva a transação" className={inputClass} />
                   </div>
+                  {mode === 'despesa' && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50">Forma de pagamento</label>
+                      <select
+                        value={txPaymentMethod}
+                        onChange={(e) => {
+                          setTxPaymentMethod(e.target.value as any);
+                          if (e.target.value !== 'credito') setTxCreditCardId(null);
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="outros" style={{ background: '#0d1117' }}>Outros</option>
+                        <option value="pix" style={{ background: '#0d1117' }}>Pix</option>
+                        <option value="debito" style={{ background: '#0d1117' }}>Cartão de Débito</option>
+                        <option value="credito" style={{ background: '#0d1117' }}>Cartão de Crédito</option>
+                      </select>
+                      {txPaymentMethod === 'credito' && (
+                        <select
+                          value={txCreditCardId ?? ''}
+                          onChange={(e) => setTxCreditCardId(e.target.value ? Number(e.target.value) : null)}
+                          className={inputClass}
+                        >
+                          <option value="" style={{ background: '#0d1117' }}>Selecione o cartão</option>
+                          {cards.map(c => (
+                            <option key={c.id} value={c.id} style={{ background: '#0d1117' }}>{c.name} ({c.bank})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   {mode === 'despesa' && !editingTx && (
                     <label className="flex items-center gap-2.5 text-xs text-white/70 cursor-pointer select-none">
                       <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${txIsFixed ? 'bg-emerald-500 border-emerald-500' : 'border-white/20 bg-transparent'}`}>
@@ -1121,6 +1336,62 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   </button>
                 </>
               )}
+
+              {mode === 'cartao' && (
+                <>
+                  <input
+                    placeholder="Nome do cartão (ex: Nubank Principal)"
+                    value={cardName}
+                    onChange={(e) => setCardName(e.target.value)}
+                    className={inputClass}
+                  />
+                  <input
+                    placeholder="Banco (ex: Nubank, Itaú, Bradesco)"
+                    value={cardBank}
+                    onChange={(e) => setCardBank(e.target.value)}
+                    className={inputClass}
+                  />
+                  <select
+                    value={cardBrand}
+                    onChange={(e) => setCardBrand(e.target.value)}
+                    className={inputClass}
+                  >
+                    {CARD_BRANDS.map(b => (
+                      <option key={b} value={b} style={{ background: '#0d1117' }}>{b}</option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      placeholder="Dia fechamento (1-31)"
+                      value={cardClosingDay}
+                      onChange={(e) => setCardClosingDay(e.target.value)}
+                      min={1}
+                      max={31}
+                      className={inputClass}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Dia vencimento (1-31)"
+                      value={cardDueDay}
+                      onChange={(e) => setCardDueDay(e.target.value)}
+                      min={1}
+                      max={31}
+                      className={inputClass}
+                    />
+                  </div>
+                  <input
+                    type="number"
+                    placeholder="Limite (opcional)"
+                    value={cardLimit}
+                    onChange={(e) => setCardLimit(e.target.value)}
+                    className={inputClass}
+                  />
+                  <button disabled={saving} onClick={saveCard} className="w-full h-10 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                    {saving ? 'Salvando...' : 'Salvar cartão'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1128,3 +1399,4 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     </div>
   );
 }
+
