@@ -140,6 +140,18 @@ const EXPENSE_CATEGORIES = [
   'Outros',
 ];
 
+const INCOME_CATEGORIES = [
+  'Salário',
+  'Freelance',
+  'Investimentos',
+  'Vendas',
+  'Reembolso',
+  'Prêmios',
+  'Transferências',
+  'Benefícios',
+  'Outros Ganhos',
+];
+
 const CARD_BRANDS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outro'];
 
 function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
@@ -369,7 +381,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setEditingTx(null);
     setTxDate(format(new Date(), 'yyyy-MM-dd'));
     setTxDescription('');
-    setTxCategory('Outros');
+    setTxCategory(m === 'receita' ? 'Salário' : 'Outros');
     setTxAmount('');
     setTxIsFixed(false);
     setDebtCreditor('');
@@ -617,6 +629,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const inputClass = "w-full h-10 rounded-lg bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/8 transition-colors";
+  const categoryOptions = mode === 'receita' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   const switchTab = (tab: 'resumo' | 'cartoes' | 'dividas' | 'atrasadas' | 'planning') => {
     if (tab === activeTab) return;
@@ -1248,7 +1261,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       onChange={(e) => setTxCategory(e.target.value)}
                       className={inputClass}
                     >
-                      {EXPENSE_CATEGORIES.map(cat => (
+                      {!!txCategory && !categoryOptions.includes(txCategory) && (
+                        <option value={txCategory} style={{ background: '#0d1117' }}>{txCategory}</option>
+                      )}
+                      {categoryOptions.map(cat => (
                         <option key={cat} value={cat} style={{ background: '#0d1117' }}>{cat}</option>
                       ))}
                     </select>
