@@ -715,21 +715,33 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       <div className="px-4 py-3 border-b border-white/10">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {/* Receitas */}
-          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[92px] flex flex-col justify-between">
+          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[110px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">Receitas</span>
             </div>
-            <div className="text-base font-bold text-emerald-400 tabular-nums">{fmtCurrency(totalsByType.receber)}</div>
+            <div className="space-y-0.5">
+              <div className="text-[10px] text-white/60">Previsto: <span className="font-semibold text-white/90 tabular-nums">{fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}</span></div>
+              <div className="text-[10px] text-white/60">Realizado: <span className="font-semibold text-emerald-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualIncome ?? totalsByType.receber)}</span></div>
+              <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                Dif: {fmtCurrency(dashboard?.comparison?.incomeDelta ?? 0)}
+              </div>
+            </div>
           </div>
 
           {/* Despesas */}
-          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[92px] flex flex-col justify-between">
+          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[110px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
               <span className="text-[10px] text-rose-400/70 font-medium uppercase tracking-wider">Despesas</span>
             </div>
-            <div className="text-base font-bold text-rose-400 tabular-nums">{fmtCurrency(totalsByType.pagar)}</div>
+            <div className="space-y-0.5">
+              <div className="text-[10px] text-white/60">Previsto: <span className="font-semibold text-white/90 tabular-nums">{fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}</span></div>
+              <div className="text-[10px] text-white/60">Realizado: <span className="font-semibold text-rose-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? totalsByType.pagar)}</span></div>
+              <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                Dif: {fmtCurrency(dashboard?.comparison?.expensesDelta ?? 0)}
+              </div>
+            </div>
           </div>
 
           {/* Dívidas */}
