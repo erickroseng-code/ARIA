@@ -99,6 +99,24 @@ function fmtCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 }
 
+function formatCurrencyInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const value = Number(digits) / 100;
+  return fmtCurrency(value);
+}
+
+function formatCurrencyInputFromNumber(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return fmtCurrency(value);
+}
+
+function parseCurrencyInput(value: string): number {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return NaN;
+  return Number(digits) / 100;
+}
+
 function fmtDate(date: string): string {
   if (!date) return '-';
   const [y, m, d] = date.split('-');
@@ -379,7 +397,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setTxDate(tx.date || format(new Date(), 'yyyy-MM-dd'));
     setTxDescription(tx.description);
     setTxCategory(tx.category || 'Outros');
-    setTxAmount(String(tx.amount || ''));
+    setTxAmount(formatCurrencyInputFromNumber(tx.amount || 0));
     setTxIsFixed(false);
   };
 
@@ -389,7 +407,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const saveTx = async () => {
-    const amount = Number(txAmount);
+    const amount = parseCurrencyInput(txAmount);
     if (!txDescription.trim() || !txCategory.trim() || !Number.isFinite(amount) || amount <= 0) return;
 
     setSaving(true);
@@ -441,8 +459,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const saveDebt = async () => {
-    const totalAmount = Number(debtAmount);
+    const totalAmount = parseCurrencyInput(debtAmount);
+    const monthlyInstallment = debtMonthly ? parseCurrencyInput(debtMonthly) : 0;
     if (!debtCreditor.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0) return;
+    if (debtMonthly && (!Number.isFinite(monthlyInstallment) || monthlyInstallment < 0)) return;
 
     setSaving(true);
     try {
@@ -454,7 +474,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           totalAmount,
           interestRate: Number(debtRate || 0),
           remainingInstallments: Number(debtInstallments || 0),
-          monthlyInstallment: Number(debtMonthly || 0),
+          monthlyInstallment,
           dueDate: debtDueDate || undefined,
         }),
       });
@@ -466,7 +486,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const saveOverdue = async () => {
-    const amount = Number(overdueAmount);
+    const amount = parseCurrencyInput(overdueAmount);
     if (!overdueAccount.trim() || !Number.isFinite(amount) || amount <= 0) return;
 
     setSaving(true);
@@ -490,7 +510,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const saveCard = async () => {
     const closingDay = parseInt(cardClosingDay);
     const dueDay = parseInt(cardDueDay);
+    const parsedCardLimit = cardLimit ? parseCurrencyInput(cardLimit) : 0;
     if (!cardName.trim() || !cardBank.trim() || isNaN(closingDay) || isNaN(dueDay)) return;
+    if (cardLimit && (!Number.isFinite(parsedCardLimit) || parsedCardLimit < 0)) return;
 
     setSaving(true);
     try {
@@ -503,7 +525,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           brand: cardBrand,
           closingDay,
           dueDay,
-          cardLimit: cardLimit ? Number(cardLimit) : 0,
+          cardLimit: parsedCardLimit,
         }),
       });
       closeModal();
@@ -1209,7 +1231,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                     </div>
                     <div>
                       <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor (R$)</label>
-                      <input value={txAmount} onChange={e => setTxAmount(e.target.value)} type="number" step="0.01" placeholder="0,00" className={inputClass} />
+                      <input
+                        value={txAmount}
+                        onChange={e => setTxAmount(formatCurrencyInput(e.target.value))}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="R$ 0,00"
+                        className={inputClass}
+                      />
                     </div>
                   </div>
                   <div>
@@ -1290,7 +1319,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor total (R$)</label>
-                      <input value={debtAmount} onChange={e => setDebtAmount(e.target.value)} type="number" step="0.01" placeholder="0,00" className={inputClass} />
+                      <input
+                        value={debtAmount}
+                        onChange={e => setDebtAmount(formatCurrencyInput(e.target.value))}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="R$ 0,00"
+                        className={inputClass}
+                      />
                     </div>
                     <div>
                       <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Juros (%)</label>
@@ -1304,7 +1340,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                     </div>
                     <div>
                       <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor da parcela</label>
-                      <input value={debtMonthly} onChange={e => setDebtMonthly(e.target.value)} type="number" step="0.01" placeholder="0,00" className={inputClass} />
+                      <input
+                        value={debtMonthly}
+                        onChange={e => setDebtMonthly(formatCurrencyInput(e.target.value))}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="R$ 0,00"
+                        className={inputClass}
+                      />
                     </div>
                   </div>
                   <div>
@@ -1325,7 +1368,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   </div>
                   <div>
                     <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor (R$)</label>
-                    <input value={overdueAmount} onChange={e => setOverdueAmount(e.target.value)} type="number" step="0.01" placeholder="0,00" className={inputClass} />
+                    <input
+                      value={overdueAmount}
+                      onChange={e => setOverdueAmount(formatCurrencyInput(e.target.value))}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="R$ 0,00"
+                      className={inputClass}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Data de vencimento</label>
@@ -1381,10 +1431,11 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                     />
                   </div>
                   <input
-                    type="number"
-                    placeholder="Limite (opcional)"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Limite (opcional) - R$ 0,00"
                     value={cardLimit}
-                    onChange={(e) => setCardLimit(e.target.value)}
+                    onChange={(e) => setCardLimit(formatCurrencyInput(e.target.value))}
                     className={inputClass}
                   />
                   <button disabled={saving} onClick={saveCard} className="w-full h-10 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-semibold transition-colors disabled:opacity-50">
