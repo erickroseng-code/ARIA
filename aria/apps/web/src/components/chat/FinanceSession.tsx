@@ -38,6 +38,18 @@ interface DashboardData {
   totalIncome: number;
   totalExpenses: number;
   netBalance: number;
+  comparison: {
+    month: string;
+    plannedIncome: number;
+    plannedExpenses: number;
+    plannedBalance: number;
+    actualIncome: number;
+    actualExpenses: number;
+    actualBalance: number;
+    incomeDelta: number;
+    expensesDelta: number;
+    balanceDelta: number;
+  };
   transactions: Array<{
     index: number;
     source: SourceType;
@@ -314,6 +326,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [cardClosingDay, setCardClosingDay] = useState('');
   const [cardDueDay, setCardDueDay] = useState('');
   const [cardLimit, setCardLimit] = useState('');
+  const [plannedIncomeInput, setPlannedIncomeInput] = useState('');
+  const [plannedExpensesInput, setPlannedExpensesInput] = useState('');
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -330,6 +345,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
       const dData = await dRes.json();
       setDashboard(dData);
+      setPlannedIncomeInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedIncome ?? 0)));
+      setPlannedExpensesInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedExpenses ?? 0)));
 
       const debtData = await debtRes.json();
       setDebts(debtData.debts ?? []);
@@ -626,6 +643,29 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     a.download = `relatorio-financeiro-${month}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveMonthlyPlan = async () => {
+    const plannedIncome = parseCurrencyInput(plannedIncomeInput || '');
+    const plannedExpenses = parseCurrencyInput(plannedExpensesInput || '');
+    const safeIncome = Number.isFinite(plannedIncome) ? Math.max(0, plannedIncome) : 0;
+    const safeExpenses = Number.isFinite(plannedExpenses) ? Math.max(0, plannedExpenses) : 0;
+
+    setSavingPlan(true);
+    try {
+      await fetch(`${API_URL}/api/finance/monthly-plan`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          month: monthParam(selectedMonth),
+          plannedIncome: safeIncome,
+          plannedExpenses: safeExpenses,
+        }),
+      });
+      await loadAll();
+    } finally {
+      setSavingPlan(false);
+    }
   };
 
   const inputClass = "w-full h-10 rounded-lg bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/8 transition-colors";
@@ -1130,6 +1170,72 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         ) : (
           <div className="p-4 space-y-4">
+            {/* Previsto x Efetivado */}
+            <section className="rounded-xl border border-cyan-500/20 overflow-hidden bg-cyan-500/[0.04] p-4">
+              <h3 className="text-sm font-semibold text-white/90 mb-1">Previsto x Efetivado</h3>
+              <p className="text-[11px] text-white/45 mb-4">Receitas, despesas e saldo do mês selecionado</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Receita Prevista</label>
+                  <input
+                    value={plannedIncomeInput}
+                    onChange={(e) => setPlannedIncomeInput(formatCurrencyInput(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="R$ 0,00"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Despesa Prevista</label>
+                  <input
+                    value={plannedExpensesInput}
+                    onChange={(e) => setPlannedExpensesInput(formatCurrencyInput(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="R$ 0,00"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={saveMonthlyPlan}
+                disabled={savingPlan}
+                className="h-9 px-4 rounded-lg text-xs font-semibold bg-cyan-500/20 border border-cyan-500/35 text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
+              >
+                {savingPlan ? 'Salvando previsto...' : 'Salvar previsto do mês'}
+              </button>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-emerald-300/60 mb-1">Receitas</div>
+                  <div className="text-xs text-white/65">Previsto: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}</span></div>
+                  <div className="text-xs text-white/65">Efetivado: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.actualIncome ?? 0)}</span></div>
+                  <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    Diferença: {fmtCurrency(dashboard?.comparison?.incomeDelta ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-rose-300/60 mb-1">Despesas</div>
+                  <div className="text-xs text-white/65">Previsto: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}</span></div>
+                  <div className="text-xs text-white/65">Efetivado: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? 0)}</span></div>
+                  <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    Diferença: {fmtCurrency(dashboard?.comparison?.expensesDelta ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">Saldo</div>
+                  <div className="text-xs text-white/65">Previsto: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.plannedBalance ?? 0)}</span></div>
+                  <div className="text-xs text-white/65">Efetivado: <span className="font-semibold text-white/90">{fmtCurrency(dashboard?.comparison?.actualBalance ?? 0)}</span></div>
+                  <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.balanceDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    Diferença: {fmtCurrency(dashboard?.comparison?.balanceDelta ?? 0)}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Planning & Forecasts */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
               <h3 className="text-sm font-semibold text-white/90 mb-4">Próximos Vencimentos</h3>

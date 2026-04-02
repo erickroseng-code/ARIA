@@ -15,7 +15,28 @@ db.exec(`
     amount REAL NOT NULL,
     tags TEXT DEFAULT ''
   );
+
+  CREATE TABLE IF NOT EXISTS finance_monthly_plan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month TEXT NOT NULL UNIQUE,
+    plannedIncome REAL DEFAULT 0,
+    plannedExpenses REAL DEFAULT 0,
+    updatedAt TEXT NOT NULL
+  );
 `);
+
+export interface MonthlyPlanComparison {
+  month: string;
+  plannedIncome: number;
+  plannedExpenses: number;
+  plannedBalance: number;
+  actualIncome: number;
+  actualExpenses: number;
+  actualBalance: number;
+  incomeDelta: number;
+  expensesDelta: number;
+  balanceDelta: number;
+}
 
 export interface DashboardData {
   totalIncome: number;
@@ -24,6 +45,73 @@ export interface DashboardData {
   byCategory: Array<{ category: string; spent: number; budgeted: number; percentage: number }>;
   transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number }>;
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
+  comparison: MonthlyPlanComparison;
+}
+
+export interface MonthlyPlanInput {
+  month?: string;
+  plannedIncome?: number;
+  plannedExpenses?: number;
+}
+
+function normalizeMonth(month?: string): string {
+  return month && /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().substring(0, 7);
+}
+
+function getMonthlyPlanValues(month?: string): { month: string; plannedIncome: number; plannedExpenses: number } {
+  const targetMonth = normalizeMonth(month);
+  const row = db.prepare(`
+    SELECT plannedIncome, plannedExpenses
+    FROM finance_monthly_plan
+    WHERE month = ?
+    LIMIT 1
+  `).get(targetMonth) as any;
+
+  return {
+    month: targetMonth,
+    plannedIncome: Number(row?.plannedIncome ?? 0),
+    plannedExpenses: Number(row?.plannedExpenses ?? 0),
+  };
+}
+
+function buildComparison(targetMonth: string, totalIncome: number, totalExpenses: number): MonthlyPlanComparison {
+  const plan = getMonthlyPlanValues(targetMonth);
+  const plannedBalance = plan.plannedIncome - plan.plannedExpenses;
+  const actualBalance = totalIncome - totalExpenses;
+  return {
+    month: targetMonth,
+    plannedIncome: plan.plannedIncome,
+    plannedExpenses: plan.plannedExpenses,
+    plannedBalance,
+    actualIncome: totalIncome,
+    actualExpenses: totalExpenses,
+    actualBalance,
+    incomeDelta: totalIncome - plan.plannedIncome,
+    expensesDelta: totalExpenses - plan.plannedExpenses,
+    balanceDelta: actualBalance - plannedBalance,
+  };
+}
+
+export async function getMonthlyPlan(month?: string): Promise<{ month: string; plannedIncome: number; plannedExpenses: number }> {
+  return getMonthlyPlanValues(month);
+}
+
+export async function upsertMonthlyPlan(input: MonthlyPlanInput): Promise<{ month: string; plannedIncome: number; plannedExpenses: number }> {
+  const month = normalizeMonth(input.month);
+  const plannedIncome = Math.max(0, Number(input.plannedIncome ?? 0));
+  const plannedExpenses = Math.max(0, Number(input.plannedExpenses ?? 0));
+  const updatedAt = new Date().toISOString().split('T')[0];
+
+  db.prepare(`
+    INSERT INTO finance_monthly_plan (month, plannedIncome, plannedExpenses, updatedAt)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(month) DO UPDATE SET
+      plannedIncome = excluded.plannedIncome,
+      plannedExpenses = excluded.plannedExpenses,
+      updatedAt = excluded.updatedAt
+  `).run(month, plannedIncome, plannedExpenses, updatedAt);
+
+  return { month, plannedIncome, plannedExpenses };
 }
 
 /**
@@ -31,7 +119,7 @@ export interface DashboardData {
  */
 export async function getDashboardData(month?: string): Promise<DashboardData> {
   const spreadsheetId = getSpreadsheetId();
-  const targetMonth = month ?? new Date().toISOString().substring(0, 7);
+  const targetMonth = normalizeMonth(month);
   await applyRecurringExpensesForMonth(targetMonth);
 
   if (!spreadsheetId) {
@@ -77,6 +165,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       byCategory,
       transactions,
       alerts: [],
+      comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
     };
   }
 
@@ -133,6 +222,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       byCategory,
       transactions,
       alerts: [],
+      comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
     };
   }
 
@@ -186,6 +276,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       byCategory: byCategoryLocal,
       transactions: localTransactions,
       alerts: [],
+      comparison: buildComparison(targetMonth, totalIncomeLocal, totalExpensesLocal),
     };
   }
 
@@ -236,5 +327,6 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     byCategory,
     transactions: [...transactions].reverse(),
     alerts,
+    comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
   };
 }

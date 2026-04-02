@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { processFinanceMessage } from './agents/orchestrator';
 import { generateReportPdf } from './agents/pdf-generator';
 import { generateReportData } from './agents/report-generator';
-import { getDashboardData } from './agents/dashboard';
+import { getDashboardData, getMonthlyPlan, upsertMonthlyPlan } from './agents/dashboard';
 import { setupSpreadsheet, getSpreadsheetId, getSpreadsheetUrl } from './finance.service';
 import {
   addTransactionDirect, updateTransactionDirect, deleteTransactionDirect, addDebt, deleteDebt, getDebts,
@@ -39,6 +39,33 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       console.error('[Finance] /dashboard error:', err);
       return reply.status(500).send({ error: err.message ?? 'Erro ao carregar dashboard.' });
+    }
+  });
+
+  // GET /api/finance/monthly-plan?month=YYYY-MM — Previsto mensal (receitas/despesas)
+  fastify.get('/monthly-plan', async (
+    req: FastifyRequest<{ Querystring: { month?: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const plan = await getMonthlyPlan(req.query.month);
+      return reply.send(plan);
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message ?? 'Erro ao carregar previsto mensal.' });
+    }
+  });
+
+  // PUT /api/finance/monthly-plan — Salvar previsto mensal
+  fastify.put('/monthly-plan', async (
+    req: FastifyRequest<{ Body: { month?: string; plannedIncome?: number; plannedExpenses?: number } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const { month, plannedIncome, plannedExpenses } = req.body ?? {};
+      const plan = await upsertMonthlyPlan({ month, plannedIncome, plannedExpenses });
+      return reply.send({ success: true, plan });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message ?? 'Erro ao salvar previsto mensal.' });
     }
   });
 
