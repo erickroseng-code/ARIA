@@ -675,7 +675,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       <div className="px-4 py-3 border-b border-white/10">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {/* Receitas */}
-          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-2.5">
+          <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[92px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">Receitas</span>
@@ -684,7 +684,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
 
           {/* Despesas */}
-          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-2.5">
+          <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[92px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
               <span className="text-[10px] text-rose-400/70 font-medium uppercase tracking-wider">Despesas</span>
@@ -693,7 +693,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
 
           {/* Dívidas */}
-          <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+          <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-3 py-3 min-h-[92px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
               <CreditCard className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-[10px] text-amber-400/70 font-medium uppercase tracking-wider">Dívidas</span>
@@ -702,7 +702,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
 
           {/* Saldo */}
-          <div className={`rounded-xl px-3 py-2.5 border ${
+          <div className={`rounded-xl px-3 py-3 min-h-[92px] flex flex-col justify-between border ${
             totalsByType.saldo >= 0
               ? 'bg-emerald-500/8 border-emerald-500/20'
               : 'bg-rose-500/8 border-rose-500/20'
