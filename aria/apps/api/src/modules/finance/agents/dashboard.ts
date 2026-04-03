@@ -43,7 +43,7 @@ export interface DashboardData {
   totalExpenses: number;
   netBalance: number;
   byCategory: Array<{ category: string; spent: number; budgeted: number; percentage: number }>;
-  transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number; isEffective: boolean; effectiveAmount?: number | null }>;
+  transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number; isEffective: boolean; effectiveAmount?: number | null; isRecurring?: boolean }>;
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
   comparison: MonthlyPlanComparison;
 }
@@ -143,7 +143,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
 
   if (!spreadsheetId) {
     const rows = db.prepare(`
-      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
+      SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
@@ -157,14 +157,18 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
-      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const tags = String(row.tags ?? '');
+      const isEffective = Number(row.isEffective ?? 1) === 1;
       const effectiveAmount = Number(row.effectiveAmount ?? 0);
+      const isRecurring = tags === 'recorrente' || tags.startsWith('recorrente:');
       if (type === 'receita') {
         plannedIncome += amount;
         if (isEffective) actualIncome += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
-        totalExpenses += amount;
-        spentMap[category] = (spentMap[category] ?? 0) + amount;
+        if (isEffective) {
+          totalExpenses += amount;
+          spentMap[category] = (spentMap[category] ?? 0) + amount;
+        }
       }
       return {
         index: Number(row.id ?? 0),
@@ -176,6 +180,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         amount,
         isEffective,
         effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
+        isRecurring,
       };
     });
 
@@ -206,7 +211,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   } catch (err) {
     console.warn('[Finance] getDashboardData sheets fallback -> sqlite:', (err as any)?.message ?? err);
     const rows = db.prepare(`
-      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
+      SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
@@ -220,14 +225,18 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
-      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const tags = String(row.tags ?? '');
+      const isEffective = Number(row.isEffective ?? 1) === 1;
       const effectiveAmount = Number(row.effectiveAmount ?? 0);
+      const isRecurring = tags === 'recorrente' || tags.startsWith('recorrente:');
       if (type === 'receita') {
         plannedIncome += amount;
         if (isEffective) actualIncome += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
-        totalExpenses += amount;
-        spentMap[category] = (spentMap[category] ?? 0) + amount;
+        if (isEffective) {
+          totalExpenses += amount;
+          spentMap[category] = (spentMap[category] ?? 0) + amount;
+        }
       }
       return {
         index: Number(row.id ?? 0),
@@ -239,6 +248,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         amount,
         isEffective,
         effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
+        isRecurring,
       };
     });
 
@@ -265,7 +275,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const rows = txData.values.filter(r => r[0]?.startsWith(targetMonth));
   if (rows.length === 0) {
     const localRows = db.prepare(`
-      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
+      SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
@@ -279,14 +289,18 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
-      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const tags = String(row.tags ?? '');
+      const isEffective = Number(row.isEffective ?? 1) === 1;
       const effectiveAmount = Number(row.effectiveAmount ?? 0);
+      const isRecurring = tags === 'recorrente' || tags.startsWith('recorrente:');
       if (type === 'receita') {
         plannedIncomeLocal += amount;
         if (isEffective) actualIncomeLocal += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
-        totalExpensesLocal += amount;
-        spentMapLocal[category] = (spentMapLocal[category] ?? 0) + amount;
+        if (isEffective) {
+          totalExpensesLocal += amount;
+          spentMapLocal[category] = (spentMapLocal[category] ?? 0) + amount;
+        }
       }
 
       return {
@@ -299,6 +313,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         amount,
         isEffective,
         effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
+        isRecurring,
       };
     });
 
@@ -329,18 +344,21 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     const type = row[1] ?? 'despesa';
     const category = row[2] ?? 'Outros';
     const tag = String(row[5] ?? '').toLowerCase();
-    const isEffective = type === 'despesa'
-      ? true
-      : (tag === 'efetivado' || tag.startsWith('efetivado:') || tag === '1' || tag === 'true');
+    const isEffective = tag
+      ? (tag === 'efetivado' || tag.startsWith('efetivado:') || tag === '1' || tag === 'true')
+      : (type === 'despesa');
     const tagEffectiveAmount = tag.startsWith('efetivado:') ? Number(tag.split(':')[1]) : NaN;
     const effectiveAmount = Number.isFinite(tagEffectiveAmount) && tagEffectiveAmount > 0 ? tagEffectiveAmount : null;
+    const isRecurring = tag === 'recorrente' || tag.startsWith('recorrente:');
 
     if (type === 'receita') {
       plannedIncome += amount;
       if (isEffective) actualIncome += (effectiveAmount ?? amount);
     } else {
-      totalExpenses += amount;
-      spentMap[category] = (spentMap[category] ?? 0) + amount;
+      if (isEffective) {
+        totalExpenses += amount;
+        spentMap[category] = (spentMap[category] ?? 0) + amount;
+      }
     }
 
       return {
@@ -353,6 +371,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         amount,
         isEffective,
         effectiveAmount,
+        isRecurring,
       };
     });
 

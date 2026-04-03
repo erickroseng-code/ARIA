@@ -205,9 +205,7 @@ function addLocalExpenseTransaction(description: string, amount: number, categor
 export async function addTransactionDirect(input: TransactionInput): Promise<void> {
   const spreadsheetId = getSpreadsheetId();
   const date = input.date ?? new Date().toISOString().split('T')[0];
-  const isEffective = input.type === 'despesa'
-    ? true
-    : Boolean(input.isEffective ?? false);
+  const isEffective = Boolean(input.isEffective ?? (input.type === 'despesa'));
   const statusTag = isEffective ? 'efetivado' : 'previsto';
 
   if (spreadsheetId) {
@@ -257,9 +255,7 @@ export async function updateTransactionDirect(
         input.category,
         input.description,
         String(input.amount),
-        input.type === 'despesa'
-          ? 'efetivado'
-          : ((input.isEffective ?? false) ? 'efetivado' : 'previsto'),
+        (input.isEffective ?? (input.type === 'despesa')) ? 'efetivado' : 'previsto',
       ]]);
       return;
     } catch (err) {
@@ -277,12 +273,10 @@ export async function updateTransactionDirect(
     input.category,
     input.description,
     input.amount,
-    input.type === 'despesa'
-      ? 1
-      : (typeof input.isEffective === 'boolean' ? (input.isEffective ? 1 : 0) : null),
-    input.type === 'despesa'
-      ? 'efetivado'
-      : (typeof input.isEffective === 'boolean' ? (input.isEffective ? 'efetivado' : 'previsto') : null),
+    typeof input.isEffective === 'boolean' ? (input.isEffective ? 1 : 0) : null,
+    input.type === 'receita' && typeof input.isEffective === 'boolean'
+      ? (input.isEffective ? 'efetivado' : 'previsto')
+      : null,
     index,
   );
 }
@@ -314,13 +308,25 @@ export async function updateTransactionEffectiveDirect(
     }
   }
 
+  const current = db.prepare(`
+    SELECT type, tags
+    FROM finance_transactions
+    WHERE id = ?
+    LIMIT 1
+  `).get(index) as { type?: string; tags?: string } | undefined;
+
+  const currentType = String(current?.type ?? '');
+  const currentTags = String(current?.tags ?? '');
+  const keepRecurringTag = currentType === 'despesa' && currentTags.startsWith('recorrente:');
+  const nextTags = keepRecurringTag ? currentTags : statusTag;
+
   db.prepare(`
     UPDATE finance_transactions
     SET isEffective = ?, tags = ?, effectiveAmount = ?
     WHERE id = ?
   `).run(
     isEffective ? 1 : 0,
-    statusTag,
+    nextTags,
     isEffective
       ? (hasCustomAmount ? Number(actualAmount) : null)
       : null,
@@ -857,7 +863,7 @@ export async function applyRecurringExpensesForMonth(month?: string): Promise<vo
       if (keeper.tags !== recurringTag) {
         db.prepare(`
           UPDATE finance_transactions
-          SET tags = ?, isEffective = 1
+          SET tags = ?
           WHERE id = ?
         `).run(recurringTag, keeper.id);
       }
@@ -897,7 +903,7 @@ export async function applyRecurringExpensesForMonth(month?: string): Promise<vo
 
     db.prepare(`
       INSERT INTO finance_transactions (date, type, category, description, amount, tags, isEffective)
-      VALUES (?, 'despesa', ?, ?, ?, ?, 1)
+      VALUES (?, 'despesa', ?, ?, ?, ?, 0)
     `).run(
       txDate,
       txCategory,

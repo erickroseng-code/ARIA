@@ -60,6 +60,7 @@ interface DashboardData {
     amount: number;
     isEffective: boolean;
     effectiveAmount?: number | null;
+    isRecurring?: boolean;
   }>;
 }
 
@@ -321,6 +322,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [plannedExpensesInput, setPlannedExpensesInput] = useState('');
   const [savingPlan, setSavingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -357,6 +359,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       } else {
         setSpreadsheetUrl(null);
       }
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message ?? 'Falha ao carregar dados. Verifique se a API está online.');
     } finally {
       setLoading(false);
     }
@@ -376,8 +381,12 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const totalsByType = useMemo(() => {
     const tx = dashboard?.transactions ?? [];
-    const receber = tx.filter(t => t.type === 'receita' && t.isEffective).reduce((acc, t) => acc + t.amount, 0);
-    const pagar = tx.filter(t => t.type === 'despesa').reduce((acc, t) => acc + t.amount, 0);
+    const receberFromTx = tx
+      .filter(t => t.type === 'receita' && t.isEffective)
+      .reduce((acc, t) => acc + (t.effectiveAmount && t.effectiveAmount > 0 ? t.effectiveAmount : t.amount), 0);
+    const pagarFromTx = tx.filter(t => t.type === 'despesa' && t.isEffective).reduce((acc, t) => acc + t.amount, 0);
+    const receber = Number(dashboard?.comparison?.actualIncome ?? receberFromTx);
+    const pagar = Number(dashboard?.comparison?.actualExpenses ?? pagarFromTx);
     const dividas = debts.reduce((acc, d) => acc + (d.totalAmount || 0), 0);
     const atrasadas = overdue.reduce((acc, o) => acc + (o.overdueAmount || 0), 0);
     const saldo = receber - pagar;
@@ -457,7 +466,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     try {
       const effectiveForPayload = mode === 'receita'
         ? (editingTx?.isEffective ?? false)
-        : true;
+        : (editingTx?.isEffective ?? true);
 
       const body = {
         type: (mode === 'receita' ? 'receita' : 'despesa') as TxType,
@@ -751,6 +760,25 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setEffectiveCustomValue(formatCurrencyInputFromNumber(tx.amount));
   };
 
+  const setExpenseEffective = async (tx: DashboardData['transactions'][number], isEffective: boolean) => {
+    if (tx.type !== 'despesa') return;
+    if (tx.isEffective === isEffective) return;
+    try {
+      const res = await fetch(`${API_URL}/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isEffective }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Falha ao atualizar efetivação da despesa.');
+      }
+      await loadAll();
+    } catch (err: any) {
+      window.alert(err?.message ?? 'Falha ao atualizar efetivação da despesa.');
+    }
+  };
+
   const closeEffectiveModal = () => {
     if (effectiveSaving) return;
     setEffectiveTx(null);
@@ -799,6 +827,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     () => (dashboard?.transactions ?? []).filter((tx) => tx.type === 'despesa'),
     [dashboard?.transactions],
   );
+  const actualBalance = Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo);
 
   return (
     <div className="h-full overflow-y-auto bg-background text-white">
@@ -839,6 +868,11 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
       {/* Calendar Month Picker */}
       <CalendarPicker currentDate={selectedMonth} onChange={setSelectedMonth} />
+      {loadError && (
+        <div className="px-4 py-2 border-b border-rose-500/20 bg-rose-500/10 text-rose-300 text-xs">
+          {loadError}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="px-4 py-3 border-b border-white/10">
@@ -906,16 +940,16 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
           {/* Saldo */}
           <div className={`rounded-xl px-3 py-3 min-h-[92px] flex flex-col justify-between border ${
-            totalsByType.saldo >= 0
+            actualBalance >= 0
               ? 'bg-emerald-500/8 border-emerald-500/20'
               : 'bg-rose-500/8 border-rose-500/20'
           }`}>
             <div className="flex items-center gap-1.5 mb-1">
-              <DollarSign className={`w-3.5 h-3.5 ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
-              <span className={`text-[10px] font-medium uppercase tracking-wider ${totalsByType.saldo >= 0 ? 'text-emerald-400/70' : 'text-rose-400/70'}`}>Saldo</span>
+              <DollarSign className={`w-3.5 h-3.5 ${actualBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
+              <span className={`text-[10px] font-medium uppercase tracking-wider ${actualBalance >= 0 ? 'text-emerald-400/70' : 'text-rose-400/70'}`}>Saldo</span>
             </div>
-            <div className={`text-base font-bold tabular-nums ${totalsByType.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {fmtCurrency(totalsByType.saldo)}
+            <div className={`text-base font-bold tabular-nums ${actualBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {fmtCurrency(actualBalance)}
             </div>
           </div>
         </div>
@@ -1043,17 +1077,53 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         <th className="text-left px-4 py-2.5 text-white/40 font-medium">Categoria</th>
                         <th className="text-left px-4 py-2.5 text-white/40 font-medium">Descrição</th>
                         <th className="text-right px-4 py-2.5 text-white/40 font-medium">Valor</th>
+                        <th className="text-center px-4 py-2.5 text-white/40 font-medium">Efetivação</th>
                         <th className="px-4 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
                       {expenseTransactions.map((tx) => (
-                        <tr key={`${tx.source}-${tx.index}`} className="border-t border-white/6 hover:bg-white/[0.02] transition-colors group">
+                        <tr key={`${tx.source}-${tx.index}`} className={`border-t border-white/6 hover:bg-white/[0.02] transition-colors group ${tx.isRecurring ? 'bg-amber-500/[0.06]' : ''}`}>
                           <td className="px-4 py-2.5 text-white/60 tabular-nums">{fmtDate(tx.date)}</td>
                           <td className="px-4 py-2.5 text-white/70">{tx.category}</td>
-                          <td className="px-4 py-2.5 text-white/90">{tx.description}</td>
+                          <td className="px-4 py-2.5 text-white/90">
+                            <div className="flex items-center gap-2">
+                              <span>{tx.description}</span>
+                              {tx.isRecurring && (
+                                <span className="inline-flex items-center rounded-md border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                                  Fixa
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-rose-400">
                             - {fmtCurrency(tx.amount)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => { void setExpenseEffective(tx, false); }}
+                                title="Marcar como previsto"
+                                className={`h-6 w-6 rounded-md border transition-colors ${
+                                  !tx.isEffective
+                                    ? 'border-amber-400/60 text-amber-300 bg-amber-500/10'
+                                    : 'border-white/15 text-white/45 hover:bg-white/10 hover:text-white/80'
+                                }`}
+                              >
+                                <X className="w-3 h-3 mx-auto" />
+                              </button>
+                              <button
+                                onClick={() => { void setExpenseEffective(tx, true); }}
+                                title="Marcar como efetivado"
+                                className={`h-6 w-6 rounded-md border transition-colors ${
+                                  tx.isEffective
+                                    ? 'border-emerald-400/60 text-emerald-300 bg-emerald-500/10'
+                                    : 'border-white/15 text-white/45 hover:bg-white/10 hover:text-white/80'
+                                }`}
+                              >
+                                <Check className="w-3 h-3 mx-auto" />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -1069,7 +1139,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       ))}
                       {expenseTransactions.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center">
+                          <td colSpan={6} className="px-4 py-8 text-center">
                             <div className="text-white/25 text-xs">Nenhuma despesa registrada neste mês</div>
                           </td>
                         </tr>
