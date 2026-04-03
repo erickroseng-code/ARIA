@@ -55,6 +55,9 @@ export interface OverdueRecord {
   dueDate: string;
   registeredAt: string;
   status: string;
+  paidAmount: number | null;
+  paidAt: string | null;
+  paidTransactionId: number | null;
 }
 
 export interface RecurringExpenseInput {
@@ -145,6 +148,15 @@ if (!hasColumn('finance_debts', 'dueDate')) {
 if (!hasColumn('finance_overdue_accounts', 'dueDate')) {
   db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN dueDate TEXT DEFAULT ''`);
 }
+if (!hasColumn('finance_overdue_accounts', 'paidAmount')) {
+  db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN paidAmount REAL DEFAULT NULL`);
+}
+if (!hasColumn('finance_overdue_accounts', 'paidAt')) {
+  db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN paidAt TEXT DEFAULT NULL`);
+}
+if (!hasColumn('finance_overdue_accounts', 'paidTransactionId')) {
+  db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN paidTransactionId INTEGER DEFAULT NULL`);
+}
 if (!hasColumn('finance_transactions', 'paymentMethod')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN paymentMethod TEXT DEFAULT 'outros'`);
 }
@@ -195,11 +207,12 @@ function calculateDaysOverdue(dueDate?: string): number {
   return Math.max(diff, 0);
 }
 
-function addLocalExpenseTransaction(description: string, amount: number, category = 'Outros'): void {
-  db.prepare(`
+function addLocalExpenseTransaction(description: string, amount: number, category = 'Outros'): number {
+  const result = db.prepare(`
     INSERT INTO finance_transactions (date, type, category, description, amount, tags, isEffective)
     VALUES (?, 'despesa', ?, ?, ?, ?, 1)
   `).run(todayISO(), category, description, amount, 'pagamento');
+  return Number(result.lastInsertRowid);
 }
 
 export async function addTransactionDirect(input: TransactionInput): Promise<void> {
@@ -471,6 +484,9 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
           dueDate: normalizeDate(row[5] ?? ''),
           registeredAt: row[3] ?? '',
           status: row[4] ?? 'Pendente',
+          paidAmount: null,
+          paidAt: null,
+          paidTransactionId: null,
         }))
         .filter(d => d.account.trim() !== '');
       if (fromSheets.length > 0) return fromSheets;
@@ -480,9 +496,9 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
   }
 
   const rows = db.prepare(`
-    SELECT id, account, overdueAmount, daysOverdue, dueDate, registeredAt, status
+    SELECT id, account, overdueAmount, daysOverdue, dueDate, registeredAt, status, paidAmount, paidAt, paidTransactionId
     FROM finance_overdue_accounts
-    ORDER BY id DESC
+    ORDER BY status ASC, id DESC
   `).all() as Array<any>;
 
   return rows.map(r => ({
@@ -494,6 +510,9 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
     dueDate: normalizeDate(String(r.dueDate ?? '')),
     registeredAt: String(r.registeredAt ?? ''),
     status: String(r.status ?? 'Pendente'),
+    paidAmount: r.paidAmount != null ? Number(r.paidAmount) : null,
+    paidAt: r.paidAt ? String(r.paidAt) : null,
+    paidTransactionId: r.paidTransactionId != null ? Number(r.paidTransactionId) : null,
   }));
 }
 
@@ -631,71 +650,54 @@ export async function payDebt(
 export async function payOverdue(
   index: number,
   source: TransactionSource = 'local',
-  mode: 'partial' | 'full' = 'partial',
+  _mode: 'partial' | 'full' = 'partial',
   amount?: number,
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
-
-  if (source === 'sheets' && spreadsheetId) {
-    try {
-      const service = new SheetsService();
-      const rowNum = index + 2;
-      const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A${rowNum}:F${rowNum}`);
-      const row = data.values[0] ?? [];
-      if (!row[0]) throw new Error('Conta atrasada não encontrada');
-      const account = String(row[0] ?? 'Conta atrasada');
-      const overdueAmount = parseFloat(row[1] ?? '0') || 0;
-
-      const paymentAmount = mode === 'full'
-        ? overdueAmount
-        : (amount && amount > 0 ? amount : 0);
-      if (paymentAmount <= 0) throw new Error('Valor de pagamento inválido');
-
-      const newAmount = Math.max(overdueAmount - paymentAmount, 0);
-      if (newAmount <= 0) {
-        await service.clearRange(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A${rowNum}:F${rowNum}`);
-      } else {
-        await service.writeRange(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A${rowNum}:F${rowNum}`, [[
-          account,
-          String(newAmount),
-          String(calculateDaysOverdue(row[5] ?? '') || (parseInt(row[2] ?? '0') || 0)),
-          row[3] ?? todayISO(),
-          'Pendente',
-          row[5] ?? '',
-        ]]);
-      }
-      addLocalExpenseTransaction(`Pagamento conta atrasada - ${account}`, paymentAmount, 'Outros');
-      return;
-    } catch (err) {
-      console.warn('[Finance] payOverdue sheets fallback -> sqlite:', (err as any)?.message ?? err);
-    }
-  }
-
   const current = db.prepare(`
-    SELECT id, account, overdueAmount
+    SELECT id, account, overdueAmount, status
     FROM finance_overdue_accounts
     WHERE id = ?
   `).get(index) as any;
   if (!current) throw new Error('Conta atrasada não encontrada');
+  if (String(current.status ?? '') === 'Pago') throw new Error('Conta já está paga. Use desfazer para revertê-la.');
 
   const overdueAmount = Number(current.overdueAmount ?? 0);
-  const paymentAmount = mode === 'full'
-    ? overdueAmount
-    : (amount && amount > 0 ? amount : 0);
+  const paymentAmount = amount && amount > 0 ? amount : overdueAmount;
   if (paymentAmount <= 0) throw new Error('Valor de pagamento inválido');
 
-  const newAmount = Math.max(overdueAmount - paymentAmount, 0);
-  if (newAmount <= 0) {
-    db.prepare('DELETE FROM finance_overdue_accounts WHERE id = ?').run(index);
-  } else {
-    db.prepare(`
-      UPDATE finance_overdue_accounts
-      SET overdueAmount = ?
-      WHERE id = ?
-    `).run(newAmount, index);
+  const txId = addLocalExpenseTransaction(
+    `Pagamento conta atrasada - ${String(current.account ?? 'Conta atrasada')}`,
+    paymentAmount,
+    'Outros',
+  );
+
+  db.prepare(`
+    UPDATE finance_overdue_accounts
+    SET status = 'Pago', paidAmount = ?, paidAt = ?, paidTransactionId = ?
+    WHERE id = ?
+  `).run(paymentAmount, todayISO(), txId, index);
+}
+
+export async function undoPayOverdue(
+  index: number,
+): Promise<void> {
+  const current = db.prepare(`
+    SELECT id, account, status, paidTransactionId
+    FROM finance_overdue_accounts
+    WHERE id = ?
+  `).get(index) as any;
+  if (!current) throw new Error('Conta atrasada não encontrada');
+  if (String(current.status ?? '') !== 'Pago') throw new Error('Conta não está marcada como paga.');
+
+  if (current.paidTransactionId) {
+    db.prepare('DELETE FROM finance_transactions WHERE id = ?').run(Number(current.paidTransactionId));
   }
 
-  addLocalExpenseTransaction(`Pagamento conta atrasada - ${String(current.account ?? 'Conta atrasada')}`, paymentAmount, 'Outros');
+  db.prepare(`
+    UPDATE finance_overdue_accounts
+    SET status = 'Pendente', paidAmount = NULL, paidAt = NULL, paidTransactionId = NULL
+    WHERE id = ?
+  `).run(index);
 }
 
 export async function getRecurringExpenses(): Promise<RecurringExpenseRecord[]> {

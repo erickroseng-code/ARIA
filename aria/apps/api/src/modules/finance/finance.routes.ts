@@ -9,6 +9,7 @@ import {
   updateTransactionEffectiveDirect,
   addOverdueAccount, deleteOverdueAccount, getOverdueAccounts,
   addRecurringExpense, deleteRecurringExpense, getRecurringExpenses, updateRecurringExpense,
+  applyRecurringExpensesForMonth, undoPayOverdue,
   payDebt, payOverdue,
   getCreditCards, addCreditCard, deleteCreditCard,
 } from './agents/entries';
@@ -363,6 +364,21 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // POST /api/finance/overdue/:index/undo-pay — Desfazer pagamento de conta atrasada
+  fastify.post('/overdue/:index/undo-pay', async (
+    req: FastifyRequest<{ Params: { index: string } }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const index = parseInt(req.params.index);
+      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      await undoPayOverdue(index);
+      return reply.send({ success: true });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   fastify.get('/spreadsheet', async (_req: FastifyRequest, reply: FastifyReply) => {
     const spreadsheetUrl = getSpreadsheetUrl();
     if (!spreadsheetUrl) {
@@ -392,6 +408,9 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Campos obrigatórios: description, category, amount, dayOfMonth' });
       }
       await addRecurringExpense({ description, category, amount, dayOfMonth, startMonth });
+      // Materializa imediatamente o mês de início para evitar duplicação com lançamento manual
+      const targetMonth = startMonth ?? new Date().toISOString().slice(0, 7);
+      await applyRecurringExpensesForMonth(targetMonth);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
