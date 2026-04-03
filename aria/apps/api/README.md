@@ -44,6 +44,9 @@ Após criar o serviço, vá em **Environment** e adicione:
 | Variável | Feature | Onde obter |
 |----------|---------|-----------|
 | `GROQ_API_KEY` | Chat AI (fallback) | [groq.com/keys](https://console.groq.com/keys) |
+| `TAVILY_API_KEY` | Busca web do Maverick (`/api/maverick/discover`) | [tavily.com](https://tavily.com) |
+| `MAVERICK_VIDEO_INTEL_MAX` | Quantidade de vídeos para transcrever por dossiê | Ex: `5` |
+| `R2_ENDPOINT` + `R2_BUCKET` + `R2_ACCESS_KEY_ID` + `R2_SECRET_ACCESS_KEY` + `R2_REGION` | Storage temporário R2 para vídeo (com cleanup após transcrição) | Cloudflare R2 |
 | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REFRESH_TOKEN` | Google Calendar/Workspace | Google Cloud Console |
 | `CLICKUP_API_TOKEN` + `CLICKUP_DEFAULT_LIST_ID` | Gestão de tarefas | ClickUp → Settings → Apps |
 | `NOTION_API_KEY` | Documentos Notion | [notion.so/my-integrations](https://www.notion.so/my-integrations) |

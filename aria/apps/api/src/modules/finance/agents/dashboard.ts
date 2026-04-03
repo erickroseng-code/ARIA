@@ -43,7 +43,7 @@ export interface DashboardData {
   totalExpenses: number;
   netBalance: number;
   byCategory: Array<{ category: string; spent: number; budgeted: number; percentage: number }>;
-  transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number }>;
+  transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number; isEffective: boolean; effectiveAmount?: number | null }>;
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
   comparison: MonthlyPlanComparison;
 }
@@ -87,19 +87,24 @@ function getMonthlyPlanValues(month?: string): { month: string; plannedIncome: n
   };
 }
 
-function buildComparison(targetMonth: string, totalIncome: number, totalExpenses: number): MonthlyPlanComparison {
+function buildComparison(
+  targetMonth: string,
+  plannedIncome: number,
+  actualIncome: number,
+  totalExpenses: number,
+): MonthlyPlanComparison {
   const plan = getMonthlyPlanValues(targetMonth);
-  const plannedBalance = plan.plannedIncome - plan.plannedExpenses;
-  const actualBalance = totalIncome - totalExpenses;
+  const plannedBalance = plannedIncome - plan.plannedExpenses;
+  const actualBalance = actualIncome - totalExpenses;
   return {
     month: targetMonth,
-    plannedIncome: plan.plannedIncome,
+    plannedIncome,
     plannedExpenses: plan.plannedExpenses,
     plannedBalance,
-    actualIncome: totalIncome,
+    actualIncome,
     actualExpenses: totalExpenses,
     actualBalance,
-    incomeDelta: totalIncome - plan.plannedIncome,
+    incomeDelta: actualIncome - plannedIncome,
     expensesDelta: totalExpenses - plan.plannedExpenses,
     balanceDelta: actualBalance - plannedBalance,
   };
@@ -138,21 +143,25 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
 
   if (!spreadsheetId) {
     const rows = db.prepare(`
-      SELECT id, date, type, category, description, amount
+      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
 
-    let totalIncome = 0;
+    let plannedIncome = 0;
+    let actualIncome = 0;
     let totalExpenses = 0;
     const spentMap: Record<string, number> = {};
     const transactions = rows.map(row => {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
+      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const effectiveAmount = Number(row.effectiveAmount ?? 0);
       if (type === 'receita') {
-        totalIncome += amount;
+        plannedIncome += amount;
+        if (isEffective) actualIncome += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
         totalExpenses += amount;
         spentMap[category] = (spentMap[category] ?? 0) + amount;
@@ -165,6 +174,8 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         category,
         description: String(row.description ?? ''),
         amount,
+        isEffective,
+        effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
       };
     });
 
@@ -173,13 +184,13 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       .sort((a, b) => b.spent - a.spent);
 
     return {
-      totalIncome,
+      totalIncome: actualIncome,
       totalExpenses,
-      netBalance: totalIncome - totalExpenses,
+      netBalance: actualIncome - totalExpenses,
       byCategory,
       transactions,
       alerts: [],
-      comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
+      comparison: buildComparison(targetMonth, plannedIncome, actualIncome, totalExpenses),
     };
   }
 
@@ -195,21 +206,25 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   } catch (err) {
     console.warn('[Finance] getDashboardData sheets fallback -> sqlite:', (err as any)?.message ?? err);
     const rows = db.prepare(`
-      SELECT id, date, type, category, description, amount
+      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
 
-    let totalIncome = 0;
+    let plannedIncome = 0;
+    let actualIncome = 0;
     let totalExpenses = 0;
     const spentMap: Record<string, number> = {};
     const transactions = rows.map(row => {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
+      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const effectiveAmount = Number(row.effectiveAmount ?? 0);
       if (type === 'receita') {
-        totalIncome += amount;
+        plannedIncome += amount;
+        if (isEffective) actualIncome += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
         totalExpenses += amount;
         spentMap[category] = (spentMap[category] ?? 0) + amount;
@@ -222,6 +237,8 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         category,
         description: String(row.description ?? ''),
         amount,
+        isEffective,
+        effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
       };
     });
 
@@ -230,13 +247,13 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       .sort((a, b) => b.spent - a.spent);
 
     return {
-      totalIncome,
+      totalIncome: actualIncome,
       totalExpenses,
-      netBalance: totalIncome - totalExpenses,
+      netBalance: actualIncome - totalExpenses,
       byCategory,
       transactions,
       alerts: [],
-      comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
+      comparison: buildComparison(targetMonth, plannedIncome, actualIncome, totalExpenses),
     };
   }
 
@@ -248,21 +265,25 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const rows = txData.values.filter(r => r[0]?.startsWith(targetMonth));
   if (rows.length === 0) {
     const localRows = db.prepare(`
-      SELECT id, date, type, category, description, amount
+      SELECT id, date, type, category, description, amount, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
 
-    let totalIncomeLocal = 0;
+    let plannedIncomeLocal = 0;
+    let actualIncomeLocal = 0;
     let totalExpensesLocal = 0;
     const spentMapLocal: Record<string, number> = {};
     const localTransactions = localRows.map(row => {
       const amount = Number(row.amount ?? 0);
       const type = String(row.type ?? 'despesa');
       const category = String(row.category ?? 'Outros');
+      const isEffective = type === 'despesa' ? true : Number(row.isEffective ?? 1) === 1;
+      const effectiveAmount = Number(row.effectiveAmount ?? 0);
       if (type === 'receita') {
-        totalIncomeLocal += amount;
+        plannedIncomeLocal += amount;
+        if (isEffective) actualIncomeLocal += (effectiveAmount > 0 ? effectiveAmount : amount);
       } else {
         totalExpensesLocal += amount;
         spentMapLocal[category] = (spentMapLocal[category] ?? 0) + amount;
@@ -276,6 +297,8 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         category,
         description: String(row.description ?? ''),
         amount,
+        isEffective,
+        effectiveAmount: effectiveAmount > 0 ? effectiveAmount : null,
       };
     });
 
@@ -284,17 +307,18 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       .sort((a, b) => b.spent - a.spent);
 
     return {
-      totalIncome: totalIncomeLocal,
+      totalIncome: actualIncomeLocal,
       totalExpenses: totalExpensesLocal,
-      netBalance: totalIncomeLocal - totalExpensesLocal,
+      netBalance: actualIncomeLocal - totalExpensesLocal,
       byCategory: byCategoryLocal,
       transactions: localTransactions,
       alerts: [],
-      comparison: buildComparison(targetMonth, totalIncomeLocal, totalExpensesLocal),
+      comparison: buildComparison(targetMonth, plannedIncomeLocal, actualIncomeLocal, totalExpensesLocal),
     };
   }
 
-  let totalIncome = 0;
+  let plannedIncome = 0;
+  let actualIncome = 0;
   let totalExpenses = 0;
   const spentMap: Record<string, number> = {};
   const transactions = txData.values
@@ -304,9 +328,16 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     const amount = parseFloat(row[4] ?? '0') || 0;
     const type = row[1] ?? 'despesa';
     const category = row[2] ?? 'Outros';
+    const tag = String(row[5] ?? '').toLowerCase();
+    const isEffective = type === 'despesa'
+      ? true
+      : (tag === 'efetivado' || tag.startsWith('efetivado:') || tag === '1' || tag === 'true');
+    const tagEffectiveAmount = tag.startsWith('efetivado:') ? Number(tag.split(':')[1]) : NaN;
+    const effectiveAmount = Number.isFinite(tagEffectiveAmount) && tagEffectiveAmount > 0 ? tagEffectiveAmount : null;
 
     if (type === 'receita') {
-      totalIncome += amount;
+      plannedIncome += amount;
+      if (isEffective) actualIncome += (effectiveAmount ?? amount);
     } else {
       totalExpenses += amount;
       spentMap[category] = (spentMap[category] ?? 0) + amount;
@@ -320,6 +351,8 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         category,
         description: row[3] ?? '',
         amount,
+        isEffective,
+        effectiveAmount,
       };
     });
 
@@ -335,12 +368,12 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const alerts = await checkBudgetAlerts(spreadsheetId, targetMonth);
 
   return {
-    totalIncome,
+    totalIncome: actualIncome,
     totalExpenses,
-    netBalance: totalIncome - totalExpenses,
+    netBalance: actualIncome - totalExpenses,
     byCategory,
     transactions: [...transactions].reverse(),
     alerts,
-    comparison: buildComparison(targetMonth, totalIncome, totalExpenses),
+    comparison: buildComparison(targetMonth, plannedIncome, actualIncome, totalExpenses),
   };
 }

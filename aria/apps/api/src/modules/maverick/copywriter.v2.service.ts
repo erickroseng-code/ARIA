@@ -1,11 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { resolveMaverickBrainPath } from './brain-path';
 
 // Diretório raiz do Cérebro Modular
-const BRAIN_PATH = path.resolve(
-  __dirname,
-  '../../../../../../squads/maverick/data/knowledge/brain'
-);
+const BRAIN_PATH = resolveMaverickBrainPath(__dirname);
 
 // ─── Leitura do Cérebro ──────────────────────────────────────────────────────
 
@@ -651,4 +649,3 @@ Escreva a copy completa. Voz do Maverick: analista sênior em ligação de consu
 
   yield* callAnthropicStream(systemPrompt, userPrompt, MODEL_WRITER);
 }
-

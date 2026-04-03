@@ -1,0 +1,917 @@
+{
+  "date": "2026-03-26T15:00:19.516585",
+  "mashup_angle": "Desculpe, mas percebo que os dados fornecidos estão duplicados e incompletos - tanto a notícia quanto a tendência viral mostram apenas \"meta stock price\" sem contexto adicional. Para criar um ângulo criativo e relevante, precisaria de:\n\n1. Uma notícia específica sobre o preço das ações da Meta/Facebook\n2. Uma tendência viral diferente para fazer o mashup\n\nPoderia fornecer informações mais detalhadas sobre a notícia e uma tendência viral separada para eu criar um ângulo interessante de conexão entre eles?",
+  "carousel_script": "[SLIDE 1]\n🚨 Só percebi que 83% dos meus posts fracassavam porque eu estava fazendo EXATAMENTE o que todo mundo faz: pedir contexto sem necessidade\n\n[SLIDE 2] \nA obsessão por \"mais informações\" antes de criar conteúdo é uma armadilha silenciosa que mata a criatividade\n\n[SLIDE 3]\nQuando pedimos mais contexto, estamos:\n- Procrastinando\n- Criando barreiras desnecessárias\n- Perdendo o timing da oportunidade\n\n[SLIDE 4]\nO maior erro? \nAcreditar que precisamos de dados completos para gerar valor.\nNa verdade, as maiores virais nascem de fragmentos de informação\n\n[SLIDE 5]\nA solução é simples:\nUse a escassez de informação como COMBUSTÍVEL criativo\n👉 Foque no que você JÁ TEM\n👉 Crie conexões inesperadas\n👉 Deixe o público complementar\n\n[SLIDE 6]\nMétodo prático:\n1. Pegue o fragmento de informação\n2. Questione: \"E se...?\"\n3. Conecte com sua experiência\n4. Entregue uma perspectiva única\n\n[SLIDE 7]\n💡 Salve este carrossel para o próximo momento de bloqueio criativo\n\n↗️ Compartilhe com alguém que precisa parar de procrastinar esperando o \"contexto perfeito\"",
+  "top_news": {
+    "source": "google_trends",
+    "title": "meta stock price",
+    "content": "meta stock price",
+    "url": "https://www.barrons.com/articles/facebook-meta-stock-price-pay-package-bb9a3297?gaa_at=eafs&gaa_n=AWEtsqcMuDTPjkewcDFVAY6a0ER39sJe1lvDbqUejVXzaCU6aXbopQqjLiXU&gaa_ts=69c54d05&gaa_sig=cvpgIvpAzUOqtoVyErNw77SjdlEao5cI2hlx_DXsXEaQkSEUH1P6lUyZEo3e0eIp69_ZGolOGi3YETuLzqZQ9Q%3D%3D",
+    "engagement": 10000,
+    "published_at": "2026-03-26T14:59:08.637340",
+    "viral_score": 199.97277222169086,
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9995,
+      "source_weight": 2
+    },
+    "content_hash": "ece3c250383a529e79b824e1eb59013f"
+  },
+  "top_trend": {
+    "source": "google_trends",
+    "title": "meta stock price",
+    "content": "meta stock price",
+    "url": "https://www.barrons.com/articles/facebook-meta-stock-price-pay-package-bb9a3297?gaa_at=eafs&gaa_n=AWEtsqcMuDTPjkewcDFVAY6a0ER39sJe1lvDbqUejVXzaCU6aXbopQqjLiXU&gaa_ts=69c54d05&gaa_sig=cvpgIvpAzUOqtoVyErNw77SjdlEao5cI2hlx_DXsXEaQkSEUH1P6lUyZEo3e0eIp69_ZGolOGi3YETuLzqZQ9Q%3D%3D",
+    "engagement": 10000,
+    "published_at": "2026-03-26T14:59:08.637340",
+    "viral_score": 199.97277222169086,
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9995,
+      "source_weight": 2
+    },
+    "content_hash": "ece3c250383a529e79b824e1eb59013f"
+  },
+  "scored_trends": [
+    {
+      "source": "google_trends",
+      "title": "meta stock price",
+      "content": "meta stock price",
+      "url": "https://www.barrons.com/articles/facebook-meta-stock-price-pay-package-bb9a3297?gaa_at=eafs&gaa_n=AWEtsqcMuDTPjkewcDFVAY6a0ER39sJe1lvDbqUejVXzaCU6aXbopQqjLiXU&gaa_ts=69c54d05&gaa_sig=cvpgIvpAzUOqtoVyErNw77SjdlEao5cI2hlx_DXsXEaQkSEUH1P6lUyZEo3e0eIp69_ZGolOGi3YETuLzqZQ9Q%3D%3D",
+      "engagement": 10000,
+      "published_at": "2026-03-26T14:59:08.637340",
+      "viral_score": 199.97277222169086,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "ece3c250383a529e79b824e1eb59013f"
+    },
+    {
+      "source": "google_trends",
+      "title": "will wade lsu",
+      "content": "will wade lsu",
+      "url": "https://www.cbssports.com/college-basketball/news/will-wade-lsu-coach-nc-state-matt-mcmahon/",
+      "engagement": 2000,
+      "published_at": "2026-03-26T14:59:08.637323",
+      "viral_score": 199.9727722118636,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "5bf196c554ca9c9034ec501c0952c4c7"
+    },
+    {
+      "source": "google_trends",
+      "title": "bill maher",
+      "content": "bill maher",
+      "url": "https://www.cnn.com/2026/03/26/politics/bill-maher-mark-twain-prize-kennedy-center",
+      "engagement": 2000,
+      "published_at": "2026-03-26T14:59:08.637307",
+      "viral_score": 199.97277220261444,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "fcdc75d09753bce306583b3eb5ac6586"
+    },
+    {
+      "source": "google_trends",
+      "title": "google stock price",
+      "content": "google stock price",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/alphabet-inc-goog-registers-bigger-214505944.html",
+      "engagement": 2000,
+      "published_at": "2026-03-26T14:59:08.637291",
+      "viral_score": 199.97277219336524,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "0eb3fc6c7f06455e1e94220bf83a3014"
+    },
+    {
+      "source": "google_trends",
+      "title": "meta stock",
+      "content": "meta stock",
+      "url": "https://www.barrons.com/articles/meta-stock-ark-cathie-wood-tempus-ai-f4252734?gaa_at=eafs&gaa_n=AWEtsqc0rZWPNySxN5gH8daWizTyi1ng7k3rFy4F3H32aWMYKk--nkLQC_re&gaa_ts=69c54d3f&gaa_sig=GhKYFSyBrgRPlrMka8WbZY0oCMlA-eQbzXLKZQ700nKKItGJzf5swuMVYPCY5h7SAjJ9rnuHwnh-vOPbHqqewA%3D%3D",
+      "engagement": 2000,
+      "published_at": "2026-03-26T14:59:08.637219",
+      "viral_score": 199.97277215174395,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "8678150cd77e63e287cc96b3e3ec2ea6"
+    },
+    {
+      "source": "google_trends",
+      "title": "jackson chourio",
+      "content": "jackson chourio",
+      "url": "https://www.espn.com/mlb/story/_/id/48312279/brewers-place-jackson-chourio-il-due-fractured-hand",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:08.637242",
+      "viral_score": 154.7627074867125,
+      "score_components": {
+        "normalized_engagement": 0.6986,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "8d72ec8701ec64f4f5733aa9c9ab140b"
+    },
+    {
+      "source": "google_trends",
+      "title": "ibama",
+      "content": "ibama",
+      "url": "https://www.cnnbrasil.com.br/nacional/sudeste/rj/decreto-cao-orelha-e-aplicado-pela-1-vez-em-caso-de-capivara-agredida/",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:05.640625",
+      "viral_score": 154.7609752815769,
+      "score_components": {
+        "normalized_engagement": 0.6986,
+        "recency_score": 0.9994,
+        "source_weight": 2
+      },
+      "content_hash": "983c939dd6bff6f3c0afd587db08edf8"
+    },
+    {
+      "source": "google_trends",
+      "title": "playstation plus",
+      "content": "playstation plus",
+      "url": "https://www.mixvale.com.br/2026/03/25/catalogo-do-playstation-plus-perde-oito-jogos-de-peso-nos-planos-extra-e-premium-durante-o-mes-de-abril/",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:05.640492",
+      "viral_score": 154.7609752046984,
+      "score_components": {
+        "normalized_engagement": 0.6986,
+        "recency_score": 0.9994,
+        "source_weight": 2
+      },
+      "content_hash": "881bb198e97196e65088cfff7f8428d7"
+    },
+    {
+      "source": "google_trends",
+      "title": "bad news brown",
+      "content": "bad news brown",
+      "url": "https://www.wwe.com/article/sid-to-be-inducted-into-the-wwe-hall-of-fame-class-of-2026",
+      "engagement": 500,
+      "published_at": "2026-03-26T14:59:08.637259",
+      "viral_score": 109.58520521302661,
+      "score_components": {
+        "normalized_engagement": 0.3974,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "b45b7359f5497f11921dc18e76312925"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "Meta and YouTube found liable in social media addiction trial",
+      "content": "Meta and YouTube found liable in social media addiction trial",
+      "url": "https://www.reddit.com/r/news/comments/1s3hi18/meta_and_youtube_found_liable_in_social_media/",
+      "engagement": 58932,
+      "published_at": "2026-03-26T14:59:05.168142",
+      "viral_score": 99.98538342519097,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "0439fb9f270b986747c0c33f7374c65a"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "POV of a head chef’s super busy session at a restaurant",
+      "content": "POV of a head chef’s super busy session at a restaurant",
+      "url": "https://www.reddit.com/r/interestingasfuck/comments/1s3vxt1/pov_of_a_head_chefs_super_busy_session_at_a/",
+      "engagement": 45848,
+      "published_at": "2026-03-26T14:59:05.168171",
+      "viral_score": 97.22734609251799,
+      "score_components": {
+        "normalized_engagement": 0.9632,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "0334ac71d3942427ec80de82c1b4eef9"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "That's a Really Cool Dad",
+      "content": "That's a Really Cool Dad",
+      "url": "https://www.reddit.com/r/SipsTea/comments/1s41cyv/thats_a_really_cool_dad/",
+      "engagement": 15911,
+      "published_at": "2026-03-26T14:59:05.168149",
+      "viral_score": 58.472772462591884,
+      "score_components": {
+        "normalized_engagement": 0.4465,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "f4a58212da22285b77a2816e2d71b636"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "What’s your favorite “what in the actual f**k is he doing in this” camo?",
+      "content": "Watching Band of Brothers and damn near spilled my chocolate milk. ",
+      "url": "https://www.reddit.com/r/okbuddycinephile/comments/1s3nxg4/whats_your_favorite_what_in_the_actual_fk_is_he/",
+      "engagement": 12880,
+      "published_at": "2026-03-26T14:59:05.168162",
+      "viral_score": 50.734154311480495,
+      "score_components": {
+        "normalized_engagement": 0.3433,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "079241bd0ffbd823fab026d6c56c6bc8"
+    },
+    {
+      "source": "google_trends",
+      "title": "rosalia",
+      "content": "rosalia",
+      "url": "https://www.yahoo.com/entertainment/music/articles/rosal-pulls-plug-milan-concert-130203523.html",
+      "engagement": 200,
+      "published_at": "2026-03-26T14:59:08.637373",
+      "viral_score": 49.972772240767284,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 2
+      },
+      "content_hash": "1ffb5bdeaf7b90015e3e7dd9e3ea9614"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "Got a street cat to catch a mouse in the house",
+      "content": "Got a street cat to catch a mouse in the house",
+      "url": "https://www.reddit.com/r/interestingasfuck/comments/1s45qpe/got_a_street_cat_to_catch_a_mouse_in_the_house/",
+      "engagement": 12410,
+      "published_at": "2026-03-26T14:59:05.168176",
+      "viral_score": 49.372969435138,
+      "score_components": {
+        "normalized_engagement": 0.3252,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "10e0b2ffaed2478698a3b1116fd48882"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "Decided to let go and idk how to feel about it",
+      "content": "I’ve been holding on for years i started thinning at 19 now 25 i decided to let it go and idk if i have a good head shape for it im back and forth whether i like it or not let me know what yall think",
+      "url": "https://www.reddit.com/r/bald/comments/1s42t58/decided_to_let_go_and_idk_how_to_feel_about_it/",
+      "engagement": 11512,
+      "published_at": "2026-03-26T14:59:05.168166",
+      "viral_score": 46.6225491488114,
+      "score_components": {
+        "normalized_engagement": 0.2885,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "de9d7f76b44fef02fb98cd49da05532c"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | 1.2M",
+      "url": "https://www.tiktok.com/@gisellerangel02/video/7561097335179136263",
+      "engagement": 1200000,
+      "viral_score": 37.499908668749995,
+      "published_at": "2026-03-26T14:59:54.870859",
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | 338k",
+      "url": "https://www.tiktok.com/@laricesouzab/video/7539519383241035064",
+      "engagement": 337900,
+      "viral_score": 37.49990162190909,
+      "published_at": "2026-03-26T14:59:54.805914",
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "g1",
+      "title": "Vorcaro vai delatar operadores acima dele no esquema de fraudes bancárias, dizem investigadores",
+      "content": "Valdo: Vorcaro via entregar proposta de delação em abril\nO banqueiro Daniel Vorcaro vai entregar, no mês de abril, sua proposta de delação à Polícia Federal (PF) e à Procuradoria Geral da República (PGR). \nO relatório vai tratar, não só de ministros do STF e políticos, mas também de operadores que e",
+      "url": "https://g1.globo.com/politica/blog/valdo-cruz/post/2026/03/26/daniel-vorcaro-vai-delatar-operadores-acima-dele-no-esquema-de-fraudes-bancarias-dizem-interlocutores.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.337011",
+      "viral_score": 37.47858187320153,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "f21c0bac7b03ad2454d3b81a48642088"
+    },
+    {
+      "source": "g1",
+      "title": "Relatório da CPMI será concluído ainda nesta quinta e pede indiciamento de cerca de 220 pessoas, diz relator",
+      "content": "O relator da CPMI do INSS, deputado Alfredo Gaspar (União Brasil-AL), afirmou nesta quinta-feira (26) que o relatório produzido pelo colegiado está em fase final e que deve ser concluído ainda nesta quinta. \nGaspar afirmou também que a expectativa é ler o relatório nesta sexta (27) e convocar uma re",
+      "url": "https://g1.globo.com/politica/noticia/2026/03/26/relatorio-da-cpmi-sera-concluido-ainda-nesta-quinta-e-aponta-indiciamento-de-220-pessoas-diz-relator.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336998",
+      "viral_score": 37.47858186756561,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "8d3798e337a848a69f6347627b824a6e"
+    },
+    {
+      "source": "g1",
+      "title": "O que é vicaricídio: entenda crime aprovado no Senado com pena de até 40 anos para pai que mata filho para atingir mãe",
+      "content": "Violência contra mulher, violencia doméstica, sobrevivência feminina\nBruna Bonfim/g1\nNa quarta-feira (25), o Senado aprovou projeto que altera a Lei Maria da Penha, o Código Penal e a Lei dos Crimes Hediondos para incluir a \"violência vicária\": quando um homem ataca pessoas do entorno da mulher.\n🔎 A",
+      "url": "https://g1.globo.com/politica/noticia/2026/03/26/o-que-e-violencia-vicaria-quando-homens-atacam-filhos-e-familiares-para-punir-mulheres.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336978",
+      "viral_score": 37.47858185889497,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "ef3a3ecacd1c50fb065968a5e4a89eff"
+    },
+    {
+      "source": "g1",
+      "title": "STF limita 'penduricalhos', mas cria novo teto salarial e pode pressionar gastos públicos",
+      "content": "Valdo: decisão sobre penduricalhos divide opiniões\nA decisão do Supremo Tribunal Federal (STF) que busca limitar os chamados “penduricalhos” no serviço público pode ter um efeito colateral relevante: transformar o teto salarial em um novo padrão mais elevado, com impacto potencial nas contas pública",
+      "url": "https://g1.globo.com/politica/blog/valdo-cruz/post/2026/03/26/stf-limita-penduricalhos-mas-cria-novo-teto-salarial-e-pode-pressionar-gastos-publicos.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336955",
+      "viral_score": 37.478581848923724,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "e782e7b14724326dbe4f570f0e13ad64"
+    },
+    {
+      "source": "g1",
+      "title": "Lei prevê estrutura mínima obrigatória para escolas públicas; veja exigências",
+      "content": "Uma lei publicada no \"Diário Oficial da União\" desta quinta-feira (26) estabelece os requisitos mínimos para o funcionamento das escolas públicas da Educação Básica no Brasil. \nA norma determina que o poder público deve garantir infraestrutura adequada para o funcionamento das escolas. Entre as exig",
+      "url": "https://g1.globo.com/politica/noticia/2026/03/26/lei-preve-estrutura-minima-obrigatoria-para-escolas-publicas-veja-exigencias.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336933",
+      "viral_score": 37.478581839386024,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "b21d6eaff3a7f0230406254178932c48"
+    },
+    {
+      "source": "g1",
+      "title": "Após tensões com os EUA, Lula faz acenos à China e diz que país é o 'melhor' parceiro comercial do Brasil",
+      "content": "Presidente Lula durante visita à fábrica da Caoa, em Anápolis (GO).\nRicardo Stuckert/ Presidência da República\nO presidente Luiz Inácio Lula da Silva (PT) afirmou nesta quarta-feira (25) que a China é o \"melhor\" parceiro do Brasil. \nA declaração ocorre em um momento de tensões na relação bilateral d",
+      "url": "https://g1.globo.com/politica/noticia/2026/03/26/apos-tensoes-com-os-eua-lula-faz-acenos-a-china-e-diz-que-pais-e-o-melhor-parceiro-comercial-do-brasil.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336914",
+      "viral_score": 37.47858183114891,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "de64d699dec05e50629726bba6b7dd5b"
+    },
+    {
+      "source": "g1",
+      "title": "Justiça italiana decide por extradição de Carla Zambelli",
+      "content": "A Justiça da Itália aceitou nesta quinta-feira (26) o pedido de extradição feito pelo Brasil contra a ex-deputada federal Carla Zambelli. \nSegundo fontes da diplomacia por dentro do processo, esta não é a decisão final. Ainda cabe recurso da decisão da Corte de Apelações, que analisa o pedido do Sup",
+      "url": "https://g1.globo.com/politica/noticia/2026/03/26/zambelli-extradicao.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.336897",
+      "viral_score": 37.47858182377886,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "4431d64d49c1b1504e7021bbee1014cf"
+    },
+    {
+      "source": "g1",
+      "title": "Com guerra no Oriente Médio, BC aumenta estimativa de inflação e mantém projeção de alta do PIB de 2026 em 1,6%",
+      "content": "O Banco Central manteve em 1,6% sua projeção oficial de crescimento do Produto Interno Bruto (PIB) deste ano. A informação consta no relatório de Política Monetária, divulgado nesta quinta-feira (16).\n➡️Se confirmado, o crescimento do BC projetado para o próximo ano será o menor desde 2020 (quando h",
+      "url": "https://g1.globo.com/economia/noticia/2026/03/26/banco-central-mantem-projecao-de-alta-do-pib-de-2026-em-16percent-mas-diz-que-guerra-pode-pressionar-inflacao-e-conter-atividade.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.007565",
+      "viral_score": 37.47843904831991,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "603a35b8070298c8dc168814d040e11f"
+    },
+    {
+      "source": "g1",
+      "title": "Conflito no Oriente Médio afeta crescimento global e eleva a inflação no mundo, aponta relatório",
+      "content": "Contêineres de carga empilhados na Terminal Island, no porto de Los Angeles, Califórnia, EUA, em 24 de fevereiro de 2026\nREUTERS/Mike Blake\nO conflito no Oriente Médio já impacta a economia global e reduziu as perspectivas de crescimento, segundo relatório divulgado nesta quinta-feira (26) pela Orga",
+      "url": "https://g1.globo.com/economia/noticia/2026/03/26/guerra-no-ira-elimina-projecao-de-crescimento-global-e-alimenta-a-inflacao-diz-ocde.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.007539",
+      "viral_score": 37.47843903704816,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "6155e05b917dbb0ec7e96bc9ac2d19bf"
+    },
+    {
+      "source": "g1",
+      "title": "A pressão sobre o Airbnb para tirar do ar todos os anúncios de moradia social em São Paulo",
+      "content": "Airbnb diz à CPI que retirará anúncios de apartamentos populares em SP\nO Airbnb, maior empresa de locação temporária de residências do mundo, disse que removerá de sua plataforma todos os anúncios de imóveis considerados moradias populares na cidade de São Paulo.\nA companhia afirmou que fará a remoç",
+      "url": "https://g1.globo.com/sp/sao-paulo/noticia/2026/03/26/a-pressao-sobre-o-airbnb-para-tirar-do-ar-todos-os-anuncios-de-moradia-social-em-sao-paulo.ghtml",
+      "engagement": 1,
+      "published_at": "2026-03-26T14:59:06.007512",
+      "viral_score": 37.47843902534289,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1.5
+      },
+      "content_hash": "6695429129fe259ac9b5835f6e43141c"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "Name him whatever you last ate.",
+      "content": "[OP](https://x.com/i/status/2036452004348960914)",
+      "url": "https://www.reddit.com/r/NewDelhi/comments/1s3yq01/name_him_whatever_you_last_ate/",
+      "engagement": 7830,
+      "published_at": "2026-03-26T14:59:05.168125",
+      "viral_score": 32.50955810966206,
+      "score_components": {
+        "normalized_engagement": 0.1003,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "9686422465d425bc259f5ab2e41a2456"
+    },
+    {
+      "source": "reddit_r_popular",
+      "title": "Who's a nepo baby you think deserves their success because they're legit talented?",
+      "content": "Who's a nepo baby you think deserves their success because they're legit talented?",
+      "url": "https://www.reddit.com/r/AskReddit/comments/1s3tmae/whos_a_nepo_baby_you_think_deserves_their_success/",
+      "engagement": 3947,
+      "published_at": "2026-03-26T14:59:05.168153",
+      "viral_score": 24.98538342837013,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9994,
+        "source_weight": 1
+      },
+      "content_hash": "4c00c901110cfdf2843fdb9b1fd2a58d"
+    },
+    {
+      "source": "x_twitter",
+      "title": "JK Rowling",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=JK+Rowling&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.457331",
+      "viral_score": 19.98999222209358,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "2a02586f6679afaac320d860ed4f25a6"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Erva Venenosa",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Erva+Venenosa&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.449512",
+      "viral_score": 19.98999041395095,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "262cea4450a7f53953fa36e029a43968"
+    },
+    {
+      "source": "x_twitter",
+      "title": "O Estado",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=O+Estado&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.444699",
+      "viral_score": 19.98998930094555,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "a9abc9e4ac2483a692fa69f3c23bb6a9"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Unicamp",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Unicamp&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.440020",
+      "viral_score": 19.98998821892775,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "2452f57ab22852a54b7c63da0259365d"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Fictor",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Fictor&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.433335",
+      "viral_score": 19.989986673023054,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "83a69a6f3e85084c96384400bae9ad51"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Embraer",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Embraer&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.428105",
+      "viral_score": 19.989985463586933,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "81e4c2bca3589c7fc9654c7ce2031d55"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Biden",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Biden&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.423905",
+      "viral_score": 19.989984492338152,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "aa4cd6d10469e75d93f816a1cc1ffb01"
+    },
+    {
+      "source": "x_twitter",
+      "title": "CAMPEÃ",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=CAMPEÃ&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.418228",
+      "viral_score": 19.989983179533695,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "b44841f33e59a1fd3424c59eeb620d53"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Israel e Argentina",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Israel+e+Argentina&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.412486",
+      "viral_score": 19.989981851698182,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "f2b4c808bd1d44ab5e4aac1944be5d61"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Senador",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Senador&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:59:12.407254",
+      "viral_score": 19.98998064180015,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "1a8ce4886b08f97e86f322c43dc84eed"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWHs9rMjXgF/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.729270",
+      "period_days": 30,
+      "viral_score": 15.619398835490092,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DUZOivnEQnj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.726123",
+      "period_days": 30,
+      "viral_score": 15.619398266779147,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DTfuQcXjTqC/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.722912",
+      "period_days": 30,
+      "viral_score": 15.619397686502465,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DU_7ZJvDmXj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.719563",
+      "period_days": 30,
+      "viral_score": 15.619397081287126,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DP2Xz-ikQrj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.714213",
+      "period_days": 30,
+      "viral_score": 15.619396114460685,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/C_GgSc3PJBE/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.709928",
+      "period_days": 30,
+      "viral_score": 15.619395340096045,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWJbnorDnlJ/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.703154",
+      "period_days": 30,
+      "viral_score": 15.619394115931422,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DCpmmi_vlxi/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.694628",
+      "period_days": 30,
+      "viral_score": 15.619392575154077,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DNRHl_MRhw3/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.686533",
+      "period_days": 30,
+      "viral_score": 15.619391112265241,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DTeAON1D1Ad/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:59:24.683344",
+      "period_days": 30,
+      "viral_score": 15.619390535964826,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9996,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@brand22creativeagency/video/7594524817307487521",
+      "engagement": 0,
+      "viral_score": 9.374909460726823,
+      "published_at": "2026-03-26T14:59:54.878158",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@astra.cntd/video/7511925966013238584",
+      "engagement": 0,
+      "viral_score": 9.374907693617192,
+      "published_at": "2026-03-26T14:59:54.861872",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@lucaprata1/video/7458399208098336006",
+      "engagement": 0,
+      "viral_score": 9.37490410666663,
+      "published_at": "2026-03-26T14:59:54.828814",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@avellarapha/video/7512861907913739525",
+      "engagement": 0,
+      "viral_score": 9.374902856800873,
+      "published_at": "2026-03-26T14:59:54.817295",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@anonmediabr/video/7538443666428415237",
+      "engagement": 0,
+      "viral_score": 9.37489123596236,
+      "published_at": "2026-03-26T14:59:54.710195",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@7259809676484314117/video/7551223431912525061",
+      "engagement": 0,
+      "viral_score": 9.37488557518133,
+      "published_at": "2026-03-26T14:59:54.658024",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@7259809676484314117/video/7577793247750163732",
+      "engagement": 0,
+      "viral_score": 9.374884363079998,
+      "published_at": "2026-03-26T14:59:54.646853",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@7259809676484314117/video/7550886640277867832",
+      "engagement": 0,
+      "viral_score": 9.374883526186657,
+      "published_at": "2026-03-26T14:59:54.639140",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    }
+  ]
+}

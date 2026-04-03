@@ -43,9 +43,10 @@ class InstagramScraper(BaseScraper):
 
         async def _run(context):
             page = await context.new_page()
+            detail_page = await context.new_page()
             try:
                 for keyword in self.keywords[:3]:
-                    reels = await self._search_keyword(page, keyword, cutoff_date)
+                    reels = await self._search_keyword(page, detail_page, keyword, cutoff_date)
                     new_reels = 0
                     for reel in reels:
                         url = reel.get("url", "")
@@ -66,6 +67,7 @@ class InstagramScraper(BaseScraper):
                         new_reels += 1
                     logger.info(f"Instagram '{keyword}': {new_reels} Reels novos encontrados")
             finally:
+                await detail_page.close()
                 await page.close()
 
         if shared:
@@ -87,7 +89,7 @@ class InstagramScraper(BaseScraper):
         return all_reels
 
     async def _search_keyword(
-        self, page, keyword: str, cutoff_date: datetime.datetime
+        self, page, detail_page, keyword: str, cutoff_date: datetime.datetime
     ) -> List[Dict[str, Any]]:
         reels = []
 
@@ -129,52 +131,111 @@ class InstagramScraper(BaseScraper):
                         pass
 
                     views = _parse_ig_views(card_text)
-                    if views < self.min_views:
+                    # Quando views nao sao parseaveis, mantemos o item com engagement 0.
+                    # Isso evita inflar score com numeros artificiais.
+                    if views > 0 and views < self.min_views:
                         continue
 
-                    published_at = _estimate_date(card_text)
-                    if published_at and published_at < cutoff_date:
+                    published_at = await self._resolve_published_at(detail_page, url, card_text)
+                    # Filtro de periodo estrito: se nao conseguimos inferir data, descartamos.
+                    if not published_at:
+                        continue
+                    if published_at < cutoff_date:
                         continue
 
+                    shortcode = _shortcode_from_url(url)
                     reels.append({
                         "source": "instagram",
-                        "title": f"Reel: {keyword}",
-                        "content": f"Keyword: {keyword} | Views: {_format_views(views)}",
+                        "title": f"Reel: {keyword} [{shortcode}]",
+                        "content": f"Keyword: {keyword} | Views: {_format_views(views) if views > 0 else 'n/d'}",
                         "url": url,
                         "engagement": float(views),
-                        "published_at": published_at or datetime.datetime.utcnow(),
+                        "published_at": published_at,
                     })
                 except Exception:
                     continue
 
             # Fallback via hashtag se nenhum resultado
             if not reels:
-                tag = keyword.replace(" ", "")
-                tag_url = f"https://www.instagram.com/explore/tags/{tag}/"
-                await page.goto(tag_url, timeout=20000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(2000)
-
-                reel_links_fb = await page.locator('a[href*="/reel/"]').all()
-                for link in reel_links_fb[:10]:
-                    try:
-                        href = await link.get_attribute("href") or ""
-                        if href:
-                            url = f"https://www.instagram.com{href}" if href.startswith("/") else href
-                            reels.append({
-                                "source": "instagram",
-                                "title": f"Reel #{tag}",
-                                "content": f"Hashtag: #{tag}",
-                                "url": url,
-                                "engagement": float(self.min_views),
-                                "published_at": datetime.datetime.utcnow(),
-                            })
-                    except Exception:
-                        continue
+                reels.extend(await self._extract_from_hashtag_page(page, detail_page, keyword, cutoff_date))
 
         except Exception as e:
             logger.error(f"Erro Instagram '{keyword}': {e}")
 
         return reels
+
+    async def _extract_from_hashtag_page(
+        self, page, detail_page, keyword: str, cutoff_date: datetime.datetime
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        tag = keyword.replace(" ", "")
+        tag_url = f"https://www.instagram.com/explore/tags/{tag}/"
+        await page.goto(tag_url, timeout=30000, wait_until="domcontentloaded")
+        await page.wait_for_timeout(2200)
+
+        for _ in range(5):
+            await page.mouse.wheel(0, 1600)
+            await page.wait_for_timeout(900)
+
+        link_handles = await page.locator('a[href*="/reel/"], a[href*="/p/"]').all()
+        seen: set[str] = set()
+        for link in link_handles[:35]:
+            try:
+                href = await link.get_attribute("href") or ""
+                if not href:
+                    continue
+                url = f"https://www.instagram.com{href}" if href.startswith("/") else href
+                if url in seen:
+                    continue
+                seen.add(url)
+                card_text = ""
+                try:
+                    card_text = (await link.inner_text()).strip()
+                except Exception:
+                    pass
+                published_at = await self._resolve_published_at(detail_page, url, card_text)
+                # Filtro de periodo estrito no fallback.
+                if not published_at or published_at < cutoff_date:
+                    continue
+                shortcode = _shortcode_from_url(url)
+                kind = "Reel" if "/reel/" in url else "Post"
+                results.append(
+                    {
+                        "source": "instagram",
+                        "title": f"{kind} #{tag} [{shortcode}]",
+                        "content": f"Hashtag: #{tag}",
+                        "url": url,
+                        "engagement": 0.0,
+                        "published_at": published_at,
+                    }
+                )
+            except Exception:
+                continue
+        return results
+
+    async def _resolve_published_at(self, detail_page, url: str, card_text: str) -> Optional[datetime.datetime]:
+        """
+        Resolve published_at trying fast text parse first, then post page <time datetime>.
+        """
+        est = _estimate_date(card_text)
+        if est:
+            return est
+
+        try:
+            await detail_page.goto(url, timeout=20000, wait_until="domcontentloaded")
+            await detail_page.wait_for_timeout(900)
+            time_el = detail_page.locator("time").first
+            dt_attr = await time_el.get_attribute("datetime")
+            if dt_attr:
+                try:
+                    return datetime.datetime.fromisoformat(dt_attr.replace("Z", "+00:00")).replace(tzinfo=None)
+                except Exception:
+                    pass
+            # Fallback textual parse from detail page when datetime attr is missing.
+            body_text = (await detail_page.locator("body").inner_text())[:2000]
+            return _estimate_date(body_text)
+        except Exception:
+            return None
 
 
 def _parse_ig_views(text: str) -> int:
@@ -192,13 +253,13 @@ def _parse_ig_views(text: str) -> int:
 def _estimate_date(text: str) -> Optional[datetime.datetime]:
     now = datetime.datetime.utcnow()
     t = text.lower()
-    m = re.search(r"ha (\d+) dia", t)
+    m = re.search(r"h[áa]\s+(\d+)\s+dia", t)
     if m:
         return now - datetime.timedelta(days=int(m.group(1)))
-    m = re.search(r"ha (\d+) semana", t)
+    m = re.search(r"h[áa]\s+(\d+)\s+semana", t)
     if m:
         return now - datetime.timedelta(weeks=int(m.group(1)))
-    m = re.search(r"ha (\d+) mes", t)
+    m = re.search(r"h[áa]\s+(\d+)\s+m[eê]s", t)
     if m:
         return now - datetime.timedelta(days=int(m.group(1)) * 30)
     m = re.search(r"(\d+)d ago|(\d+) days", t)
@@ -216,3 +277,9 @@ def _format_views(views: int) -> str:
     if views >= 1_000:
         return f"{views/1_000:.0f}k"
     return str(views)
+
+
+def _shortcode_from_url(url: str) -> str:
+    # Instagram can expose posts as /reel/<id>, /p/<id> or /tv/<id>.
+    m = re.search(r"/(?:reel|p|tv)/([^/?#]+)", url)
+    return m.group(1) if m else "unknown"

@@ -30,15 +30,6 @@ const envSchema = z.object({
   NOTION_DATABASE_ID: z.string().optional(),
   NOTION_TASKS_DATABASE_ID: z.string().optional(),
 
-  // ClickUp configuration (supports both naming conventions)
-  CLICKUP_API_KEY: z.string().optional(),
-  CLICKUP_API_TOKEN: z.string().optional(),
-  CLICKUP_TEAM_ID: z.string().optional(),
-  CLICKUP_LIST_ID: z.string().optional(),
-  CLICKUP_DEFAULT_LIST_ID: z.string().optional(),
-  CLICKUP_ID_LIST: z.string().optional(),
-  CLICKUP_USER_ID: z.string().optional(),
-
   // CORS allowlist (comma-separated origins)
   ALLOWED_ORIGINS: z.string().optional().default('http://localhost:3000,http://localhost:3001'),
 });

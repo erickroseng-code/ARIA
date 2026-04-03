@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent';
-export type TaskDestination = 'clickup' | 'notion' | 'both';
+export type TaskDestination = 'notion';
 export type CompletenessLevel = 'complete' | 'ambiguous' | 'incomplete';
 export type TaskActionType = 'create' | 'update' | 'read';
 
@@ -16,11 +16,11 @@ export interface TaskIntent {
   clientName?: string; // Company name
   clientId?: string; // Notion page ID (if found)
   priority?: PriorityLevel; // low | medium | high | urgent
-  destination?: TaskDestination; // clickup | notion | both
+  destination?: TaskDestination; // notion
 
   // For UPDATE actions
   targetTaskName?: string; // Name of task to update
-  targetTaskId?: string; // ClickUp task ID (if found)
+  targetTaskId?: string; // Task ID (if found)
   updateField?: string; // "status" | "priority" | "dueDate"
   updateValue?: string; // New value ("concluído", "high", "amanhã")
 
@@ -47,7 +47,7 @@ Return ONLY valid JSON (no other text) with this structure:
   "dueDateRelative": "amanhã|sexta|próxima segunda|em 2 dias|14:00|null",
   "clientName": "string or null",
   "priority": "low|medium|high|urgent|null",
-  "destination": "clickup|notion|both|null",
+  "destination": "notion|null",
   "completeness": "complete|ambiguous|incomplete",
   "ambiguityReason": "string if ambiguous or incomplete, null otherwise",
   "clarificationNeeded": "string if ambiguous/incomplete asking for clarification, null otherwise"
@@ -62,7 +62,7 @@ Rules:
    - "urgente", "ASAP", "logo", "hoje" → "high"
    - "quando tiver tempo", "sem pressa" → "low"
    - Default → "medium"
-5. destination: Only if explicitly mentioned (ClickUp, Notion, "ambos")
+5. destination: Use "notion" when destination is specified or implied
 6. completeness:
    - "complete" = has title AND (has date OR destination is clear)
    - "ambiguous" = has title but missing context (unclear date, no client for relation, ambiguous destination)
@@ -173,7 +173,7 @@ export class TaskIntentParser {
       dueDateRelative: parsed.dueDateRelative || undefined,
       clientName: parsed.clientName || undefined,
       priority: parsed.priority as PriorityLevel | undefined,
-      destination: parsed.destination as TaskDestination | undefined,
+      destination: parsed.destination === 'notion' ? 'notion' : undefined,
       completeness: (parsed.completeness || 'incomplete') as CompletenessLevel,
       ambiguityReason: parsed.ambiguityReason || undefined,
       clarificationNeeded: parsed.clarificationNeeded || undefined,
@@ -187,8 +187,7 @@ export class TaskIntentParser {
     if (!intent.title) confidence = Math.max(0, confidence - 0.3);
 
     const preview = this.generatePreview(intent);
-    const requiresConfirmation =
-      intent.completeness !== 'complete' || !intent.destination;
+    const requiresConfirmation = intent.completeness !== 'complete';
 
     return {
       intent,
@@ -316,12 +315,8 @@ export class TaskIntentParser {
 
     // Extract destination
     let destination: TaskDestination | undefined;
-    if (lowerText.includes('clickup')) {
-      destination = 'clickup';
-    } else if (lowerText.includes('notion')) {
+    if (lowerText.includes('notion')) {
       destination = 'notion';
-    } else if (lowerText.includes('ambos')) {
-      destination = 'both';
     }
 
     // Determine completeness
@@ -329,13 +324,12 @@ export class TaskIntentParser {
     let ambiguityReason: string | undefined;
     let clarificationNeeded: string | undefined;
 
-    if (title && dueDateRelative && destination) {
+    if (title && dueDateRelative) {
       completeness = 'complete';
     } else if (title) {
       completeness = 'ambiguous';
       const missing: string[] = [];
       if (!dueDateRelative) missing.push('data');
-      if (!destination) missing.push('destino (ClickUp/Notion)');
       ambiguityReason = `Faltam informações: ${missing.join(', ')}`;
       clarificationNeeded = missing.length > 0
         ? `Qual é ${missing.length === 1 ? 'o/a' : 'o/a'} ${missing.join(' e ')}?`
@@ -364,8 +358,7 @@ export class TaskIntentParser {
     if (completeness === 'ambiguous') confidence = 0.6;
 
     const preview = this.generatePreview(intent);
-    const requiresConfirmation =
-      completeness !== 'complete' || !destination;
+    const requiresConfirmation = completeness !== 'complete';
 
     return {
       intent,

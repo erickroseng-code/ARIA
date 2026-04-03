@@ -29,7 +29,7 @@ export class AmbiguityResolver {
     }
 
     if (!intent.destination) {
-      missingFields.push('destino (ClickUp/Notion/ambos)');
+      missingFields.push('destino (Notion)');
     }
 
     if (!intent.clientName && !intent.clientId) {
@@ -213,9 +213,7 @@ export class AmbiguityResolver {
    */
   private formatDestination(destination: string): string {
     const map: Record<string, string> = {
-      clickup: '📌 ClickUp',
       notion: '📄 Notion',
-      both: '📌 ClickUp + 📄 Notion (ambos)',
     };
 
     return map[destination] || destination;

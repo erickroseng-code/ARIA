@@ -1,6 +1,6 @@
 import { LucideIcon } from "lucide-react";
 
-export type IntegrationCategory = 'Calendar' | 'Gmail' | 'ClickUp' | 'Notion' | 'ARIA' | 'Google Sheets';
+export type IntegrationCategory = 'Calendar' | 'Gmail' | 'Notion' | 'ARIA' | 'Google Sheets';
 
 export interface SlashCommand {
     id: string;
@@ -55,29 +55,6 @@ export const slashCommands: SlashCommand[] = [
         title: 'Enviar e-mail',
         syntax: 'Envie um e-mail para [destinatário] com assunto [assunto]',
         icon: '/mail.png',
-    },
-
-    // ClickUp
-    {
-        id: 'clickup-mytasks',
-        category: 'ClickUp',
-        title: 'Minhas tarefas',
-        syntax: 'Quais são minhas tarefas de hoje?',
-        icon: '/clickup.svg',
-    },
-    {
-        id: 'clickup-create',
-        category: 'ClickUp',
-        title: 'Criar tarefa',
-        syntax: 'Criar tarefa [título] no ClickUp',
-        icon: '/clickup.svg',
-    },
-    {
-        id: 'clickup-pipeline',
-        category: 'ClickUp',
-        title: 'Pipeline de clientes',
-        syntax: 'Qual o pipeline de clientes?',
-        icon: '/clickup.svg',
     },
 
     // Notion

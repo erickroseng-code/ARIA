@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowDownCircle,
-  ArrowUpCircle,
   AlertTriangle,
   CalendarDays,
   ChevronLeft,
@@ -13,6 +11,8 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  Check,
+  Save,
   Loader2,
   Pencil,
   Plus,
@@ -58,6 +58,8 @@ interface DashboardData {
     category: string;
     description: string;
     amount: number;
+    isEffective: boolean;
+    effectiveAmount?: number | null;
   }>;
 }
 
@@ -205,23 +207,6 @@ function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange
     </div>
   );
 }
-function TypeBadge({ type }: { type: TxType }) {
-  if (type === 'receita') {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-        <ArrowDownCircle className="w-3 h-3" />
-        Receita
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/20">
-      <ArrowUpCircle className="w-3 h-3" />
-      Despesa
-    </span>
-  );
-}
-
 function OverdueBadge({ days }: { days: number }) {
   if (days <= 0) return null;
   return (
@@ -300,12 +285,19 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const [mode, setMode] = useState<AddMode | null>(null);
   const [editingTx, setEditingTx] = useState<DashboardData['transactions'][number] | null>(null);
+  const [effectiveTx, setEffectiveTx] = useState<DashboardData['transactions'][number] | null>(null);
+  const [effectiveCustomValue, setEffectiveCustomValue] = useState('');
+  const [effectiveUseCustomValue, setEffectiveUseCustomValue] = useState(false);
+  const [effectiveSaving, setEffectiveSaving] = useState(false);
 
   const [txDate, setTxDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [txDescription, setTxDescription] = useState('');
   const [txCategory, setTxCategory] = useState('Outros');
   const [txAmount, setTxAmount] = useState('');
   const [txIsFixed, setTxIsFixed] = useState(false);
+  const [txFixedDueDay, setTxFixedDueDay] = useState('');
+  const [txHasOverdueFixed, setTxHasOverdueFixed] = useState(false);
+  const [txFixedOverdueEntries, setTxFixedOverdueEntries] = useState<Array<{ dueDate: string; amount: string }>>([]);
   const [txPaymentMethod, setTxPaymentMethod] = useState<'pix' | 'credito' | 'debito' | 'outros'>('outros');
   const [txCreditCardId, setTxCreditCardId] = useState<number | null>(null);
 
@@ -326,7 +318,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [cardClosingDay, setCardClosingDay] = useState('');
   const [cardDueDay, setCardDueDay] = useState('');
   const [cardLimit, setCardLimit] = useState('');
-  const [plannedIncomeInput, setPlannedIncomeInput] = useState('');
   const [plannedExpensesInput, setPlannedExpensesInput] = useState('');
   const [savingPlan, setSavingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -346,7 +337,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
       const dData = await dRes.json();
       setDashboard(dData);
-      setPlannedIncomeInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedIncome ?? 0)));
       setPlannedExpensesInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedExpenses ?? 0)));
 
       const debtData = await debtRes.json();
@@ -386,7 +376,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const totalsByType = useMemo(() => {
     const tx = dashboard?.transactions ?? [];
-    const receber = tx.filter(t => t.type === 'receita').reduce((acc, t) => acc + t.amount, 0);
+    const receber = tx.filter(t => t.type === 'receita' && t.isEffective).reduce((acc, t) => acc + t.amount, 0);
     const pagar = tx.filter(t => t.type === 'despesa').reduce((acc, t) => acc + t.amount, 0);
     const dividas = debts.reduce((acc, d) => acc + (d.totalAmount || 0), 0);
     const atrasadas = overdue.reduce((acc, o) => acc + (o.overdueAmount || 0), 0);
@@ -402,6 +392,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setTxCategory(m === 'receita' ? 'Salário' : 'Outros');
     setTxAmount('');
     setTxIsFixed(false);
+    setTxFixedDueDay('');
+    setTxHasOverdueFixed(false);
+    setTxFixedOverdueEntries([]);
     setDebtCreditor('');
     setDebtAmount('');
     setDebtRate('');
@@ -429,6 +422,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setTxCategory(tx.category || 'Outros');
     setTxAmount(formatCurrencyInputFromNumber(tx.amount || 0));
     setTxIsFixed(false);
+    setTxFixedDueDay('');
+    setTxHasOverdueFixed(false);
+    setTxFixedOverdueEntries([]);
   };
 
   const closeModal = () => {
@@ -439,14 +435,36 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const saveTx = async () => {
     const amount = parseCurrencyInput(txAmount);
     if (!txDescription.trim() || !txCategory.trim() || !Number.isFinite(amount) || amount <= 0) return;
+    if (mode === 'despesa' && txIsFixed) {
+      const dueDay = Number(txFixedDueDay);
+      if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
+        window.alert('Informe um dia de vencimento válido (1 a 31) para a despesa fixa.');
+        return;
+      }
+      if (txHasOverdueFixed) {
+        const hasInvalidOverdue = txFixedOverdueEntries.some((entry) => {
+          const parsedAmount = parseCurrencyInput(entry.amount || '');
+          return !entry.dueDate || !Number.isFinite(parsedAmount) || parsedAmount <= 0;
+        });
+        if (hasInvalidOverdue) {
+          window.alert('Preencha data e valor válidos para todas as contas atrasadas.');
+          return;
+        }
+      }
+    }
 
     setSaving(true);
     try {
+      const effectiveForPayload = mode === 'receita'
+        ? (editingTx?.isEffective ?? false)
+        : true;
+
       const body = {
         type: (mode === 'receita' ? 'receita' : 'despesa') as TxType,
         description: txDescription.trim(),
         category: txCategory.trim(),
         amount,
+        isEffective: effectiveForPayload,
         date: txDate,
         paymentMethod: mode === 'despesa' ? txPaymentMethod : undefined,
         creditCardId: mode === 'despesa' && txPaymentMethod === 'credito' ? txCreditCardId : undefined,
@@ -466,7 +484,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         });
 
         if (mode === 'despesa' && txIsFixed) {
-          const dayOfMonth = Math.max(1, Math.min(31, Number((txDate || '').split('-')[2] || '1')));
+          const dayOfMonth = Math.max(1, Math.min(31, Number(txFixedDueDay || '1')));
           await fetch(`${API_URL}/api/finance/recurring-expenses`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -478,6 +496,23 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               startMonth: monthParam(selectedMonth),
             }),
           });
+
+          if (txHasOverdueFixed) {
+            for (const entry of txFixedOverdueEntries) {
+              const overdueAmount = parseCurrencyInput(entry.amount || '');
+              const dueDate = entry.dueDate;
+              if (!Number.isFinite(overdueAmount) || overdueAmount <= 0 || !dueDate) continue;
+              await fetch(`${API_URL}/api/finance/overdue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  account: `${txDescription.trim()} (${fmtDate(dueDate)})`,
+                  overdueAmount,
+                  dueDate,
+                }),
+              });
+            }
+          }
         }
       }
 
@@ -647,9 +682,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const saveMonthlyPlan = async (silent = false) => {
-    const plannedIncome = parseCurrencyInput(plannedIncomeInput || '');
     const plannedExpenses = parseCurrencyInput(plannedExpensesInput || '');
-    const safeIncome = Number.isFinite(plannedIncome) ? Math.max(0, plannedIncome) : 0;
     const safeExpenses = Number.isFinite(plannedExpenses) ? Math.max(0, plannedExpenses) : 0;
 
     setSavingPlan(true);
@@ -660,7 +693,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           month: monthParam(selectedMonth),
-          plannedIncome: safeIncome,
+          plannedIncome: dashboard?.comparison?.plannedIncome ?? 0,
           plannedExpenses: safeExpenses,
         }),
       });
@@ -691,8 +724,84 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     tabLoadTimeoutRef.current = setTimeout(() => setTabLoading(false), 220);
   };
 
+  const setIncomeEffective = async (tx: DashboardData['transactions'][number], isEffective: boolean) => {
+    if (tx.type !== 'receita') return;
+    if (tx.isEffective === isEffective) return;
+
+    if (!isEffective) {
+      try {
+        const res = await fetch(`${API_URL}/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isEffective: false }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
+        }
+        await loadAll();
+      } catch (err: any) {
+        window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
+      }
+      return;
+    }
+
+    setEffectiveTx(tx);
+    setEffectiveUseCustomValue(false);
+    setEffectiveCustomValue(formatCurrencyInputFromNumber(tx.amount));
+  };
+
+  const closeEffectiveModal = () => {
+    if (effectiveSaving) return;
+    setEffectiveTx(null);
+    setEffectiveUseCustomValue(false);
+    setEffectiveCustomValue('');
+  };
+
+  const confirmEffectiveModal = async () => {
+    if (!effectiveTx) return;
+    try {
+      setEffectiveSaving(true);
+      let actualAmount: number | undefined = undefined;
+      if (effectiveUseCustomValue) {
+        const parsed = parseCurrencyInput(effectiveCustomValue);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          window.alert('Valor efetivado inválido.');
+          return;
+        }
+        actualAmount = parsed;
+      }
+
+      const res = await fetch(`${API_URL}/api/finance/transaction/${effectiveTx.index}/effective?source=${effectiveTx.source}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isEffective: true, actualAmount }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
+      }
+      closeEffectiveModal();
+      await loadAll();
+    } catch (err: any) {
+      window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
+    } finally {
+      setEffectiveSaving(false);
+    }
+  };
+
+  const incomeTransactions = useMemo(
+    () => (dashboard?.transactions ?? []).filter((tx) => tx.type === 'receita'),
+    [dashboard?.transactions],
+  );
+
+  const expenseTransactions = useMemo(
+    () => (dashboard?.transactions ?? []).filter((tx) => tx.type === 'despesa'),
+    [dashboard?.transactions],
+  );
+
   return (
-    <div className="h-full flex flex-col bg-background text-white">
+    <div className="h-full overflow-y-auto bg-background text-white">
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
@@ -709,6 +818,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => { void saveMonthlyPlan(); }}
+            disabled={savingPlan}
+            className="p-2 rounded-lg hover:bg-white/8 transition-colors disabled:opacity-50"
+            title={savingPlan ? 'Salvando previsto...' : 'Salvar despesa prevista'}
+          >
+            <Save className="w-4 h-4 text-cyan-300/80" />
+          </button>
           <button onClick={downloadPdf} className="p-2 rounded-lg hover:bg-white/8 transition-colors" title="Baixar PDF">
             <Download className="w-4 h-4 text-white/50" />
           </button>
@@ -729,30 +846,18 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           {/* Receitas */}
           <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 px-3 py-3 min-h-[146px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">Receitas</span>
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-emerald-400/80 font-semibold uppercase tracking-wider">Receitas</span>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-white/65 flex items-center gap-1.5">
+              <div className="text-xs text-white/70 flex items-center gap-1.5">
                 <span>Previsto:</span>
-                <input
-                  value={plannedIncomeInput}
-                  onChange={(e) => setPlannedIncomeInput(formatCurrencyInput(e.target.value))}
-                  onBlur={() => { void saveMonthlyPlan(true); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void saveMonthlyPlan();
-                    }
-                  }}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="R$ 0,00"
-                  className="h-5 w-full min-w-0 rounded bg-transparent border border-transparent px-1 text-[10px] font-semibold text-white/90 tabular-nums placeholder:text-white/30 focus:outline-none focus:border-emerald-500/40 focus:bg-white/5"
-                />
+                <span className="h-5 w-full min-w-0 px-1 text-sm font-semibold text-white/90 tabular-nums inline-flex items-center">
+                  {fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}
+                </span>
               </div>
-              <div className="text-[10px] text-white/65">Realizado: <span className="font-semibold text-emerald-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualIncome ?? totalsByType.receber)}</span></div>
-              <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+              <div className="text-xs text-white/70">Realizado: <span className="font-semibold text-sm text-emerald-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualIncome ?? totalsByType.receber)}</span></div>
+              <div className={`text-xs font-semibold tabular-nums ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                 Dif: {fmtCurrency(dashboard?.comparison?.incomeDelta ?? 0)}
               </div>
             </div>
@@ -761,11 +866,11 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           {/* Despesas */}
           <div className="rounded-xl bg-rose-500/8 border border-rose-500/20 px-3 py-3 min-h-[146px] flex flex-col justify-between">
             <div className="flex items-center gap-1.5 mb-1">
-              <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-              <span className="text-[10px] text-rose-400/70 font-medium uppercase tracking-wider">Despesas</span>
+              <TrendingDown className="w-4 h-4 text-rose-400" />
+              <span className="text-xs text-rose-400/80 font-semibold uppercase tracking-wider">Despesas</span>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-white/65 flex items-center gap-1.5">
+              <div className="text-xs text-white/70 flex items-center gap-1.5">
                 <span>Previsto:</span>
                 <input
                   value={plannedExpensesInput}
@@ -780,11 +885,11 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   type="text"
                   inputMode="numeric"
                   placeholder="R$ 0,00"
-                  className="h-5 w-full min-w-0 rounded bg-transparent border border-transparent px-1 text-[10px] font-semibold text-white/90 tabular-nums placeholder:text-white/30 focus:outline-none focus:border-rose-500/40 focus:bg-white/5"
+                  className="h-5 w-full min-w-0 rounded bg-transparent border border-transparent px-1 text-sm font-semibold text-white/90 tabular-nums placeholder:text-white/30 focus:outline-none focus:border-rose-500/40 focus:bg-white/5"
                 />
               </div>
-              <div className="text-[10px] text-white/65">Realizado: <span className="font-semibold text-rose-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? totalsByType.pagar)}</span></div>
-              <div className={`text-[10px] font-semibold tabular-nums ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+              <div className="text-xs text-white/70">Realizado: <span className="font-semibold text-sm text-rose-300 tabular-nums">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? totalsByType.pagar)}</span></div>
+              <div className={`text-xs font-semibold tabular-nums ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                 Dif: {fmtCurrency(dashboard?.comparison?.expensesDelta ?? 0)}
               </div>
             </div>
@@ -813,15 +918,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
               {fmtCurrency(totalsByType.saldo)}
             </div>
           </div>
-        </div>
-        <div className="mt-2 flex justify-end">
-          <button
-            onClick={() => { void saveMonthlyPlan(); }}
-            disabled={savingPlan}
-            className="h-8 px-4 rounded-lg text-[11px] font-semibold bg-gradient-to-r from-cyan-500/30 to-emerald-500/20 border border-cyan-400/35 text-cyan-200 hover:from-cyan-500/40 hover:to-emerald-500/30 transition-colors disabled:opacity-50"
-          >
-            {savingPlan ? 'Salvando previsto...' : 'Salvar previsto'}
-          </button>
         </div>
         {planError && (
           <div className="mt-1 text-[10px] text-rose-300/90">{planError}</div>
@@ -923,7 +1019,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div>
         {loading || tabLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="flex items-center gap-2 text-white/50 text-xs">
@@ -933,36 +1029,116 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         ) : activeTab === 'resumo' ? (
           <div className="p-4 space-y-4">
-            {/* Pie Chart Visualization */}
-            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4">
-              <h3 className="text-sm font-semibold text-white/90 mb-3">Distribuição de Despesas</h3>
-              <PieChart data={dashboard?.transactions ?? []} />
+            {/* Distribuição + tabela de despesas */}
+            <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02] p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-white/90">Distribuição de Despesas</h3>
+              <PieChart data={expenseTransactions} />
+              <div className="border-t border-white/8 pt-3">
+                <h4 className="text-xs font-semibold text-white/70 mb-2">Despesas do mês</h4>
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <table className="w-full min-w-[640px] text-xs">
+                    <thead>
+                      <tr className="border-b border-white/8">
+                        <th className="text-left px-4 py-2.5 text-white/40 font-medium">Data</th>
+                        <th className="text-left px-4 py-2.5 text-white/40 font-medium">Categoria</th>
+                        <th className="text-left px-4 py-2.5 text-white/40 font-medium">Descrição</th>
+                        <th className="text-right px-4 py-2.5 text-white/40 font-medium">Valor</th>
+                        <th className="px-4 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenseTransactions.map((tx) => (
+                        <tr key={`${tx.source}-${tx.index}`} className="border-t border-white/6 hover:bg-white/[0.02] transition-colors group">
+                          <td className="px-4 py-2.5 text-white/60 tabular-nums">{fmtDate(tx.date)}</td>
+                          <td className="px-4 py-2.5 text-white/70">{tx.category}</td>
+                          <td className="px-4 py-2.5 text-white/90">{tx.description}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-rose-400">
+                            - {fmtCurrency(tx.amount)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openEditTx(tx)} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button onClick={() => deleteTx(tx)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/50 hover:text-rose-400 transition-colors">
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {expenseTransactions.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center">
+                            <div className="text-white/25 text-xs">Nenhuma despesa registrada neste mês</div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </section>
 
-            {/* Transações do mês */}
+            {/* Receitas do mês */}
             <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
-              <SectionHeader title="Fluxo de caixa" count={dashboard?.transactions?.length} />
+              <SectionHeader title="Receitas do mês" count={incomeTransactions.length} />
               <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                 <table className="w-full min-w-[640px] text-xs">
                   <thead>
                     <tr className="border-b border-white/8">
                       <th className="text-left px-4 py-2.5 text-white/40 font-medium">Data</th>
-                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Tipo</th>
                       <th className="text-left px-4 py-2.5 text-white/40 font-medium">Categoria</th>
                       <th className="text-left px-4 py-2.5 text-white/40 font-medium">Descrição</th>
                       <th className="text-right px-4 py-2.5 text-white/40 font-medium">Valor</th>
+                      <th className="text-left px-4 py-2.5 text-white/40 font-medium">Valor efetivado</th>
+                      <th className="text-center px-4 py-2.5 text-white/40 font-medium">Efetivacao</th>
                       <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
                   <tbody>
-                    {(dashboard?.transactions ?? []).map((tx) => (
+                    {incomeTransactions.map((tx) => (
                       <tr key={`${tx.source}-${tx.index}`} className="border-t border-white/6 hover:bg-white/[0.02] transition-colors group">
                         <td className="px-4 py-2.5 text-white/60 tabular-nums">{fmtDate(tx.date)}</td>
-                        <td className="px-4 py-2.5"><TypeBadge type={tx.type} /></td>
                         <td className="px-4 py-2.5 text-white/70">{tx.category}</td>
                         <td className="px-4 py-2.5 text-white/90">{tx.description}</td>
-                        <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${tx.type === 'receita' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {tx.type === 'despesa' ? '- ' : '+ '}{fmtCurrency(tx.amount)}
+                        <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-emerald-400">
+                          + {fmtCurrency(tx.amount)}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs">
+                          {tx.isEffective && tx.effectiveAmount !== null && tx.effectiveAmount !== undefined && Math.abs(tx.effectiveAmount - tx.amount) > 0.009 ? (
+                            <span className="text-emerald-300 font-semibold">{fmtCurrency(tx.effectiveAmount)}</span>
+                          ) : tx.isEffective ? (
+                            <span className="text-emerald-300/80">Mesmo valor</span>
+                          ) : (
+                            <span className="text-amber-300/80">Não efetivada</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => { void setIncomeEffective(tx, false); }}
+                              title="Marcar como previsto"
+                              className={`h-6 w-6 rounded-md border transition-colors ${
+                                !tx.isEffective
+                                  ? 'border-amber-400/60 text-amber-300 bg-amber-500/10'
+                                  : 'border-white/15 text-white/45 hover:bg-white/10 hover:text-white/80'
+                              }`}
+                            >
+                              <X className="w-3 h-3 mx-auto" />
+                            </button>
+                            <button
+                              onClick={() => { void setIncomeEffective(tx, true); }}
+                              title="Marcar como efetivado"
+                              className={`h-6 w-6 rounded-md border transition-colors ${
+                                tx.isEffective
+                                  ? 'border-emerald-400/60 text-emerald-300 bg-emerald-500/10'
+                                  : 'border-white/15 text-white/45 hover:bg-white/10 hover:text-white/80'
+                              }`}
+                            >
+                              <Check className="w-3 h-3 mx-auto" />
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -976,10 +1152,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </td>
                       </tr>
                     ))}
-                    {(dashboard?.transactions?.length ?? 0) === 0 && (
+                    {incomeTransactions.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center">
-                          <div className="text-white/25 text-xs">Nenhuma transação registrada neste mês</div>
+                        <td colSpan={7} className="px-4 py-8 text-center">
+                          <div className="text-white/25 text-xs">Nenhuma receita registrada neste mês</div>
                         </td>
                       </tr>
                     )}
@@ -1249,12 +1425,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 <div>
                   <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Receita Prevista</label>
                   <input
-                    value={plannedIncomeInput}
-                    onChange={(e) => setPlannedIncomeInput(formatCurrencyInput(e.target.value))}
+                    value={fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}
                     type="text"
-                    inputMode="numeric"
-                    placeholder="R$ 0,00"
-                    className={inputClass}
+                    readOnly
+                    className={`${inputClass} opacity-70 cursor-not-allowed`}
                   />
                 </div>
                 <div>
@@ -1269,14 +1443,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   />
                 </div>
               </div>
-
-              <button
-                onClick={() => { void saveMonthlyPlan(); }}
-                disabled={savingPlan}
-                className="h-9 px-4 rounded-lg text-xs font-semibold bg-cyan-500/20 border border-cyan-500/35 text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
-              >
-                {savingPlan ? 'Salvando previsto...' : 'Salvar previsto do mês'}
-              </button>
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3">
@@ -1371,6 +1537,90 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         )}
       </div>
+
+      {/* Modal de efetivacao */}
+      {effectiveTx && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0d1117] border border-emerald-500/25 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-emerald-500/20 bg-emerald-500/8 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-sm">
+                  ✓
+                </div>
+                <h3 className="text-sm font-semibold text-white/90">Efetivar receita</h3>
+              </div>
+              <button
+                onClick={closeEffectiveModal}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors"
+                disabled={effectiveSaving}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <div className="text-xs text-white/70">
+                <div className="font-medium text-white/90">{effectiveTx.description}</div>
+                <div className="text-white/55 mt-0.5">Previsto: <span className="font-semibold text-white/85">{fmtCurrency(effectiveTx.amount)}</span></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setEffectiveUseCustomValue(false)}
+                  className={`h-9 rounded-lg text-xs font-semibold border transition-colors ${
+                    !effectiveUseCustomValue
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/8'
+                  }`}
+                >
+                  Usar previsto
+                </button>
+                <button
+                  onClick={() => setEffectiveUseCustomValue(true)}
+                  className={`h-9 rounded-lg text-xs font-semibold border transition-colors ${
+                    effectiveUseCustomValue
+                      ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                      : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/8'
+                  }`}
+                >
+                  Informar outro
+                </button>
+              </div>
+
+              {effectiveUseCustomValue && (
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor efetivado (R$)</label>
+                  <input
+                    value={effectiveCustomValue}
+                    onChange={(e) => setEffectiveCustomValue(formatCurrencyInput(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="R$ 0,00"
+                    className={inputClass}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={closeEffectiveModal}
+                  disabled={effectiveSaving}
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold bg-white/5 border border-white/15 text-white/70 hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { void confirmEffectiveModal(); }}
+                  disabled={effectiveSaving}
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-white transition-colors disabled:opacity-50"
+                >
+                  {effectiveSaving ? 'Efetivando...' : 'Efetivar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {mode && (
@@ -1484,9 +1734,114 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${txIsFixed ? 'bg-emerald-500 border-emerald-500' : 'border-white/20 bg-transparent'}`}>
                         {txIsFixed && <span className="text-white text-[10px]">✓</span>}
                       </div>
-                      <input type="checkbox" checked={txIsFixed} onChange={e => setTxIsFixed(e.target.checked)} className="sr-only" />
+                      <input
+                        type="checkbox"
+                        checked={txIsFixed}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setTxIsFixed(checked);
+                          if (!checked) {
+                            setTxFixedDueDay('');
+                            setTxHasOverdueFixed(false);
+                            setTxFixedOverdueEntries([]);
+                          }
+                        }}
+                        className="sr-only"
+                      />
                       Despesa fixa (repete todo mês)
                     </label>
+                  )}
+                  {mode === 'despesa' && !editingTx && txIsFixed && (
+                    <div className="space-y-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                      <div>
+                        <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Dia de vencimento</label>
+                        <input
+                          value={txFixedDueDay}
+                          onChange={e => setTxFixedDueDay(e.target.value)}
+                          type="number"
+                          min={1}
+                          max={31}
+                          placeholder="Ex: 10"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <label className="flex items-center gap-2.5 text-xs text-white/70 cursor-pointer select-none">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${txHasOverdueFixed ? 'bg-red-500 border-red-500' : 'border-white/20 bg-transparent'}`}>
+                          {txHasOverdueFixed && <span className="text-white text-[10px]">✓</span>}
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={txHasOverdueFixed}
+                          onChange={e => {
+                            const checked = e.target.checked;
+                            setTxHasOverdueFixed(checked);
+                            if (checked && txFixedOverdueEntries.length === 0) {
+                              setTxFixedOverdueEntries([{ dueDate: '', amount: txAmount }]);
+                            }
+                            if (!checked) setTxFixedOverdueEntries([]);
+                          }}
+                          className="sr-only"
+                        />
+                        Existe alguma conta desta despesa atrasada?
+                      </label>
+
+                      {txHasOverdueFixed && (
+                        <div className="space-y-2">
+                          {txFixedOverdueEntries.map((entry, idx) => (
+                            <div key={`fixed-overdue-${idx}`} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                              <div>
+                                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Vencimento</label>
+                                <input
+                                  value={entry.dueDate}
+                                  onChange={e => {
+                                    const next = [...txFixedOverdueEntries];
+                                    next[idx] = { ...next[idx], dueDate: e.target.value };
+                                    setTxFixedOverdueEntries(next);
+                                  }}
+                                  type="date"
+                                  className={inputClass}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor atrasado</label>
+                                <input
+                                  value={entry.amount}
+                                  onChange={e => {
+                                    const next = [...txFixedOverdueEntries];
+                                    next[idx] = { ...next[idx], amount: formatCurrencyInput(e.target.value) };
+                                    setTxFixedOverdueEntries(next);
+                                  }}
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="R$ 0,00"
+                                  className={inputClass}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = txFixedOverdueEntries.filter((_, i) => i !== idx);
+                                  setTxFixedOverdueEntries(next);
+                                }}
+                                className="h-10 w-10 rounded-lg border border-rose-500/35 text-rose-300 hover:bg-rose-500/15 transition-colors disabled:opacity-50"
+                                disabled={txFixedOverdueEntries.length <= 1}
+                                title="Remover conta atrasada"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mx-auto" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setTxFixedOverdueEntries(prev => [...prev, { dueDate: '', amount: txAmount }])}
+                            className="h-8 px-3 rounded-lg text-xs font-medium bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25 transition-colors"
+                          >
+                            + Adicionar outra conta atrasada
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   <button
                     disabled={saving}

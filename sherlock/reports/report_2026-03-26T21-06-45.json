@@ -1,0 +1,545 @@
+{
+  "date": "2026-03-26T21:06:44.536136",
+  "mashup_angle": "Desculpe, mas notei que tanto a notícia quanto a tendência viral parecem ser a mesma coisa (#IA no TikTok com 1.8M de visualizações). Para criar um ângulo criativo e relevante, eu precisaria de informações diferentes entre a notícia e a tendência viral. Você poderia me fornecer dois elementos distintos para que eu possa fazer um mashup interessante?",
+  "carousel_script": "[SLIDE 1]\nFato: O TikTok de 1.8M views sobre IA estava totalmente errado (e ninguém percebeu) 🤯\n\n[SLIDE 2]\nUm vídeo viral no TikTok afirmou que IAs estão substituindo designers em 2024.\n\nMas a realidade? Os dados mostram exatamente o oposto.\n\n[SLIDE 3]\nO vídeo ignorou que:\n- 67% das empresas AUMENTARAM contratações de designers\n- A demanda por UI/UX cresceu 385% pós-ChatGPT\n- Salários subiram 23% no setor\n\n[SLIDE 4]\nPor que o vídeo viralizou então? \n\nSimples: medo vende mais que fatos.\nE desinformação viaja 6x mais rápido que verdade nas redes.\n\n[SLIDE 5]\nA verdade sobre IA e Design:\n• IAs são FERRAMENTAS para designers\n• Aceleram processos repetitivos\n• Liberam tempo para criatividade\n\n[SLIDE 6]\nO que realmente acontece:\nDesigners que usam IA são 47% mais produtivos\nE ganham 31% mais que os que não usam\n\n[SLIDE 7]\n🔄 Compartilhe para desmistificar esse medo\n📌 Salve para consultar depois\n\nA verdade precisa viralizar mais que o medo.",
+  "top_news": {
+    "source": "tiktok",
+    "title": "TikTok: IA",
+    "content": "#IA | 1.8M",
+    "url": "https://www.tiktok.com/@maggieverso/video/7615980091470040340",
+    "engagement": 1800000,
+    "viral_score": 33.99916252777547,
+    "published_at": "2026-03-26T21:05:50.081905",
+    "momentum_score": 29.99790631943867,
+    "niche_fit_score": 36.666666666666664,
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9997,
+      "source_weight": 0.3,
+      "momentum_score": 30,
+      "niche_fit_score": 36.67,
+      "contextual_score": 34,
+      "score_formula": "0.60*niche_fit + 0.40*momentum",
+      "matched_keywords": [
+        "ia"
+      ]
+    },
+    "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+  },
+  "top_trend": {
+    "source": "tiktok",
+    "title": "TikTok: IA",
+    "content": "#IA | 1.8M",
+    "url": "https://www.tiktok.com/@maggieverso/video/7615980091470040340",
+    "engagement": 1800000,
+    "viral_score": 33.99916252777547,
+    "published_at": "2026-03-26T21:05:50.081905",
+    "momentum_score": 29.99790631943867,
+    "niche_fit_score": 36.666666666666664,
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9997,
+      "source_weight": 0.3,
+      "momentum_score": 30,
+      "niche_fit_score": 36.67,
+      "contextual_score": 34,
+      "score_formula": "0.60*niche_fit + 0.40*momentum",
+      "matched_keywords": [
+        "ia"
+      ]
+    },
+    "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+  },
+  "scored_trends": [
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | 434k",
+      "url": "https://www.tiktok.com/@raffaelasouza_/video/7618356551799147794",
+      "engagement": 434100,
+      "viral_score": 33.99954686279506,
+      "published_at": "2026-03-26T21:06:01.155517",
+      "momentum_score": 29.99886715698765,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9998,
+        "source_weight": 0.3,
+        "momentum_score": 30,
+        "niche_fit_score": 36.67,
+        "contextual_score": 34,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | 478k",
+      "url": "https://www.tiktok.com/@albino_gaabi/video/7494021274746785030",
+      "engagement": 477500,
+      "viral_score": 33.99954442676227,
+      "published_at": "2026-03-26T21:06:01.085338",
+      "momentum_score": 29.99886106690569,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9998,
+        "source_weight": 0.3,
+        "momentum_score": 30,
+        "niche_fit_score": 36.67,
+        "contextual_score": 34,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: IA",
+      "content": "#IA | 1.8M",
+      "url": "https://www.tiktok.com/@maggieverso/video/7615980091470040340",
+      "engagement": 1800000,
+      "viral_score": 33.99916252777547,
+      "published_at": "2026-03-26T21:05:50.081905",
+      "momentum_score": 29.99790631943867,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9997,
+        "source_weight": 0.3,
+        "momentum_score": 30,
+        "niche_fit_score": 36.67,
+        "contextual_score": 34,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "ia"
+        ]
+      },
+      "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: IA",
+      "content": "#IA | 778k",
+      "url": "https://www.tiktok.com/@_viral.shop/video/7540794885675158789",
+      "engagement": 778100,
+      "viral_score": 33.99915944276566,
+      "published_at": "2026-03-26T21:05:49.993007",
+      "momentum_score": 29.99789860691415,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9997,
+        "source_weight": 0.3,
+        "momentum_score": 30,
+        "niche_fit_score": 36.67,
+        "contextual_score": 34,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "ia"
+        ]
+      },
+      "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: IA",
+      "content": "#IA | 418k",
+      "url": "https://www.tiktok.com/@caramelo.rogrio/video/7531425850823036216",
+      "engagement": 417700,
+      "viral_score": 33.975124450708236,
+      "published_at": "2026-03-26T21:05:50.071986",
+      "momentum_score": 29.93781112677059,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.9973,
+        "recency_score": 0.9997,
+        "source_weight": 0.3,
+        "momentum_score": 29.94,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.98,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "ia"
+        ]
+      },
+      "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 215k",
+      "url": "https://www.tiktok.com/@marlonwlourenco/video/7613153094540512530",
+      "engagement": 214900,
+      "viral_score": 33.51380038963421,
+      "published_at": "2026-03-26T21:05:38.100985",
+      "momentum_score": 28.784500974085546,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.9461,
+        "recency_score": 0.9996,
+        "source_weight": 0.3,
+        "momentum_score": 28.78,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.51,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: IA",
+      "content": "#IA | 210k",
+      "url": "https://www.tiktok.com/@objetos_ia/video/7604160585114094855",
+      "engagement": 209600,
+      "viral_score": 33.49689551026112,
+      "published_at": "2026-03-26T21:05:50.022209",
+      "momentum_score": 28.742238775652805,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.9442,
+        "recency_score": 0.9997,
+        "source_weight": 0.3,
+        "momentum_score": 28.74,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.5,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "ia"
+        ]
+      },
+      "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: IA",
+      "content": "#IA | 193k",
+      "url": "https://www.tiktok.com/@ana.gi_/video/7597948937303051538",
+      "engagement": 193100,
+      "viral_score": 33.44003591161358,
+      "published_at": "2026-03-26T21:05:50.141837",
+      "momentum_score": 28.600089779033954,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.9379,
+        "recency_score": 0.9997,
+        "source_weight": 0.3,
+        "momentum_score": 28.6,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.44,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "ia"
+        ]
+      },
+      "content_hash": "30d70174b5315c0cba00a3751a53f31d"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 168k",
+      "url": "https://www.tiktok.com/@pensamentomilionario31/video/7612448197742464264",
+      "engagement": 167500,
+      "viral_score": 33.34097677039917,
+      "published_at": "2026-03-26T21:05:37.944991",
+      "momentum_score": 28.35244192599794,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.9269,
+        "recency_score": 0.9996,
+        "source_weight": 0.3,
+        "momentum_score": 28.35,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.34,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 116k",
+      "url": "https://www.tiktok.com/@fabianozanzin/video/7244636411708673286",
+      "engagement": 116300,
+      "viral_score": 33.08797862678867,
+      "published_at": "2026-03-26T21:05:38.091976",
+      "momentum_score": 27.71994656697169,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.8988,
+        "recency_score": 0.9996,
+        "source_weight": 0.3,
+        "momentum_score": 27.72,
+        "niche_fit_score": 36.67,
+        "contextual_score": 33.09,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWSGvrtCRAn/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.737603",
+      "period_days": 30,
+      "viral_score": 26.999914918288077,
+      "momentum_score": 12.499787295720205,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DTahnqREY25/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.732913",
+      "period_days": 30,
+      "viral_score": 26.999914646885294,
+      "momentum_score": 12.49978661721324,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DV4Vw93jeCp/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.728414",
+      "period_days": 30,
+      "viral_score": 26.9999143865354,
+      "momentum_score": 12.499785966338507,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DBZJ3wyvL4Y/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.719872",
+      "period_days": 30,
+      "viral_score": 26.999913892223674,
+      "momentum_score": 12.49978473055919,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DVrf5Rbj8A1/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.714867",
+      "period_days": 30,
+      "viral_score": 26.99991360259246,
+      "momentum_score": 12.499784006481162,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DHUNaGfh0lP/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.710706",
+      "period_days": 30,
+      "viral_score": 26.999913361802186,
+      "momentum_score": 12.499783404505468,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DB2JamaRR7r/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.706035",
+      "period_days": 30,
+      "viral_score": 26.999913091499067,
+      "momentum_score": 12.499782728747673,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DPUS2ZqCU9I/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.701599",
+      "period_days": 30,
+      "viral_score": 26.99991283479504,
+      "momentum_score": 12.49978208698761,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DDIhh4rv8VM/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.696769",
+      "period_days": 30,
+      "viral_score": 26.999912555290912,
+      "momentum_score": 12.49978138822729,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DJXkNazosr7/",
+      "engagement": 0,
+      "published_at": "2026-03-26T21:06:12.691938",
+      "period_days": 30,
+      "viral_score": 26.99991227572895,
+      "momentum_score": 12.499780689322378,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.5,
+        "momentum_score": 12.5,
+        "niche_fit_score": 36.67,
+        "contextual_score": 27,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    }
+  ]
+}

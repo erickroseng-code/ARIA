@@ -28,9 +28,6 @@ export { DocumentAnalysisService } from './documents/DocumentAnalysisService';
 // Error exports
 export { AppError, type AppErrorOptions } from './errors/AppError';
 
-// Task service exports
-export { TaskService, type TaskCreationContext, type CreateClickUpTaskParams } from './services';
-
 // Utilities exports
 export { ClientMatcher, getClientMatcher, type ClientMatchResult } from './utils/client-matcher';
 export { parseDateTime, parseDateExpression, parseTimeExpression, combineDateAndTime, type ParsedDate } from './utils/date-parser';

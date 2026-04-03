@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ContextStore } from './ContextStore';
 import { PlanOfAttackService } from '../clients/PlanOfAttackService';
-import { getNotionClient, ClientProfileService, getClickUpQueryService, DriveService, GmailService, CalendarService, isWorkspaceConfigured } from '@aria/integrations';
+import { getNotionClient, ClientProfileService, DriveService, GmailService, CalendarService, isWorkspaceConfigured } from '@aria/integrations';
 import { getTaskIntentParser, type TaskIntent } from './TaskIntentParser';
 import { getClientMatcher } from '../utils/client-matcher';
 import { AmbiguityResolver } from './AmbiguityResolver';
@@ -29,23 +29,7 @@ export class ChatService {
   constructor(
     private claude: Anthropic,
     private contextStore: ContextStore,
-    private clickupQueryService?: any, // Using any here to avoid circular dep, typed in server.ts
   ) { }
-
-  /**
-   * Detect if the user message is asking about ClickUp tasks/pipeline.
-   */
-  private isClickUpQuery(message: string): boolean {
-    const lower = message.toLowerCase();
-    const keywords = [
-      'tarefa', 'tarefas', 'clickup', 'pipeline', 'acelerada', 'acelerado',
-      'cliente', 'clientes', 'em andamento', 'aguardando', 'pendente',
-      'pipe', 'etapa', 'status', 'lista', 'listar',
-    ];
-    const isQuery = keywords.some((kw) => lower.includes(kw));
-    console.log('[ChatService.isClickUpQuery]', { message, isQuery });
-    return isQuery;
-  }
 
   /** Detect if user is asking about reports */
   private isReportQuery(message: string): boolean {
@@ -152,75 +136,6 @@ export class ChatService {
 
     console.log('[ChatService.buildWorkspaceContext] Context built, length:', contextResult.length, 'parts:', parts.length);
     return contextResult;
-  }
-
-  private async buildClickUpContext(message: string): Promise<string> {
-    const qs = this.clickupQueryService || getClickUpQueryService();
-    console.log('[ChatService.buildClickUpContext] qs available?', !!qs);
-    if (!qs) {
-      console.warn('[ChatService.buildClickUpContext] ClickUpQueryService is null/undefined!');
-      return '';
-    }
-
-    try {
-      const lower = message.toLowerCase();
-      // More explicit task keywords so "meus clientes" does not false trigger it
-      const isMyTasks = lower.includes('minha tarefa') || lower.includes('minhas tarefas') || lower.includes('meu id') || lower.includes('tarefas relacionadas ao meu id') || lower.includes('pra hoje') || lower.includes('tarefa');
-      const isClientPipeline = lower.includes('cliente') || lower.includes('acelerada') || lower.includes('acelerado') || lower.includes('pipeline') || lower.includes('pipe') || lower.includes('status');
-
-      console.log('[ChatService.buildClickUpContext] Intent detection:', { isMyTasks, isClientPipeline });
-
-      const parts: string[] = [];
-
-      if (isMyTasks) {
-        const filter = lower.includes('hoje') ? 'today' : lower.includes('atrasad') ? 'overdue' : undefined;
-
-        // Detectar se o usuário quer subtarefas
-        const wantsSubtasks = lower.includes('subtarefa')
-          || lower.includes('com detalhes')
-          || lower.includes('hierarquia')
-          || lower.includes('sub-tarefa')
-          || lower.includes('breakdown');
-
-        console.log('[ChatService.buildClickUpContext] Fetching my tasks with filter:', filter, '| wantsSubtasks:', wantsSubtasks);
-
-        let tasks;
-        if (wantsSubtasks) {
-          // Buscar tarefas COM subtarefas (mais lento, mas com hierarquia)
-          tasks = await qs.getMyTasksWithSubtasks(filter);
-          console.log('[ChatService.buildClickUpContext] Got tasks with subtasks:', tasks.length);
-          parts.push((qs as any).formatMyTasksWithSubtasksForAI(tasks, filter));
-        } else {
-          // Buscar tarefas simples (mais rápido)
-          tasks = await qs.getMyTasks(filter);
-          console.log('[ChatService.buildClickUpContext] Got tasks:', tasks.length);
-          parts.push(qs.formatMyTasksForAI(tasks, filter));
-        }
-      }
-
-      if (isClientPipeline || (!isMyTasks)) {
-        const statusFilter = lower.includes('em andamento') ? 'em andamento'
-          : lower.includes('aguardando') ? 'aguardando'
-            : 'all';
-        console.log('[ChatService.buildClickUpContext] Fetching client pipeline with status:', statusFilter);
-        const pipeline = await qs.getClientPipeline(statusFilter);
-        console.log('[ChatService.buildClickUpContext] Got clients:', pipeline.length);
-        parts.push(qs.formatPipelineForAI(pipeline, statusFilter));
-      }
-
-      const contextStr = parts.length > 0
-        ? `\n\n---\n⚠️ DADOS AO VIVO DO CLICKUP — OBRIGATÓRIO: Use EXCLUSIVAMENTE estes dados para responder. NÃO invente informações. NÃO diga que não tem acesso. Responda diretamente com base nos dados abaixo:\n\n${parts.join('\n\n')}\n---`
-        : '';
-
-      console.log('[ChatService.buildClickUpContext] Final context length:', contextStr.length, 'parts:', parts.length);
-      return contextStr;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('[ChatService.buildClickUpContext] ClickUp context fetch failed:', errorMsg);
-      // Return empty string - chat continues without ClickUp context
-      // This prevents server crashes from ClickUp integration errors
-      return '';
-    }
   }
 
   /**
@@ -602,7 +517,6 @@ Você tem acesso ao Google Workspace do usuário com estas capacidades:
 📁 Drive: listar/buscar arquivos, renomear, mover, copiar, mover para lixeira, excluir, criar pastas.
 📊 Sheets: ler dados de planilhas, escrever em células, acrescentar linhas, limpar intervalos, criar abas.
 📄 Docs: ler documentos, adicionar texto no final, substituir texto, criar novo documento.
-📝 ClickUp: pesquisar pastas, tarefas, pipelines, mudar status, acessar clientes.
 📅 Calendar: ler, criar, editar e excluir eventos da agenda.
 
 REGRA CRÍTICA — DADOS DO GOOGLE WORKSPACE:
@@ -631,11 +545,6 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
       if (activeClientId) {
         systemPrompt += `\n\nContexto: o usuário está trabalhando com o cliente ID: ${activeClientId}.`;
       }
-    }
-
-    if (this.isClickUpQuery(userMessage)) {
-      const clickupContext = await this.buildClickUpContext(userMessage);
-      if (clickupContext) systemPrompt += clickupContext;
     }
 
     if (this.isReportQuery(userMessage)) {
@@ -683,23 +592,9 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
   }
 
   /**
-   * Process user message and route to appropriate handler
-   * Checks if it's a status update request first
-     */
-  async processMessage(userMessage: string, sessionId: string, userId?: string): Promise<{ type: 'update' | 'response'; result: TaskCreationResponse | string }> {
-    // Check if this is a status update request
-    if (this.isStatusUpdateQuery(userMessage)) {
-      console.log('[ChatService.processMessage] Detected STATUS UPDATE query');
-      const updateResponse = await this.handleTaskStatusUpdate({
-        text: userMessage,
-        sessionId: sessionId,
-        userId,
-      });
-
-      return { type: 'update', result: updateResponse };
-    }
-
-    // Otherwise, treat as normal response
+   * Process user message and return standard chat response
+   */
+  async processMessage(userMessage: string, sessionId: string, userId?: string): Promise<{ type: 'response'; result: string }> {
     const response = await this.completeResponse(userMessage, sessionId, userId);
     return { type: 'response', result: response };
   }
@@ -727,12 +622,6 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
       if (activeClientId) {
         systemPrompt += `\n\nContexto: o usuário está trabalhando com o cliente ID: ${activeClientId}.`;
       }
-    }
-
-    // Inject contexts
-    if (this.isClickUpQuery(userMessage)) {
-      const clickupContext = await this.buildClickUpContext(userMessage);
-      if (clickupContext) systemPrompt += clickupContext;
     }
 
     if (this.isReportQuery(userMessage)) {
@@ -824,42 +713,6 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
   }
 
   /**
-   * Detect if user is trying to update a task status
-   */
-  private isStatusUpdateQuery(message: string): boolean {
-    const lower = message.toLowerCase();
-    const updateKeywords = ['altere', 'mude', 'atualize', 'change', 'update', 'modifique', 'troque'];
-    const statusKeywords = ['status', 'situação', 'estado'];
-
-    return updateKeywords.some(kw => lower.includes(kw)) &&
-      (statusKeywords.some(kw => lower.includes(kw)) ||
-        lower.includes('para ') ||
-        lower.includes('->'));
-  }
-
-  /**
-   * Extract task name and new status from message
-   */
-  private extractStatusUpdate(message: string): { taskName?: string; newStatus?: string } {
-    const patterns = [
-      /(?:altere|mude|atualize|modifique)\s+(?:o status de\s+)?['"]?([^'"]+?)['"]?\s+(?:para|de)\s+['"]?([^'"]+?)['"]?$/i,
-      /['"]?([^'"]+?)['"]?\s+(?:para|->)\s+['"]?([^'"]+?)['"]?$/i,
-    ];
-
-    for (const pattern of patterns) {
-      const match = message.match(pattern);
-      if (match) {
-        return {
-          taskName: match[1]?.trim(),
-          newStatus: match[2]?.trim(),
-        };
-      }
-    }
-
-    return {};
-  }
-
-  /**
    * Parse user text and start task creation flow
    */
   async parseAndCreateTask(request: TaskCreationRequest): Promise<TaskCreationResponse> {
@@ -870,7 +723,7 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
 
       // Step 2: Check rate limiting
       const rateLimiter = getRateLimitCoordinator();
-      const canProceed = rateLimiter.canProceed('clickup') && rateLimiter.canProceed('notion');
+      const canProceed = rateLimiter.canProceed('notion');
 
       if (!canProceed) {
         const limitedServices = rateLimiter.getLimitedServices();
@@ -946,148 +799,6 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
   }
 
   /**
-   * Handle task status update request
-   */
-  async handleTaskStatusUpdate(request: TaskCreationRequest): Promise<TaskCreationResponse> {
-    try {
-      // Extract task name and new status
-      const { taskName, newStatus } = this.extractStatusUpdate(request.text);
-
-      if (!taskName || !newStatus) {
-        return {
-          status: 'error',
-          error: 'Não consegui entender qual tarefa mudar e para qual status. Tente: "Altere [tarefa] para [status]"',
-        };
-      }
-
-      // Get all tasks to find by name
-      const qs = this.clickupQueryService || getClickUpQueryService();
-      if (!qs) {
-        return {
-          status: 'error',
-          error: 'Serviço ClickUp não disponível.',
-        };
-      }
-
-      const allTasks = await qs.getMyTasks();
-      const matchingTask = allTasks.find((t: any) =>
-        t.name.toLowerCase().includes(taskName.toLowerCase()) ||
-        taskName.toLowerCase().includes(t.name.toLowerCase())
-      );
-
-      if (!matchingTask) {
-        return {
-          status: 'error',
-          error: `Não encontrei nenhuma tarefa com o nome "${taskName}". Tarefas disponíveis: ${allTasks.slice(0, 3).map((t: any) => `"${t.name}"`).join(', ')}...`,
-        };
-      }
-
-      // Map user-friendly status names to ClickUp status
-      const statusMap: Record<string, string> = {
-        'concluído': 'concluído',
-        'completo': 'concluído',
-        'done': 'concluído',
-        'finalizado': 'concluído',
-        'em andamento': 'em andamento',
-        'andando': 'em andamento',
-        'in progress': 'em andamento',
-        'aguardando': 'aguardando',
-        'waiting': 'aguardando',
-        'pendente': 'aguardando',
-      };
-
-      const normalizedStatus = statusMap[newStatus.toLowerCase()] || newStatus;
-
-      // Store for confirmation
-      await this.contextStore.appendPendingTask(request.sessionId, {
-        intent: {
-          actionType: 'update',
-          targetTaskName: matchingTask.name,
-          targetTaskId: matchingTask.id,
-          updateField: 'status',
-          updateValue: normalizedStatus,
-          completeness: 'complete',
-          rawText: request.text,
-        } as any,
-        confidence: 0.9,
-        preview: `Status de "${matchingTask.name}" será alterado de "${matchingTask.status}" para "${normalizedStatus}"`,
-      });
-
-      return {
-        status: 'pending_clarification',
-        preview: `✅ Encontrei a tarefa "${matchingTask.name}"\n\n📝 Alteração:\n   Status atual: "${matchingTask.status}"\n   Novo status: "${normalizedStatus}"\n\nTem certeza? (sim/não)`,
-        clarificationQuestion: 'Confirma a alteração?',
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
-      return {
-        status: 'error',
-        error: `Erro ao processar atualização: ${errorMsg}`,
-      };
-    }
-  }
-
-  /**
-   * Confirm and execute task status update
-   */
-  async confirmAndExecuteStatusUpdate(
-    sessionId: string,
-    confirmed: boolean,
-  ): Promise<TaskCreationResponse> {
-    try {
-      const pendingTask = await this.contextStore.getPendingTask(sessionId);
-
-      if (!pendingTask) {
-        return {
-          status: 'error',
-          error: 'Nenhuma alteração pendente de confirmação.',
-        };
-      }
-
-      if (!confirmed) {
-        await this.contextStore.clearPendingTask(sessionId);
-        return {
-          status: 'error',
-          error: 'Alteração cancelada.',
-        };
-      }
-
-      const intent = pendingTask.intent as any;
-
-      if (intent.actionType !== 'update' || !intent.targetTaskId) {
-        return {
-          status: 'error',
-          error: 'Operação inválida.',
-        };
-      }
-
-      // Execute the update
-      const qs = this.clickupQueryService || getClickUpQueryService();
-      if (!qs) {
-        return {
-          status: 'error',
-          error: 'Serviço ClickUp não disponível.',
-        };
-      }
-
-      const result = await qs.updateTaskStatus(intent.targetTaskId, intent.updateValue);
-
-      await this.contextStore.clearPendingTask(sessionId);
-
-      return {
-        status: 'created',
-        preview: `✅ ${result}`,
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
-      return {
-        status: 'error',
-        error: `Erro ao atualizar tarefa: ${errorMsg}`,
-      };
-    }
-  }
-
-  /**
    * Confirm pending task and create it
    */
   async confirmAndCreateTask(
@@ -1133,16 +844,13 @@ REGRA CRÍTICA — AÇÕES DE ESCRITA (Agendar, Enviar, Excluir, Incluir, Editar
 
       // Record the request for rate limiting
       const rateLimiter = getRateLimitCoordinator();
-      const destination = intent.destination || 'both';
+      const destination = intent.destination || 'notion';
 
-      if (destination === 'clickup' || destination === 'both') {
-        rateLimiter.recordRequest('clickup');
-      }
-      if (destination === 'notion' || destination === 'both') {
+      if (destination === 'notion') {
         rateLimiter.recordRequest('notion');
       }
 
-      // TODO: Create task in ClickUp/Notion
+      // TODO: Create task in Notion
       // This will be implemented in Task 8 (integration with actual services)
 
       // For now, simulate successful creation

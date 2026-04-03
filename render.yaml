@@ -105,6 +105,22 @@ services:
       # Maverick
       - key: MAVERICK_WEEKLY_USERNAME
         sync: false
+      # Necessário para /api/maverick/discover (discoverNicheContext)
+      - key: TAVILY_API_KEY
+        sync: false
+      # Maverick Video Intel (R2 temporary storage, optional)
+      - key: MAVERICK_VIDEO_INTEL_MAX
+        value: "5"
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_REGION
+        value: auto
       - key: MAVERICK_ENABLED
         value: "true"
       - key: MAVERICK_CAROUSEL_ENABLED
@@ -123,4 +139,3 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         sync: false
-

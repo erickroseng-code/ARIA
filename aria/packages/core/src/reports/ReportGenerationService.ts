@@ -22,7 +22,7 @@ export interface GeneratedReport {
   cacheExpiresAt: Date;
   notificationSentAt?: Date;
   sourceData: {
-    clickupMetrics: string;
+    taskMetrics: string;
     notionMetrics: string;
     calendarMetrics: string;
   };
@@ -184,7 +184,7 @@ export class ReportGenerationService {
       generatedAt,
       cacheExpiresAt,
       sourceData: {
-        clickupMetrics: `${reportData.clickup.tasksCompleted} completed`,
+        taskMetrics: `${reportData.tasks.tasksCompleted} completed`,
         notionMetrics: `${reportData.notion.activeClients} active clients`,
         calendarMetrics: `${reportData.calendar.hoursInMeetings}h meetings`,
       },
@@ -271,12 +271,12 @@ export class ReportGenerationService {
    * Mock implementations for initial testing (replaced in Task 2)
    */
   private generateSummaryMock(reportData: ReportData): string {
-    return `During the period ${reportData.period.start.toLocaleDateString()} to ${reportData.period.end.toLocaleDateString()}, the team achieved significant progress. Completed ${reportData.clickup.tasksCompleted} tasks while managing ${reportData.notion.activeClients} active clients. Meeting activity indicates strong engagement with ${reportData.calendar.meetingsCompleted} meetings completed.`;
+    return `During the period ${reportData.period.start.toLocaleDateString()} to ${reportData.period.end.toLocaleDateString()}, the team achieved significant progress. Completed ${reportData.tasks.tasksCompleted} tasks while managing ${reportData.notion.activeClients} active clients. Meeting activity indicates strong engagement with ${reportData.calendar.meetingsCompleted} meetings completed.`;
   }
 
   private generateMetricsMock(reportData: ReportData): string[] {
     return [
-      `Tasks Completed: ${reportData.clickup.tasksCompleted} (${reportData.clickup.tasksPending} still pending)`,
+      `Tasks Completed: ${reportData.tasks.tasksCompleted} (${reportData.tasks.tasksPending} still pending)`,
       `Active Clients: ${reportData.notion.activeClients}`,
       `Plans Created: ${reportData.notion.plansCreated}`,
       `Meetings: ${reportData.calendar.meetingsCompleted}/${reportData.calendar.meetingsScheduled} completed`,
@@ -286,13 +286,13 @@ export class ReportGenerationService {
 
   private generateInsightsMock(reportData: ReportData): string[] {
     const pendingRatio = (
-      (reportData.clickup.tasksPending /
-        (reportData.clickup.tasksCompleted + reportData.clickup.tasksPending)) *
+      (reportData.tasks.tasksPending /
+        (reportData.tasks.tasksCompleted + reportData.tasks.tasksPending)) *
       100
     ).toFixed(1);
 
     return [
-      `Task velocity remains strong with ${reportData.clickup.tasksCompleted} completions`,
+      `Task velocity remains strong with ${reportData.tasks.tasksCompleted} completions`,
       `${pendingRatio}% of tasks still pending - may indicate capacity constraints`,
       `High meeting engagement suggests active client collaboration`,
       `${reportData.notion.plansCreated} new plans created indicates strategic planning activity`,

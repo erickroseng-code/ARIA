@@ -4,8 +4,8 @@
  */
 
 import { NotionTaskService, NotionTaskCreateRequest, NotionTask } from './NotionTaskService';
-import { RateLimiter } from '../clickup/RateLimiter';
-import { TaskQueue } from '../clickup/TaskQueue';
+import { RateLimiter } from '../common/RateLimiter';
+import { TaskQueue } from '../common/TaskQueue';
 
 export class NotionManager {
   private taskService: NotionTaskService;

@@ -5,7 +5,6 @@ import { FastifyInstance } from 'fastify';
 const SKIP_ROUTES = [
   '/health',
   '/api/auth/google/status',
-  '/api/auth/clickup/status',
   '/api/auth/notion/status',
   '/api/auth/telegram/status',
 ];

@@ -504,7 +504,7 @@ Ou prefixe com CAPA:, CONTEÚDO: ou CTA:
       localStorage.setItem('aria_api_url', url);
       
       try {
-        const res = await fetch(`${url}/api/maverick/figma-queue`);
+        const res = await fetch(`${url}/api/uma/queue`);
         const data = await res.json();
         queueItems = data.items || [];
         renderQueue();

@@ -1,0 +1,31 @@
+name: TIE Daily Agent
+
+on:
+  schedule:
+    - cron: '0 10 * * *' # 10:00 UTC = 07:00 BRT
+  workflow_dispatch:
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install fastapi uvicorn playwright-stealth apify-client sqlmodel anthropic openai python-dotenv pytrends
+          playwright install
+
+      - name: Run TrendMaster Agent
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          RENDER_WEBHOOK_URL: ${{ secrets.RENDER_WEBHOOK_URL }}
+        run: |
+          python src/main.py

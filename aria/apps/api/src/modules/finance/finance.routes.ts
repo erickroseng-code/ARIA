@@ -6,6 +6,7 @@ import { getDashboardData, getMonthlyPlan, upsertMonthlyPlan } from './agents/da
 import { setupSpreadsheet, getSpreadsheetId, getSpreadsheetUrl } from './finance.service';
 import {
   addTransactionDirect, updateTransactionDirect, deleteTransactionDirect, addDebt, deleteDebt, getDebts,
+  updateTransactionEffectiveDirect,
   addOverdueAccount, deleteOverdueAccount, getOverdueAccounts,
   addRecurringExpense, deleteRecurringExpense, getRecurringExpenses, updateRecurringExpense,
   payDebt, payOverdue,
@@ -116,15 +117,15 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
 
   // POST /api/finance/transaction — Adicionar receita ou despesa diretamente
   fastify.post('/transaction', async (
-    req: FastifyRequest<{ Body: { type: string; category: string; description: string; amount: number; date?: string; paymentMethod?: string; creditCardId?: number | null } }>,
+    req: FastifyRequest<{ Body: { type: string; category: string; description: string; amount: number; isEffective?: boolean; date?: string; paymentMethod?: string; creditCardId?: number | null } }>,
     reply: FastifyReply,
   ) => {
     try {
-      const { type, category, description, amount, date, paymentMethod, creditCardId } = req.body;
+      const { type, category, description, amount, isEffective, date, paymentMethod, creditCardId } = req.body;
       if (!type || !category || !description || !amount) {
         return reply.status(400).send({ error: 'Campos obrigatórios: type, category, description, amount' });
       }
-      await addTransactionDirect({ type: type as 'receita' | 'despesa', category, description, amount, date, paymentMethod, creditCardId });
+      await addTransactionDirect({ type: type as 'receita' | 'despesa', category, description, amount, isEffective, date, paymentMethod, creditCardId });
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -136,13 +137,13 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     req: FastifyRequest<{
       Params: { index: string };
       Querystring: { source?: 'local' | 'sheets' };
-      Body: { type: string; category: string; description: string; amount: number; date?: string };
+      Body: { type: string; category: string; description: string; amount: number; isEffective?: boolean; date?: string };
     }>,
     reply: FastifyReply,
   ) => {
     try {
       const index = parseInt(req.params.index);
-      const { type, category, description, amount, date } = req.body;
+      const { type, category, description, amount, isEffective, date } = req.body;
       if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       if (!type || !category || !description || !amount) {
         return reply.status(400).send({ error: 'Campos obrigatórios: type, category, description, amount' });
@@ -152,8 +153,57 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
         category,
         description,
         amount,
+        isEffective,
         date,
       }, req.query.source ?? 'local');
+      return reply.send({ success: true });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // PATCH /api/finance/transaction/:index/effective — Efetivar/voltar para previsto
+  fastify.patch('/transaction/:index/effective', async (
+    req: FastifyRequest<{
+      Params: { index: string };
+      Querystring: { source?: 'local' | 'sheets' };
+      Body: { isEffective: boolean; actualAmount?: number };
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const index = parseInt(req.params.index);
+      const { isEffective, actualAmount } = req.body ?? {};
+      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (typeof isEffective !== 'boolean') return reply.status(400).send({ error: 'isEffective obrigatório (boolean)' });
+      if (actualAmount !== undefined && (!Number.isFinite(Number(actualAmount)) || Number(actualAmount) <= 0)) {
+        return reply.status(400).send({ error: 'actualAmount inválido' });
+      }
+      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, req.query.source ?? 'local');
+      return reply.send({ success: true });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // PUT /api/finance/transaction/:index/effective — Efetivar/voltar para previsto
+  fastify.put('/transaction/:index/effective', async (
+    req: FastifyRequest<{
+      Params: { index: string };
+      Querystring: { source?: 'local' | 'sheets' };
+      Body: { isEffective: boolean; actualAmount?: number };
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const index = parseInt(req.params.index);
+      const { isEffective, actualAmount } = req.body ?? {};
+      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (typeof isEffective !== 'boolean') return reply.status(400).send({ error: 'isEffective obrigatório (boolean)' });
+      if (actualAmount !== undefined && (!Number.isFinite(Number(actualAmount)) || Number(actualAmount) <= 0)) {
+        return reply.status(400).send({ error: 'actualAmount inválido' });
+      }
+      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, req.query.source ?? 'local');
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });

@@ -1,12 +1,10 @@
 import { tavily } from '@tavily/core';
 import path from 'path';
 import fs from 'fs';
+import { resolveMaverickBrainPath } from './brain-path';
 
 // ─── Brain path (shared with copywriter.v2.service) ──────────────────────────
-const BRAIN_PATH = path.resolve(
-  __dirname,
-  '../../../../../../squads/maverick/data/knowledge/brain'
-);
+const BRAIN_PATH = resolveMaverickBrainPath(__dirname);
 
 function readBrainFile(relativePath: string): string {
   try {
@@ -35,7 +33,11 @@ export interface OracleOutput {
 
 async function searchWeb(queries: string[]): Promise<{ title: string; url: string; content: string }[]> {
   const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new Error('TAVILY_API_KEY não configurado no .env');
+  if (!apiKey) {
+    throw new Error(
+      'TAVILY_API_KEY não configurado. Em produção (Render), adicione em Environment no dashboard.'
+    );
+  }
 
   const client = tavily({ apiKey });
 
@@ -66,10 +68,106 @@ async function searchWeb(queries: string[]): Promise<{ title: string; url: strin
   return allResults;
 }
 
+// ─── Discover Niche Context ──────────────────────────────────────────────────
+
+export interface DiscoverInput {
+  niche: string;
+  objective: string;
+  period: number; // 30 | 45 | 60 | 90
+}
+
+export interface DiscoverOutput {
+  keywords: string[];
+  themes: { title: string; pain: string }[];
+  niche: string;
+  enemy: string;
+}
+
+export async function discoverNicheContext(input: DiscoverInput): Promise<DiscoverOutput> {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  if (!groqApiKey) throw new Error('GROQ_API_KEY não configurado');
+
+  // 1. Gerar queries para descobrir dores reais do nicho
+  const queryPrompt = `Nicho: "${input.niche}" | Objetivo: ${input.objective}
+Gere 3 queries de busca para encontrar DORES REAIS e RECLAMAÇÕES neste nicho.
+Retorne APENAS JSON array: ["query1", "query2", "query3"]`;
+
+  const queryRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqApiKey}` },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: 'Retorne APENAS JSON válido.' },
+        { role: 'user', content: queryPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 200,
+    }),
+  });
+  const queryData = await queryRes.json() as any;
+  const queryRaw = queryData.choices?.[0]?.message?.content ?? '[]';
+  let queries: string[];
+  try {
+    const m = queryRaw.match(/\[[\s\S]*\]/);
+    queries = m ? JSON.parse(m[0]) : [`${input.niche} problemas reclamações`];
+  } catch {
+    queries = [`${input.niche} problemas reclamações`];
+  }
+
+  // 2. Buscar na web via Tavily
+  const webResults = await searchWeb(queries);
+
+  // 3. Sintetizar keywords + temas
+  const webContext = webResults.slice(0, 8)
+    .map((r, i) => `[${i + 1}] ${r.title}\n${r.content.slice(0, 300)}`)
+    .join('\n\n---\n\n');
+
+  const synthPrompt = `Nicho: "${input.niche}" | Objetivo: ${input.objective}
+
+DADOS DA WEB:
+${webContext || 'Sem dados. Use conhecimento interno.'}
+
+Identifique:
+1. 3-5 keywords para busca no Instagram (em português, específicas)
+2. 4-6 temas em alta (o que o público reclama ou quer saber)
+3. O inimigo comum do mercado
+4. O nicho ultra-específico
+
+Retorne APENAS JSON:
+{
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "themes": [
+    { "title": "Título curto", "pain": "Por que dói para o público" }
+  ],
+  "niche": "Nicho ultra-específico",
+  "enemy": "O vilão do mercado"
+}`;
+
+  const synthRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqApiKey}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'Retorne APENAS JSON válido. Sem markdown.' },
+        { role: 'user', content: synthPrompt },
+      ],
+      temperature: 0.6,
+      max_tokens: 800,
+    }),
+  });
+  const synthData = await synthRes.json() as any;
+  const synthRaw = synthData.choices?.[0]?.message?.content ?? '';
+  const jsonMatch = synthRaw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Resposta do Discovery inválida');
+  return JSON.parse(jsonMatch[0]) as DiscoverOutput;
+}
+
 // ─── Oracle Engine ───────────────────────────────────────────────────────────
 
 export async function runOracle(input: OracleInput): Promise<OracleOutput> {
-  const persona = readBrainFile('core/persona.md');
+  const persona = readBrainFile('07_persona.md');
 
   // 1. Gerar queries de investigação via LLM rápida
   const queryGenPrompt = `Você é um pesquisador de mercado implacável. 

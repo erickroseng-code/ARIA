@@ -26,7 +26,6 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
     const [menuView, setMenuView] = useState<'main' | 'connectors'>('main');
     const [activeConnectors, setActiveConnectors] = useState<Record<string, boolean>>({
         google: false,
-        clickup: false,
         notion: false
     });
     const [recentDocs, setRecentDocs] = useState<any[]>([]);
@@ -438,7 +437,6 @@ const ChatInput = ({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputPr
                                                 <div className="flex flex-col py-1.5 px-1">
                                                     {[
                                                         { id: 'google', name: 'Google Drive', logo: '/integrations/drive.png' },
-                                                        { id: 'clickup', name: 'ClickUp Tasks', logo: '/integrations/clickup.png' },
                                                         { id: 'notion', name: 'Notion Knowledge', logo: '/integrations/notion.png' }
                                                     ].map((conn) => (
                                                         <div key={conn.id} className="flex flex-col">

@@ -1,0 +1,403 @@
+{
+  "date": "2026-03-26T21:31:14.101005",
+  "mashup_angle": "Desculpe, mas não consigo visualizar o conteúdo específico da notícia nem da tendência viral que você mencionou, pois ambas aparecem apenas como hashtag #empreendedorismo sem detalhes adicionais do conteúdo. Para criar um ângulo criativo e relevante que conecte os dois assuntos, eu precisaria de mais informações sobre:\n\n1. Qual é a notícia recente específica\n2. Qual é a tendência viral específica \n3. O contexto de cada uma delas\n\nCom essas informações, poderei criar um mashup criativo e envolvente que faça sentido para o público.",
+  "carousel_script": "[SLIDE 1]\n\"Tudo que você faz nas redes sociais está COMPLETAMENTE errado. 94% dos criadores de conteúdo desperdiçam tempo reagindo a trends sem contexto.\"\n\n[SLIDE 2]\nA maioria tenta surfar trends e notícias aleatoriamente, mas poucos param para entender a REAL conexão com seu público.\n\n[SLIDE 3]\nResultado: conteúdo forçado, sem autenticidade e zero engajamento. As pessoas percebem quando você só está tentando \"pegar carona\" em algo viral.\n\n[SLIDE 4]\nO pior? Você acaba parecendo mais um robô repetindo o mesmo que todos falam, sem adicionar valor real para sua audiência.\n\n[SLIDE 5]\nA solução é simples: antes de criar conteúdo sobre qualquer trend ou notícia, faça 3 perguntas:\n- Como isso impacta meu público?\n- Qual valor único posso agregar?\n- Qual é a conexão genuína?\n\n[SLIDE 6]\nQuando você entende o CONTEXTO primeiro, consegue criar conteúdo que:\n✓ Gera valor real\n✓ Mantém sua autoridade\n✓ Conecta de verdade com as pessoas\n\n[SLIDE 7]\nSalve este guia para nunca mais criar conteúdo sem propósito 📌\n→ Compartilhe com aquele amigo que precisa parar de postar trends aleatórias 😉",
+  "top_news": {
+    "source": "instagram",
+    "title": "Post #empreendedorismo [DWSAi-gAYf8]",
+    "content": "Hashtag: #empreendedorismo",
+    "url": "https://www.instagram.com/p/DWSAi-gAYf8/",
+    "engagement": 0,
+    "published_at": "2026-03-24T20:58:11",
+    "period_days": 60,
+    "viral_score": 23.65417599051429,
+    "momentum_score": 4.135439976285731,
+    "niche_fit_score": 36.666666666666664,
+    "score_components": {
+      "normalized_engagement": 0,
+      "recency_score": 0.3308,
+      "source_weight": 0.5,
+      "momentum_score": 4.14,
+      "niche_fit_score": 36.67,
+      "contextual_score": 23.65,
+      "score_formula": "0.60*niche_fit + 0.40*momentum",
+      "matched_keywords": [
+        "empreendedorismo"
+      ]
+    },
+    "content_hash": "d5bb3d2f0266307b8908ec71513c8d73"
+  },
+  "top_trend": {
+    "source": "instagram",
+    "title": "Post #empreendedorismo [DWSAi-gAYf8]",
+    "content": "Hashtag: #empreendedorismo",
+    "url": "https://www.instagram.com/p/DWSAi-gAYf8/",
+    "engagement": 0,
+    "published_at": "2026-03-24T20:58:11",
+    "period_days": 60,
+    "viral_score": 23.65417599051429,
+    "momentum_score": 4.135439976285731,
+    "niche_fit_score": 36.666666666666664,
+    "score_components": {
+      "normalized_engagement": 0,
+      "recency_score": 0.3308,
+      "source_weight": 0.5,
+      "momentum_score": 4.14,
+      "niche_fit_score": 36.67,
+      "contextual_score": 23.65,
+      "score_formula": "0.60*niche_fit + 0.40*momentum",
+      "matched_keywords": [
+        "empreendedorismo"
+      ]
+    },
+    "content_hash": "d5bb3d2f0266307b8908ec71513c8d73"
+  },
+  "scored_trends": [
+    {
+      "source": "tiktok",
+      "title": "TikTok: Por que saber perguntar é o maior talento Fazer as perguntas certas\". Essa é a habilidade de ouro,para quem quer seguir ",
+      "content": "#empreendedorismo | 2.4M views | @pensamentomilionario31",
+      "url": "https://www.tiktok.com/@pensamentomilionario31/video/7612448197742464264",
+      "engagement": 2400000,
+      "viral_score": 31.115930349965097,
+      "published_at": "2026-03-02T00:27:03",
+      "momentum_score": 22.789825874912754,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.0386,
+        "source_weight": 0.3,
+        "momentum_score": 22.79,
+        "niche_fit_score": 36.67,
+        "contextual_score": 31.12,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "f1c6594077507b2971eb73ec31961f1c"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: Cansado de bater ponto enquanto seus sonhos ficam na gaveta? 🕒 Em 2026, a barreira para empreender nunca foi tão baixa, ",
+      "content": "#empreendedorismo | 198k views | @mentemilionaria1975",
+      "url": "https://www.tiktok.com/@mentemilionaria1975/video/7600534305084820757",
+      "engagement": 198500,
+      "viral_score": 24.330300765560875,
+      "published_at": "2026-01-28T21:55:07",
+      "momentum_score": 5.8257519139021925,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.2532,
+        "recency_score": 0.0172,
+        "source_weight": 0.3,
+        "momentum_score": 5.83,
+        "niche_fit_score": 36.67,
+        "contextual_score": 24.33,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "2683c1d44e77c8bdc80383b486714445"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #empreendedorismo [DWSAi-gAYf8]",
+      "content": "Hashtag: #empreendedorismo",
+      "url": "https://www.instagram.com/p/DWSAi-gAYf8/",
+      "engagement": 0,
+      "published_at": "2026-03-24T20:58:11",
+      "period_days": 60,
+      "viral_score": 23.65417599051429,
+      "momentum_score": 4.135439976285731,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.3308,
+        "source_weight": 0.5,
+        "momentum_score": 4.14,
+        "niche_fit_score": 36.67,
+        "contextual_score": 23.65,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "d5bb3d2f0266307b8908ec71513c8d73"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [DWRKBU-jS_k]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWRKBU-jS_k/",
+      "engagement": 0,
+      "published_at": "2026-03-24T12:26:58",
+      "period_days": 60,
+      "viral_score": 23.48031277484018,
+      "momentum_score": 3.7007819371004578,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.2961,
+        "source_weight": 0.5,
+        "momentum_score": 3.7,
+        "niche_fit_score": 36.67,
+        "contextual_score": 23.48,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "3b635f2bf0d9500dcec36ad86f2905ba"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #vendas [DWOxTQFDk0u]",
+      "content": "Hashtag: #vendas",
+      "url": "https://www.instagram.com/p/DWOxTQFDk0u/",
+      "engagement": 0,
+      "published_at": "2026-03-23T14:47:00",
+      "period_days": 60,
+      "viral_score": 23.168109892128694,
+      "momentum_score": 2.920274730321743,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.2336,
+        "source_weight": 0.5,
+        "momentum_score": 2.92,
+        "niche_fit_score": 36.67,
+        "contextual_score": 23.17,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "vendas"
+        ]
+      },
+      "content_hash": "b77548003630b9471cdd555100ac2f99"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [DWMJY4skdOO]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWMJY4skdOO/",
+      "engagement": 0,
+      "published_at": "2026-03-22T14:19:54",
+      "period_days": 60,
+      "viral_score": 22.943531768153367,
+      "momentum_score": 2.3588294203834246,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1887,
+        "source_weight": 0.5,
+        "momentum_score": 2.36,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.94,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "9cd34b66938794d83fe0033d2fd2acf7"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #vendas [DWJq6YckWoq]",
+      "content": "Hashtag: #vendas",
+      "url": "https://www.instagram.com/p/DWJq6YckWoq/",
+      "engagement": 0,
+      "published_at": "2026-03-21T15:14:45",
+      "period_days": 60,
+      "viral_score": 22.798575551002806,
+      "momentum_score": 1.9964388775070205,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1597,
+        "source_weight": 0.5,
+        "momentum_score": 2,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.8,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "vendas"
+        ]
+      },
+      "content_hash": "9abc9f70a5a1bbd51676ec4063b3b591"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [DWJbnorDnlJ]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWJbnorDnlJ/",
+      "engagement": 0,
+      "published_at": "2026-03-21T12:59:55",
+      "period_days": 60,
+      "viral_score": 22.786808975388375,
+      "momentum_score": 1.9670224384709512,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1574,
+        "source_weight": 0.5,
+        "momentum_score": 1.97,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.79,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "a5f2d4884515a6e2e9597cbd48ccc40a"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: 🚨 O produto que vai explodir de vendas na Copa acabou de chegar… Se você quer ganhar dinheiro de verdade nos próximos me",
+      "content": "#vendas | 106k views | @lucrenacopa",
+      "url": "https://www.tiktok.com/@lucrenacopa/video/7620586747470040340",
+      "engagement": 105800,
+      "viral_score": 22.76029964433299,
+      "published_at": "2026-03-23T22:48:50",
+      "momentum_score": 1.90074911083248,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.2534,
+        "source_weight": 0.3,
+        "momentum_score": 1.9,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.76,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "vendas"
+        ]
+      },
+      "content_hash": "a68ab15b90d26a813fd0e72e41f2ace2"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [DWHs9rMjXgF]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DWHs9rMjXgF/",
+      "engagement": 0,
+      "published_at": "2026-03-20T20:54:48",
+      "period_days": 60,
+      "viral_score": 22.711743516440695,
+      "momentum_score": 1.779358791101744,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1423,
+        "source_weight": 0.5,
+        "momentum_score": 1.78,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.71,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "23c9667683559eadb5811c34bf2e3b17"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #empreendedorismo [DWFHodRiOyZ]",
+      "content": "Hashtag: #empreendedorismo",
+      "url": "https://www.instagram.com/p/DWFHodRiOyZ/",
+      "engagement": 0,
+      "published_at": "2026-03-19T20:48:48",
+      "period_days": 60,
+      "viral_score": 22.622729435732793,
+      "momentum_score": 1.5568235893319908,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1245,
+        "source_weight": 0.5,
+        "momentum_score": 1.56,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.62,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "empreendedorismo"
+        ]
+      },
+      "content_hash": "de07a13692747799b49fe364c1900ee3"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [DV9arDSj9lV]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DV9arDSj9lV/",
+      "engagement": 0,
+      "published_at": "2026-03-19T17:20:10",
+      "period_days": 60,
+      "viral_score": 22.611691620338135,
+      "momentum_score": 1.529229050845347,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1223,
+        "source_weight": 0.5,
+        "momentum_score": 1.53,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.61,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "42dcb459a52d869ebcc1bd5bc8746fef"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #vendas [DWCkRB2Dyq6]",
+      "content": "Hashtag: #vendas",
+      "url": "https://www.instagram.com/p/DWCkRB2Dyq6/",
+      "engagement": 0,
+      "published_at": "2026-03-18T21:01:15",
+      "period_days": 60,
+      "viral_score": 22.554291563969663,
+      "momentum_score": 1.385728909924162,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.1109,
+        "source_weight": 0.5,
+        "momentum_score": 1.39,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.55,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "vendas"
+        ]
+      },
+      "content_hash": "fa0a6f060d07941338afdcfee58e56d2"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: Logo o desconto vem kkkkkkk  #viralvideo #marketing #meme ",
+      "content": "#marketing | 120k views | @madtrevo",
+      "url": "https://www.tiktok.com/@madtrevo/video/7605234431804181778",
+      "engagement": 120000,
+      "viral_score": 22.405827659223977,
+      "published_at": "2026-02-10T13:53:51",
+      "momentum_score": 1.0145691480599552,
+      "niche_fit_score": 36.666666666666664,
+      "score_components": {
+        "normalized_engagement": 0.0377,
+        "recency_score": 0.0221,
+        "source_weight": 0.3,
+        "momentum_score": 1.01,
+        "niche_fit_score": 36.67,
+        "contextual_score": 22.41,
+        "score_formula": "0.60*niche_fit + 0.40*momentum",
+        "matched_keywords": [
+          "marketing"
+        ]
+      },
+      "content_hash": "3764d08c3897c42ae5a0f45b28cadd53"
+    }
+  ]
+}

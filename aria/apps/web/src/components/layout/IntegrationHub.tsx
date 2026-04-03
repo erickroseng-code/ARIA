@@ -13,7 +13,6 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const driveLogo = "/integrations/drive.png";
-const clickupLogo = "/integrations/clickup.png";
 const notionLogo = "/integrations/notion.png";
 const telegramLogo = "/integrations/telegram.png";
 const gammaLogo = "/integrations/gamma.png";
@@ -45,14 +44,6 @@ const INTEGRATIONS: IntegrationDef[] = [
         logo: driveLogo,
         statusUrl: `${API_BASE}/api/auth/google/health`,
         authUrl: `${API_BASE}/api/auth/google/url`,
-    },
-    {
-        id: "clickup",
-        name: "ClickUp",
-        description: "Tarefas e Gerenciamento de Projetos",
-        logo: clickupLogo,
-        statusUrl: `${API_BASE}/api/auth/clickup/status`,
-        authUrl: `${API_BASE}/api/auth/clickup/url`,
     },
     {
         id: "notion",
@@ -229,7 +220,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
 
             const data = await res.json() as { url?: string; connected?: boolean; source?: string };
 
-            // Already connected (e.g. ClickUp via PAT) — just refresh status
+            // Already connected (e.g. via token) — just refresh status
             if (data.connected && !data.url) {
                 if (popup && !popup.closed) popup.close();
                 setConnecting(null);
@@ -410,7 +401,7 @@ const IntegrationHub = ({ open, onOpenChange }: IntegrationHubProps) => {
                                             </button>
                                         )}
 
-                                        {/* OAuth popup (Google, ClickUp) */}
+                                        {/* OAuth popup (Google) */}
                                         {!isVerifying && !isPopupBlocked && !isLoading && !isConnected && !integration.comingSoon && !integration.apiKeyAuth && !integration.externalAuth && integration.authUrl && (
                                             <button
                                                 onClick={() => handleConnect(integration)}

@@ -23,29 +23,10 @@ export {
 
 export type { NotionBlock, RichTextItem } from './notion/notion.types';
 
-// ClickUp exports
-export {
-  ClickUpClient,
-  initializeClickUpClient,
-  getClickUpClient,
-} from './clickup/ClickUpClient';
-
-export { ClickUpTaskService, type TaskCreateRequest, type Task } from './clickup/ClickUpTaskService';
-export { ClickUpManager } from './clickup/ClickUpManager';
-export { RateLimiter } from './clickup/RateLimiter';
-export { TaskQueue } from './clickup/TaskQueue';
-export {
-  ClickUpQueryService,
-  initializeClickUpQueryService,
-  getClickUpQueryService,
-  type ClientRecord,
-  type PendingTask,
-  type MyTask,
-} from './clickup/ClickUpQueryService';
-
-
 export { NotionTaskService, type NotionTaskCreateRequest, type NotionTask } from './notion/NotionTaskService';
 export { NotionManager } from './notion/NotionManager';
+export { RateLimiter } from './common/RateLimiter';
+export { TaskQueue } from './common/TaskQueue';
 
 // Google Workspace exports
 export { createWorkspaceClient, isWorkspaceConfigured, setWorkspaceTokenResolver, setOnInvalidGrant, notifyInvalidGrant, setWorkspaceTokenPersistor } from './google-workspace/WorkspaceClient';

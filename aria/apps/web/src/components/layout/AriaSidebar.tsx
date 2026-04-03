@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from "next/navigation";
-import { LayoutGrid, Target, BarChart2, Home, Zap, Search } from "lucide-react";
+import { LayoutGrid, Target, BarChart2, Home, Zap, Search, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import IntegrationHub from "@/components/layout/IntegrationHub";
 import { useChatStore } from "@/stores/chatStore";
@@ -51,17 +51,26 @@ const squads: SquadDef[] = [
         name: "Sherlock",
         icon: Search,
         description: "Inteligência Viral",
-        color: "#8b5cf6",
-        accentClass: "text-violet-400 bg-violet-500/10 border-violet-500/20",
+        color: "#C3FAEA",
+        accentClass: "text-[#C3FAEA] bg-[#C3FAEA]/10 border-[#C3FAEA]/20",
         status: "active",
     },
     {
         id: "maverick",
         name: "Maverick V2",
-        icon: Zap, // Reuse Zap or maybe another imported icon if needed, let's stick to Zap as it was used in MaverickSession
+        icon: Zap,
         description: "Copywriter A-List",
-        color: "#8b5cf6", // Violet-ish (violet-500)
+        color: "#8b5cf6",
         accentClass: "text-violet-400 bg-violet-500/10 border-violet-500/20",
+        status: "active",
+    },
+    {
+        id: "uma",
+        name: "Uma",
+        icon: Palette,
+        description: "Designer de Carrosséis",
+        color: "#f43f5e",
+        accentClass: "text-rose-400 bg-rose-500/10 border-rose-500/20",
         status: "active",
     },
 ];
@@ -144,6 +153,8 @@ const AriaSidebar = ({
                                         onClick={() => {
                                             if (squad.id === "sherlock") {
                                                 router.push("/sherlock");
+                                            } else if (squad.id === "uma") {
+                                                router.push("/uma");
                                             } else {
                                                 if (onSelectSquad) {
                                                     onSelectSquad(squad.id);

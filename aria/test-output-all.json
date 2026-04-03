@@ -1,0 +1,1103 @@
+[
+  {
+    "account": "WeSparkle Soluções Digitais",
+    "campaign": "[TRÁFEGO][30D][PERFIL PESSOAL][PF][02.10]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "account": "WeSparkle Soluções Digitais",
+    "campaign": "[PM] [TESTE CRIATIVO] [ABO] | Pub Aberto 18-65+",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 01",
+    "preset": "last_30d",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "78"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "23"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "67"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "75"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 02",
+    "preset": "last_30d",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "84"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "21"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "83"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "84"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 03",
+    "preset": "last_30d",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "44"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "37"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "44"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_replied_7d",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 04",
+    "preset": "last_30d",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 05",
+    "preset": "last_30d",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "60"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "24"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "15"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "55"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "62"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][ENG][DATASSETEMBRO][27.08]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "8"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "10"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][ENG][DATASOUTUBRO][09.09]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "18"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "14"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "15"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "19"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][ENG][ALLLEADS][11.10]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "15"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "16"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "12"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "15"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][ENG][ABERTO][JAN]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "49"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "42"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "38"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "50"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "54"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][ENG][ABERTO][FEV]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "36"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "29"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "28"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "36"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "39"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][CONVR][ABERTO][MAR]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[SR][TRÁFEGO][ABERTO][TRILHADAFESTA]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "2"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "6"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] - Campanha 01",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "20"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "9"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "20"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "20"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 05",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "8"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "9"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "9"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 02",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "33"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "16"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "12"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "31"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "33"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 03",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "8"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "5"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "3"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "8"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "8"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 06",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "2"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "2"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "5"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "7"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 04",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "3"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "6"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 07",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "87"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "47"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "34"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "77"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "83"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 08",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "5"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "2"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "2"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "5"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 01",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "83"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "23"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "71"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 02",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "88"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "24"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "87"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "88"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 03",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "18"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "38"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_replied_7d",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 04",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 05",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "69"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "28"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "63"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "71"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 01",
+    "preset": "this_month",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "83"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "23"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "71"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 02",
+    "preset": "this_month",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "88"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "24"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "87"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "88"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 03",
+    "preset": "this_month",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "18"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "38"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_replied_7d",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 04",
+    "preset": "this_month",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 05",
+    "preset": "this_month",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "69"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "28"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "63"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "71"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][PROMODEZ][1-2-1] — Campanha 07",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 01",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "83"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "23"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "71"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 02",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "88"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "24"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "11"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "87"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "88"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 03",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "18"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "38"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "46"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_replied_7d",
+        "value": "2"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 04",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 05",
+    "preset": "this_year",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "69"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "28"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "63"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "71"
+      }
+    ]
+  },
+  {
+    "account": "Moncloa Joinville",
+    "campaign": "[00][TRÁFEGO][CORRETORES][01.07]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "5"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "3"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "8"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "9"
+      }
+    ]
+  },
+  {
+    "account": "Moncloa Joinville",
+    "campaign": "[01][TRÁFEGO][ABERTO]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "14"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "12"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "15"
+      }
+    ]
+  },
+  {
+    "account": "Moncloa Joinville",
+    "campaign": "[SR][ENG][VENDAFRANQUIA]",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "17"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_block",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "3"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "1"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "9"
+      }
+    ]
+  },
+  {
+    "account": "Moncloa Joinville",
+    "campaign": "[SR][ENG][VENDAFRANQUIA] - TESTE 2",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "53"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "7"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "3"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "25"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "31"
+      }
+    ]
+  },
+  {
+    "account": "SR Marketing [Erick]",
+    "campaign": "TC - [SP][VENDAS][CBO][ABERTO] - ADS 02",
+    "preset": "maximum",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "1"
+      }
+    ]
+  }
+]

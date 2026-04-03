@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aria-api",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "npm run dev"],
+      "cwd": "aria/apps/api",
+      "port": 3001
+    },
+    {
+      "name": "aria-web",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "npm run dev"],
+      "cwd": "aria/apps/web",
+      "port": 3000
+    }
+  ]
+}

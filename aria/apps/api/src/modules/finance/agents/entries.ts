@@ -8,6 +8,8 @@ export interface TransactionInput {
   category: string;
   description: string;
   amount: number;
+  isEffective?: boolean;
+  effectiveAmount?: number | null;
   date?: string; // YYYY-MM-DD
   paymentMethod?: string; // pix | credito | debito | outros
   creditCardId?: number | null;
@@ -82,7 +84,9 @@ db.exec(`
     category TEXT NOT NULL,
     description TEXT NOT NULL,
     amount REAL NOT NULL,
-    tags TEXT DEFAULT ''
+    tags TEXT DEFAULT '',
+    isEffective INTEGER DEFAULT 1,
+    effectiveAmount REAL DEFAULT NULL
   );
 
   CREATE TABLE IF NOT EXISTS finance_debts (
@@ -147,6 +151,13 @@ if (!hasColumn('finance_transactions', 'paymentMethod')) {
 if (!hasColumn('finance_transactions', 'creditCardId')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN creditCardId INTEGER DEFAULT NULL`);
 }
+if (!hasColumn('finance_transactions', 'isEffective')) {
+  db.exec(`ALTER TABLE finance_transactions ADD COLUMN isEffective INTEGER DEFAULT 1`);
+}
+if (!hasColumn('finance_transactions', 'effectiveAmount')) {
+  db.exec(`ALTER TABLE finance_transactions ADD COLUMN effectiveAmount REAL DEFAULT NULL`);
+}
+db.exec(`UPDATE finance_transactions SET isEffective = 1 WHERE isEffective IS NULL`);
 
 function normalizeMonth(month?: string): string {
   return (month && /^\d{4}-\d{2}$/.test(month))
@@ -186,20 +197,24 @@ function calculateDaysOverdue(dueDate?: string): number {
 
 function addLocalExpenseTransaction(description: string, amount: number, category = 'Outros'): void {
   db.prepare(`
-    INSERT INTO finance_transactions (date, type, category, description, amount, tags)
-    VALUES (?, 'despesa', ?, ?, ?, ?)
+    INSERT INTO finance_transactions (date, type, category, description, amount, tags, isEffective)
+    VALUES (?, 'despesa', ?, ?, ?, ?, 1)
   `).run(todayISO(), category, description, amount, 'pagamento');
 }
 
 export async function addTransactionDirect(input: TransactionInput): Promise<void> {
   const spreadsheetId = getSpreadsheetId();
   const date = input.date ?? new Date().toISOString().split('T')[0];
+  const isEffective = input.type === 'despesa'
+    ? true
+    : Boolean(input.isEffective ?? false);
+  const statusTag = isEffective ? 'efetivado' : 'previsto';
 
   if (spreadsheetId) {
     try {
       const service = new SheetsService();
       await service.appendRows(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A1`, [
-        [date, input.type, input.category, input.description, String(input.amount), ''],
+        [date, input.type, input.category, input.description, String(input.amount), statusTag],
       ]);
       return;
     } catch (err) {
@@ -208,9 +223,20 @@ export async function addTransactionDirect(input: TransactionInput): Promise<voi
   }
 
   db.prepare(`
-    INSERT INTO finance_transactions (date, type, category, description, amount, tags, paymentMethod, creditCardId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(date, input.type, input.category, input.description, input.amount, '', input.paymentMethod ?? 'outros', input.creditCardId ?? null);
+    INSERT INTO finance_transactions (date, type, category, description, amount, tags, paymentMethod, creditCardId, isEffective, effectiveAmount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    date,
+    input.type,
+    input.category,
+    input.description,
+    input.amount,
+    statusTag,
+    input.paymentMethod ?? 'outros',
+    input.creditCardId ?? null,
+    isEffective ? 1 : 0,
+    null,
+  );
 }
 
 export async function updateTransactionDirect(
@@ -231,7 +257,9 @@ export async function updateTransactionDirect(
         input.category,
         input.description,
         String(input.amount),
-        '',
+        input.type === 'despesa'
+          ? 'efetivado'
+          : ((input.isEffective ?? false) ? 'efetivado' : 'previsto'),
       ]]);
       return;
     } catch (err) {
@@ -241,9 +269,63 @@ export async function updateTransactionDirect(
 
   db.prepare(`
     UPDATE finance_transactions
-    SET date = ?, type = ?, category = ?, description = ?, amount = ?
+    SET date = ?, type = ?, category = ?, description = ?, amount = ?, isEffective = COALESCE(?, isEffective), tags = COALESCE(?, tags)
     WHERE id = ?
-  `).run(date, input.type, input.category, input.description, input.amount, index);
+  `).run(
+    date,
+    input.type,
+    input.category,
+    input.description,
+    input.amount,
+    input.type === 'despesa'
+      ? 1
+      : (typeof input.isEffective === 'boolean' ? (input.isEffective ? 1 : 0) : null),
+    input.type === 'despesa'
+      ? 'efetivado'
+      : (typeof input.isEffective === 'boolean' ? (input.isEffective ? 'efetivado' : 'previsto') : null),
+    index,
+  );
+}
+
+export async function updateTransactionEffectiveDirect(
+  index: number,
+  isEffective: boolean,
+  actualAmount?: number,
+  source: TransactionSource = 'local',
+): Promise<void> {
+  const spreadsheetId = getSpreadsheetId();
+  const hasCustomAmount = Number.isFinite(actualAmount) && Number(actualAmount) > 0;
+  const statusTag = !isEffective
+    ? 'previsto'
+    : (hasCustomAmount ? `efetivado:${Number(actualAmount).toFixed(2)}` : 'efetivado');
+
+  if (source === 'sheets' && spreadsheetId) {
+    try {
+      const service = new SheetsService();
+      const rowNum = index + 2; // A2 is index 0
+      await service.writeRange(
+        spreadsheetId,
+        `${SHEET_NAMES.TRANSACTIONS}!F${rowNum}:F${rowNum}`,
+        [[statusTag]],
+      );
+      return;
+    } catch (err) {
+      throw new Error(`Falha ao atualizar efetivação na planilha: ${(err as any)?.message ?? err}`);
+    }
+  }
+
+  db.prepare(`
+    UPDATE finance_transactions
+    SET isEffective = ?, tags = ?, effectiveAmount = ?
+    WHERE id = ?
+  `).run(
+    isEffective ? 1 : 0,
+    statusTag,
+    isEffective
+      ? (hasCustomAmount ? Number(actualAmount) : null)
+      : null,
+    index,
+  );
 }
 
 export async function deleteTransactionDirect(
@@ -748,19 +830,86 @@ export async function applyRecurringExpensesForMonth(month?: string): Promise<vo
   for (const row of rows) {
     const startMonth = String(row.startMonth ?? targetMonth);
     const lastApplied = row.lastAppliedMonth ? String(row.lastAppliedMonth) : null;
-    if (startMonth > targetMonth) continue;
-    if (lastApplied === targetMonth) continue;
-
+    const recurringId = Number(row.id ?? 0);
+    const recurringTag = `recorrente:${recurringId}:${targetMonth}`;
     const txDate = getMonthDate(targetMonth, Number(row.dayOfMonth ?? 1));
+    const txCategory = String(row.category ?? 'Outros');
+    const txDescription = String(row.description ?? 'Despesa fixa');
+    const txAmount = Number(row.amount ?? 0);
+    if (startMonth > targetMonth) continue;
+
+    // Reconcilia legado: se já existe lançamento recorrente equivalente (tag antiga ou nova),
+    // mantém apenas 1 linha e normaliza para a tag única da recorrência+mês.
+    const equivalentRows = db.prepare(`
+      SELECT id, tags
+      FROM finance_transactions
+      WHERE date = ?
+        AND type = 'despesa'
+        AND category = ?
+        AND description = ?
+        AND ABS(amount - ?) < 0.000001
+        AND (tags = 'recorrente' OR tags LIKE 'recorrente:%')
+      ORDER BY id ASC
+    `).all(txDate, txCategory, txDescription, txAmount) as Array<{ id: number; tags: string }>;
+
+    if (equivalentRows.length > 0) {
+      const keeper = equivalentRows[0];
+      if (keeper.tags !== recurringTag) {
+        db.prepare(`
+          UPDATE finance_transactions
+          SET tags = ?, isEffective = 1
+          WHERE id = ?
+        `).run(recurringTag, keeper.id);
+      }
+      if (equivalentRows.length > 1) {
+        const duplicateIds = equivalentRows.slice(1).map(r => r.id);
+        for (const dupId of duplicateIds) {
+          db.prepare('DELETE FROM finance_transactions WHERE id = ?').run(dupId);
+        }
+      }
+      if (lastApplied !== targetMonth) {
+        db.prepare(`
+          UPDATE finance_recurring_expenses
+          SET lastAppliedMonth = ?
+          WHERE id = ?
+        `).run(targetMonth, recurringId);
+      }
+      continue;
+    }
+
+    // Idempotência real: evita duplicar ao navegar entre meses e ao reiniciar servidor.
+    const alreadyMaterialized = db.prepare(`
+      SELECT id
+      FROM finance_transactions
+      WHERE tags = ?
+      LIMIT 1
+    `).get(recurringTag) as { id: number } | undefined;
+    if (alreadyMaterialized) {
+      if (lastApplied !== targetMonth) {
+        db.prepare(`
+          UPDATE finance_recurring_expenses
+          SET lastAppliedMonth = ?
+          WHERE id = ?
+        `).run(targetMonth, recurringId);
+      }
+      continue;
+    }
+
     db.prepare(`
-      INSERT INTO finance_transactions (date, type, category, description, amount, tags)
-      VALUES (?, 'despesa', ?, ?, ?, 'recorrente')
-    `).run(txDate, String(row.category ?? 'Outros'), String(row.description ?? 'Despesa fixa'), Number(row.amount ?? 0));
+      INSERT INTO finance_transactions (date, type, category, description, amount, tags, isEffective)
+      VALUES (?, 'despesa', ?, ?, ?, ?, 1)
+    `).run(
+      txDate,
+      txCategory,
+      txDescription,
+      txAmount,
+      recurringTag,
+    );
 
     db.prepare(`
       UPDATE finance_recurring_expenses
       SET lastAppliedMonth = ?
       WHERE id = ?
-    `).run(targetMonth, Number(row.id));
+    `).run(targetMonth, recurringId);
   }
 }

@@ -20,13 +20,6 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional().default(''),
   OPENROUTER_API_KEY: z.string().optional().default(''),
 
-  // ClickUp Configuration (supports both naming conventions)
-  CLICKUP_API_KEY: z.string().optional(),
-  CLICKUP_API_TOKEN: z.string().optional(),
-  CLICKUP_DEFAULT_LIST_ID: z.string().optional(),
-  CLICKUP_ID_LIST: z.string().optional(),
-  CLICKUP_TEAM_ID: z.string().optional(),
-  CLICKUP_USER_ID: z.string().optional(),
   REDIS_URL: z.string().optional(),
 });
 

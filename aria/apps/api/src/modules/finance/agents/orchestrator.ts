@@ -1,6 +1,5 @@
 import { llmChat } from './llm-client';
-import { getOnboardingState, getSpreadsheetId } from '../finance.service';
-import { processOnboardingMessage, getFirstOnboardingMessage } from './onboarding';
+import { getSpreadsheetId } from '../finance.service';
 import { recordTransaction, queryBalance, queryTransactions } from './expense-controller';
 import { setBudget, getBudgetSummary, checkBudgetAlerts } from './budget-planner';
 import { generateReportData } from './report-generator';
@@ -115,18 +114,6 @@ export interface OrchestratorResponse {
  * Ponto de entrada principal — decide qual agente chamar.
  */
 export async function processFinanceMessage(userMessage: string): Promise<OrchestratorResponse> {
-  // Se o onboarding não está completo, direcionar para ele
-  const onboarding = getOnboardingState();
-  if (!onboarding.completed) {
-    const result = await processOnboardingMessage(userMessage);
-    return {
-      reply: result.reply,
-      alerts: [],
-      spreadsheetUrl: result.spreadsheetUrl,
-      action: result.completed ? 'onboarding_complete' : 'onboarding_step',
-    };
-  }
-
   const intent = await detectIntent(userMessage);
   let reply = '';
   let alerts: OrchestratorResponse['alerts'] = [];
@@ -222,4 +209,3 @@ export async function processFinanceMessage(userMessage: string): Promise<Orches
   return { reply, alerts, action, spreadsheetUrl };
 }
 
-export { getFirstOnboardingMessage };

@@ -36,11 +36,11 @@ User: ${context.userId}
 Generated: ${context.generatedAt.toISOString()}
 
 ## Performance Data
-**ClickUp Metrics:**
-- Tasks Completed: ${context.reportData.clickup.tasksCompleted}
-- Tasks Pending: ${context.reportData.clickup.tasksPending}
-- Tasks Overdue: ${context.reportData.clickup.tasksOverdue}
-- Tasks Created: ${context.reportData.clickup.tasksCreated}
+**Task Metrics:**
+- Tasks Completed: ${context.reportData.tasks.tasksCompleted}
+- Tasks Pending: ${context.reportData.tasks.tasksPending}
+- Tasks Overdue: ${context.reportData.tasks.tasksOverdue}
+- Tasks Created: ${context.reportData.tasks.tasksCreated}
 
 **Notion Metrics:**
 - Active Clients: ${context.reportData.notion.activeClients}
@@ -83,11 +83,11 @@ Return ONLY the executive summary text (plain text, no markdown, no line breaks 
 Report Period: ${formatDate(context.reportData.period.start)} to ${formatDate(context.reportData.period.end)}
 
 ## Performance Data
-**ClickUp Metrics:**
-- Tasks Completed: ${context.reportData.clickup.tasksCompleted}
-- Tasks Pending: ${context.reportData.clickup.tasksPending}
-- Tasks Overdue: ${context.reportData.clickup.tasksOverdue}
-- Tasks Created: ${context.reportData.clickup.tasksCreated}
+**Task Metrics:**
+- Tasks Completed: ${context.reportData.tasks.tasksCompleted}
+- Tasks Pending: ${context.reportData.tasks.tasksPending}
+- Tasks Overdue: ${context.reportData.tasks.tasksOverdue}
+- Tasks Created: ${context.reportData.tasks.tasksCreated}
 
 **Notion Metrics:**
 - Active Clients: ${context.reportData.notion.activeClients}
@@ -122,13 +122,13 @@ Example: ["Metric 1: Value", "Metric 2: Value with context"]`;
     };
 
     const completionRate = (
-      (context.reportData.clickup.tasksCompleted /
-        (context.reportData.clickup.tasksCompleted + context.reportData.clickup.tasksPending)) *
+      (context.reportData.tasks.tasksCompleted /
+        (context.reportData.tasks.tasksCompleted + context.reportData.tasks.tasksPending)) *
       100
     ).toFixed(1);
 
     const overduePercentage = (
-      (context.reportData.clickup.tasksOverdue / context.reportData.clickup.tasksPending) *
+      (context.reportData.tasks.tasksOverdue / context.reportData.tasks.tasksPending) *
       100
     ).toFixed(1);
 
@@ -141,7 +141,7 @@ Report Period: ${formatDate(context.reportData.period.start)} to ${formatDate(co
 **Task Metrics:**
 - Completion Rate: ${completionRate}%
 - Overdue Rate: ${overduePercentage}%
-- Tasks Created: ${context.reportData.clickup.tasksCreated}
+- Tasks Created: ${context.reportData.tasks.tasksCreated}
 
 **Client Engagement:**
 - Active Clients: ${context.reportData.notion.activeClients}
@@ -176,8 +176,8 @@ Example: ["Insight 1: Data-driven observation", "Insight 2: Trend identified"]`;
     };
 
     const pendingRatio = (
-      (context.reportData.clickup.tasksPending /
-        (context.reportData.clickup.tasksCompleted + context.reportData.clickup.tasksPending)) *
+      (context.reportData.tasks.tasksPending /
+        (context.reportData.tasks.tasksCompleted + context.reportData.tasks.tasksPending)) *
       100
     ).toFixed(1);
 
@@ -188,7 +188,7 @@ Report Period: ${formatDate(context.reportData.period.start)} to ${formatDate(co
 
 ## Key Findings
 - Task Completion Rate: ${100 - parseInt(pendingRatio)}%
-- Pending Tasks: ${context.reportData.clickup.tasksPending}
+- Pending Tasks: ${context.reportData.tasks.tasksPending}
 - Active Clients: ${context.reportData.notion.activeClients}
 - Meeting Hours: ${context.reportData.calendar.hoursInMeetings}
 
@@ -340,3 +340,4 @@ Example: ["Action 1: Clear description of what to do and why", "Action 2: Next p
     return this.parseRecommendationsResponse(response);
   }
 }
+

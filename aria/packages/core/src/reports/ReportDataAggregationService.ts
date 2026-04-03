@@ -1,17 +1,17 @@
 /**
- * ReportDataAggregationService: Aggregate data from ClickUp, Notion, and Google Calendar
+ * ReportDataAggregationService: Aggregate data from tasks, Notion, and Google Calendar
  * Subtasks 1.1-1.5: Service setup, parallel API calls, caching, error handling
- * Tasks 2-4: Uses ClickUpDataCollector, NotionDataCollector, GoogleCalendarDataCollector
+ * Tasks 2-4: Uses TaskDataCollector, NotionDataCollector, GoogleCalendarDataCollector
  * Task 5: Data normalization into ReportData model
  */
 
-import { ClickUpDataCollector } from './ClickUpDataCollector';
+import { TaskDataCollector } from './TaskDataCollector';
 import { NotionDataCollector } from './NotionDataCollector';
 import { GoogleCalendarDataCollector } from './GoogleCalendarDataCollector';
 
 export interface ReportData {
   period: { start: Date; end: Date };
-  clickup: {
+  tasks: {
     tasksCompleted: number;
     tasksPending: number;
     tasksOverdue: number;
@@ -51,17 +51,17 @@ export class ReportDataAggregationService {
   private cache: Map<string, CacheEntry> = new Map();
 
   // Tasks 2-4: Use data collectors for API calls
-  private clickupCollector: ClickUpDataCollector;
+  private taskCollector: TaskDataCollector;
   private notionCollector: NotionDataCollector;
   private calendarCollector: GoogleCalendarDataCollector;
 
   // Task 1.1: Allow dependency injection for testing
   constructor(
-    clickupCollector?: ClickUpDataCollector,
+    taskCollector?: TaskDataCollector,
     notionCollector?: NotionDataCollector,
     calendarCollector?: GoogleCalendarDataCollector
   ) {
-    this.clickupCollector = clickupCollector || new ClickUpDataCollector();
+    this.taskCollector = taskCollector || new TaskDataCollector();
     this.notionCollector = notionCollector || new NotionDataCollector();
     this.calendarCollector = calendarCollector || new GoogleCalendarDataCollector();
   }
@@ -81,10 +81,10 @@ export class ReportDataAggregationService {
     const errors: string[] = [];
 
     // Task 1.3: Setup parallel API calls with timeout (Tasks 2, 3, 4)
-    const clickupPromise = this.clickupCollector
+    const taskPromise = this.taskCollector
       .collectData(dateRange.start, dateRange.end)
       .catch((error) => {
-        errors.push(`ClickUp error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(`Task data error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return {
           tasksCompleted: 0,
           tasksPending: 0,
@@ -119,8 +119,8 @@ export class ReportDataAggregationService {
         };
       });
 
-    const [clickup, notion, calendar] = await Promise.all([
-      clickupPromise,
+    const [tasks, notion, calendar] = await Promise.all([
+      taskPromise,
       notionPromise,
       calendarPromise,
     ]);
@@ -131,7 +131,7 @@ export class ReportDataAggregationService {
 
     const reportData: ReportData = {
       period: dateRange,
-      clickup,
+      tasks,
       notion,
       calendar,
       generatedAt,

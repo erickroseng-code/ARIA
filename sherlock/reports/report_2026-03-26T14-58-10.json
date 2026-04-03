@@ -1,0 +1,497 @@
+{
+  "date": "2026-03-26T14:58:10.413748",
+  "mashup_angle": "Me desculpe, mas notei que tanto a notícia quanto a tendência viral fornecidas são idênticas (TikTok: empreendedorismo com #empreendedorismo | 180k). Para criar um \"ângulo\" interessante e mashup criativo, precisaria de dois elementos diferentes para fazer uma conexão inusitada entre eles. Por favor, forneça uma notícia e uma tendência viral distintas para que eu possa criar uma combinação criativa e engajante.",
+  "carousel_script": "[SLIDE 1]\n\"Misturei trend do TikTok com notícia de jornal e faturei 22k em 48h\"\n\n[SLIDE 2]\nEnquanto todo mundo discutia a nova tendência #BookTok (resenhas de livros no TikTok), eu percebi uma oportunidade única na notícia sobre o aumento de 300% nas buscas por resumos executivos.\n\n[SLIDE 3]\nO mercado tradicional de resumos de livros está saturado. Centenas de apps e sites fazendo a mesma coisa, do mesmo jeito.\n\n[SLIDE 4]\nMas ninguém estava criando conteúdo no formato que mais bombava no TikTok: POV (point of view) + storytelling em 60 segundos.\n\n[SLIDE 5]\nCriei uma conta focada em \"POV: você é o personagem principal do livro\" + principais lições de negócios.\n\n[SLIDE 6]\nResultado: 22k em vendas de mentorias sobre os livros apresentados, 140k seguidores em 48h e contrato com 2 editoras para format exclusivo.\n\n[SLIDE 7]\n💡 Salve este post para consultar depois\n🚀 Compartilhe com quem precisa entender como unir tendências diferentes\n#Empreendedorismo #BookTok #Inovação",
+  "top_news": {
+    "source": "tiktok",
+    "title": "TikTok: empreendedorismo",
+    "content": "#empreendedorismo | 180k",
+    "url": "https://www.tiktok.com/@3scarsscs/video/7580109826336886034",
+    "engagement": 179700,
+    "viral_score": 37.49894541671082,
+    "published_at": "2026-03-26T14:57:33.332594",
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9999,
+      "source_weight": 0.3
+    },
+    "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+  },
+  "top_trend": {
+    "source": "tiktok",
+    "title": "TikTok: empreendedorismo",
+    "content": "#empreendedorismo | 180k",
+    "url": "https://www.tiktok.com/@3scarsscs/video/7580109826336886034",
+    "engagement": 179700,
+    "viral_score": 37.49894541671082,
+    "published_at": "2026-03-26T14:57:33.332594",
+    "score_components": {
+      "normalized_engagement": 1,
+      "recency_score": 0.9999,
+      "source_weight": 0.3
+    },
+    "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+  },
+  "scored_trends": [
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 180k",
+      "url": "https://www.tiktok.com/@3scarsscs/video/7580109826336886034",
+      "engagement": 179700,
+      "viral_score": 37.49894541671082,
+      "published_at": "2026-03-26T14:57:33.332594",
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9999,
+        "source_weight": 0.3
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 215k",
+      "url": "https://www.tiktok.com/@marlonwlourenco/video/7613153094540512530",
+      "engagement": 214600,
+      "viral_score": 37.49894081520942,
+      "published_at": "2026-03-26T14:57:33.290177",
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9999,
+        "source_weight": 0.3
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 167k",
+      "url": "https://www.tiktok.com/@pensamentomilionario31/video/7612448197742464264",
+      "engagement": 167400,
+      "viral_score": 37.49893590019865,
+      "published_at": "2026-03-26T14:57:33.244870",
+      "score_components": {
+        "normalized_engagement": 1,
+        "recency_score": 0.9999,
+        "source_weight": 0.3
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: empreendedorismo",
+      "content": "#empreendedorismo | 116k",
+      "url": "https://www.tiktok.com/@fabianozanzin/video/7244636411708673286",
+      "engagement": 116300,
+      "viral_score": 36.813494409453966,
+      "published_at": "2026-03-26T14:57:33.301436",
+      "score_components": {
+        "normalized_engagement": 0.9756,
+        "recency_score": 0.9999,
+        "source_weight": 0.3
+      },
+      "content_hash": "8ab9b9048a13b6e639996f1971ec8344"
+    },
+    {
+      "source": "x_twitter",
+      "title": "JK Rowling",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=JK+Rowling&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.776322",
+      "viral_score": 19.98998732884736,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "2a02586f6679afaac320d860ed4f25a6"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Erva Venenosa",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Erva+Venenosa&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.762481",
+      "viral_score": 19.989984128119882,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "262cea4450a7f53953fa36e029a43968"
+    },
+    {
+      "source": "x_twitter",
+      "title": "O Estado",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=O+Estado&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.752719",
+      "viral_score": 19.989981870660657,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "a9abc9e4ac2483a692fa69f3c23bb6a9"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Unicamp",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Unicamp&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.743822",
+      "viral_score": 19.989979813232836,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "2452f57ab22852a54b7c63da0259365d"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Fictor",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Fictor&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.733218",
+      "viral_score": 19.989977361062472,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "83a69a6f3e85084c96384400bae9ad51"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Embraer",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Embraer&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.724261",
+      "viral_score": 19.98997528976061,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "81e4c2bca3589c7fc9654c7ce2031d55"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Biden",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Biden&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.715898",
+      "viral_score": 19.98997335582135,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "aa4cd6d10469e75d93f816a1cc1ffb01"
+    },
+    {
+      "source": "x_twitter",
+      "title": "CAMPEÃ",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=CAMPEÃ&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.705767",
+      "viral_score": 19.989971013033532,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "b44841f33e59a1fd3424c59eeb620d53"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Israel e Argentina",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Israel+e+Argentina&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.696917",
+      "viral_score": 19.989968966476667,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "f2b4c808bd1d44ab5e4aac1944be5d61"
+    },
+    {
+      "source": "x_twitter",
+      "title": "Senador",
+      "content": "Trend topic (fallback)",
+      "url": "https://x.com/search?q=Senador&f=live",
+      "engagement": 1000,
+      "published_at": "2026-03-26T14:56:59.688281",
+      "viral_score": 19.98996696940756,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9995,
+        "source_weight": 0.8
+      },
+      "content_hash": "1a8ce4886b08f97e86f322c43dc84eed"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DTsSX_NjYnC/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.889375",
+      "period_days": 30,
+      "viral_score": 15.623885468683437,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DUZOivnEQnj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.885981",
+      "period_days": 30,
+      "viral_score": 15.623884854983404,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DPCEqJ3EiHj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.880827",
+      "period_days": 30,
+      "viral_score": 15.623883923041841,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DU_7ZJvDmXj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.876582",
+      "period_days": 30,
+      "viral_score": 15.623883155464917,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DL5tbDhyGX-/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.873288",
+      "period_days": 30,
+      "viral_score": 15.62388255984697,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DP2Xz-ikQrj/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.869403",
+      "period_days": 30,
+      "viral_score": 15.623881857365028,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/C8mH_5JS-eo/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.861288",
+      "period_days": 30,
+      "viral_score": 15.623880390018774,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DCpmmi_vlxi/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.857705",
+      "period_days": 30,
+      "viral_score": 15.62387974214435,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DJo-EZFNwaO/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.849658",
+      "period_days": 30,
+      "viral_score": 15.623878287094186,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "instagram",
+      "title": "Post #marketing [unknown]",
+      "content": "Hashtag: #marketing",
+      "url": "https://www.instagram.com/p/DNRHl_MRhw3/",
+      "engagement": 0,
+      "published_at": "2026-03-26T14:57:36.832247",
+      "period_days": 30,
+      "viral_score": 15.623875138856206,
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 0.9999,
+        "source_weight": 0.5
+      },
+      "content_hash": "c16a69bbf004f25c85b4e95555382c79"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@7259809676484314117/video/7576641331339054356",
+      "engagement": 0,
+      "viral_score": 9.374915623806277,
+      "published_at": "2026-03-26T14:57:42.275109",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@avellarapha/video/7512861907913739525",
+      "engagement": 0,
+      "viral_score": 9.374902925050325,
+      "published_at": "2026-03-26T14:57:42.158075",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@gabrieladamuchi/video/7568608104254852360",
+      "engagement": 0,
+      "viral_score": 9.374893435781626,
+      "published_at": "2026-03-26T14:57:42.070620",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@rai.vasselai/video/7597241426967055624",
+      "engagement": 0,
+      "viral_score": 9.374892525863164,
+      "published_at": "2026-03-26T14:57:42.062234",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@eletronunes/video/7399617054333996293",
+      "engagement": 0,
+      "viral_score": 9.374891820909763,
+      "published_at": "2026-03-26T14:57:42.055737",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    },
+    {
+      "source": "tiktok",
+      "title": "TikTok: marketing",
+      "content": "#marketing | views n/d",
+      "url": "https://www.tiktok.com/@anonmediabr/video/7538443666428415237",
+      "engagement": 0,
+      "viral_score": 9.374891003220371,
+      "published_at": "2026-03-26T14:57:42.048201",
+      "score_components": {
+        "normalized_engagement": 0,
+        "recency_score": 1,
+        "source_weight": 0.3
+      },
+      "content_hash": "cb2d91671d24718790dfe2f2dedd3abd"
+    }
+  ]
+}

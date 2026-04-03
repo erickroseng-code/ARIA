@@ -1,10 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { CalendarWidget } from '@/components/chat/dashboard/CalendarWidget';
-import { ActivityFeedWidget } from '@/components/chat/dashboard/ActivityFeedWidget';
-import { SquadMetricsWidget } from '@/components/chat/dashboard/SquadMetricsWidget';
-import { QuickActionsWidget } from '@/components/chat/dashboard/QuickActionsWidget';
 import { Target, BarChart2, ArrowRight } from 'lucide-react';
 
 interface ExecutiveDashboardProps {
@@ -20,11 +15,11 @@ const squads = [
         accentBg: 'bg-purple-500/10',
         accentBorder: 'border-purple-500/20',
         accentText: 'text-purple-400',
-        tag: 'Estratégia',
+        tag: 'Estrategia',
         tagBg: 'bg-purple-500/10 text-purple-400/70 border-purple-500/15',
-        summary: 'Último foco: alinhamento estratégico e mapeamento da Persona Alex.',
+        summary: 'Ultimo foco: alinhamento estrategico e mapeamento da Persona Alex.',
         status: 'active' as const,
-        badge: '1 Sessão Pendente',
+        badge: '1 Sessao Pendente',
     },
     {
         id: 'finance',
@@ -34,11 +29,11 @@ const squads = [
         accentBg: 'bg-teal-500/10',
         accentBorder: 'border-teal-500/20',
         accentText: 'text-teal-400',
-        tag: 'Finanças',
+        tag: 'Financas',
         tagBg: 'bg-teal-500/10 text-teal-400/70 border-teal-500/15',
-        summary: 'Faturamento saudável. Custos fixos dentro da margem operacional.',
+        summary: 'Faturamento saudavel. Custos fixos dentro da margem operacional.',
         status: 'active' as const,
-        badge: 'Meta Concluída',
+        badge: 'Meta Concluida',
     },
 ];
 
@@ -65,7 +60,8 @@ function SquadCard({ squad, onSelect }: { squad: typeof squads[0]; onSelect?: ()
 
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-white/40">
-                    <div className={`w-1.5 h-1.5 rounded-full ${squad.accentText.replace('text', 'bg')}/60`}
+                    <div
+                        className={`w-1.5 h-1.5 rounded-full ${squad.accentText.replace('text', 'bg')}/60`}
                         style={{ backgroundColor: squad.accent, opacity: 0.7 }}
                     />
                     {squad.badge}
@@ -73,7 +69,6 @@ function SquadCard({ squad, onSelect }: { squad: typeof squads[0]; onSelect?: ()
                 <ArrowRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5 ${squad.accentText}`} />
             </div>
 
-            {/* Bottom glow bar on hover */}
             <div
                 className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                 style={{ background: `linear-gradient(90deg, transparent, ${squad.accent}50, transparent)` }}
@@ -90,22 +85,16 @@ export function ExecutiveDashboard({ onSelectSquad }: ExecutiveDashboardProps) {
     return (
         <div className="flex-1 flex flex-col items-center overflow-y-auto scrollbar-hidden">
             <div className="w-full max-w-4xl px-5 lg:px-8 pt-12 pb-10 space-y-6">
-
-                {/* Hero Greeting */}
                 <div className="space-y-1.5">
                     <p className="text-emerald-400/70 text-xs font-bold tracking-[0.2em] uppercase">{dateStr}</p>
                     <h1 className="text-[2.25rem] font-semibold text-white tracking-tight leading-tight">
                         {greeting}, Erick
                     </h1>
                     <p className="text-white/35 text-base font-normal">
-                        Aqui está o overview do seu dia.
+                        Aqui esta o overview do seu dia.
                     </p>
                 </div>
 
-                {/* Quick Actions */}
-                <QuickActionsWidget />
-
-                {/* Squads Row */}
                 <div>
                     <p className="text-[11px] font-bold text-white/25 uppercase tracking-[0.15em] mb-3">Squads de IA</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
@@ -118,16 +107,6 @@ export function ExecutiveDashboard({ onSelectSquad }: ExecutiveDashboardProps) {
                         ))}
                     </div>
                 </div>
-
-                {/* Squad Metrics */}
-                <SquadMetricsWidget />
-
-                {/* Two-column: Calendar + Activity */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <CalendarWidget />
-                    <ActivityFeedWidget />
-                </div>
-
             </div>
         </div>
     );

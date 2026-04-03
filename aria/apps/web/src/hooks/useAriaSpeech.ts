@@ -58,6 +58,17 @@ async function createJarvisChain(
   return compressor;
 }
 
+function safeCloseAudioContext(ctx: AudioContext | null) {
+  if (!ctx) return;
+  try {
+    if (ctx.state !== 'closed') {
+      void ctx.close().catch(() => {});
+    }
+  } catch {
+    // Ignore race conditions where context is already closed.
+  }
+}
+
 export function useAriaSpeech() {
   const isSpeakingRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -142,7 +153,7 @@ export function useAriaSpeech() {
             onEnergyPulseRef.current?.(0);
             if (energyTimerRef.current) clearInterval(energyTimerRef.current);
             options?.onCharIndex?.(text.length);
-            audioCtx.close().catch(() => {});
+            safeCloseAudioContext(audioCtx);
             resolve();
           };
 
@@ -162,7 +173,7 @@ export function useAriaSpeech() {
     onQueueDoneRef.current = undefined;
 
     try { currentSourceRef.current?.stop(); } catch { /* ignora */ }
-    try { audioCtxRef.current?.close(); } catch { /* ignora */ }
+    safeCloseAudioContext(audioCtxRef.current);
     if (energyTimerRef.current) clearInterval(energyTimerRef.current);
     isSpeakingRef.current = false;
     onSpeakingChangeRef.current?.(false);
@@ -281,7 +292,7 @@ export function useAriaSpeech() {
             onEnergyPulseRef.current?.(0);
             if (energyTimerRef.current) clearInterval(energyTimerRef.current);
             options?.onCharIndex?.(text.length);
-            audioCtx.close().catch(() => {});
+            safeCloseAudioContext(audioCtx);
             resolve();
           };
 

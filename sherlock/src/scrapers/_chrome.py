@@ -4,11 +4,11 @@ import json
 import base64
 import tempfile
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Em CI (GitHub Actions), usa diretório temporário e headless forçado.
-# Localmente, usa o perfil persistente salvo.
+# In CI (GitHub Actions), use temporary profile and forced headless.
 IS_CI = os.environ.get("CI", "").lower() in ("true", "1")
 
 PLAYWRIGHT_PERSISTENT_DIR = os.environ.get(
@@ -20,53 +20,53 @@ PLAYWRIGHT_PERSISTENT_DIR = os.environ.get(
     ),
 )
 
+COOKIE_CACHE_FILE = Path(__file__).resolve().parents[2] / "sessions" / "playwright_cookies.json"
+COOKIE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
 
 def _load_cookies_from_env() -> list | None:
-    """Carrega cookies do env PLAYWRIGHT_COOKIES (base64 JSON) para injeção em CI."""
+    """Load cookies from PLAYWRIGHT_COOKIES env var (base64 JSON)."""
     raw = os.environ.get("PLAYWRIGHT_COOKIES", "")
     if not raw:
         return None
     try:
         decoded = base64.b64decode(raw).decode("utf-8")
-        return json.loads(decoded)
+        cookies = json.loads(decoded)
+        return cookies if isinstance(cookies, list) else None
     except Exception:
         return None
 
 
-def _is_profile_locked(user_data_dir: str) -> bool:
-    """Verifica se o lockfile do perfil está em uso."""
-    lock_path = os.path.join(user_data_dir, "lockfile")
-    if not os.path.exists(lock_path):
-        return False
+def _load_cached_cookies() -> list | None:
+    """Load cookies from local cache file to keep auth when profile is locked."""
+    if not COOKIE_CACHE_FILE.exists():
+        return None
     try:
-        os.rename(lock_path, lock_path)
-        return False
-    except OSError:
-        return True
+        data = json.loads(COOKIE_CACHE_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else None
+    except Exception:
+        return None
 
 
-async def new_persistent_context(p, headless: bool = True):
-    """Launch a persistent Chromium context.
+async def _save_cached_cookies(context) -> None:
+    """Persist cookies after context startup for future fallback runs."""
+    try:
+        cookies = await context.cookies()
+        if cookies:
+            COOKIE_CACHE_FILE.write_text(json.dumps(cookies), encoding="utf-8")
+    except Exception:
+        pass
 
-    - Local: tenta usar sessão salva (cookies preservados). Se o perfil estiver
-      bloqueado por outro Chrome, cai para diretório temporário automaticamente.
-    - CI: usa diretório temporário + injeta cookies do secret PLAYWRIGHT_COOKIES.
-    """
-    effective_headless = True if IS_CI else headless
 
-    if IS_CI:
-        user_data_dir = os.path.join(tempfile.gettempdir(), "playwright-scraper-ci")
-    elif _is_profile_locked(PLAYWRIGHT_PERSISTENT_DIR):
-        user_data_dir = tempfile.mkdtemp(prefix="sherlock-scraper-")
-        logger.warning(
-            f"Perfil persistente bloqueado. Usando diretório temporário: {user_data_dir}"
-        )
-    else:
-        user_data_dir = PLAYWRIGHT_PERSISTENT_DIR
+async def save_context_cookies(context) -> None:
+    """Public helper to persist cookies after manual login or pipeline run."""
+    await _save_cached_cookies(context)
 
-    context = await p.chromium.launch_persistent_context(
+
+async def _launch_context(p, user_data_dir: str, headless: bool):
+    return await p.chromium.launch_persistent_context(
         user_data_dir=user_data_dir,
-        headless=effective_headless,
+        headless=headless,
         args=[
             "--no-sandbox",
             "--no-first-run",
@@ -79,10 +79,38 @@ async def new_persistent_context(p, headless: bool = True):
         permissions=["geolocation"],
     )
 
-    # Injeta cookies (CI via secret, local via env se disponível)
-    cookies = _load_cookies_from_env()
-    if cookies:
-        await context.add_cookies(cookies)
-        logger.info(f"Injetados {len(cookies)} cookies no contexto Playwright.")
 
+async def new_persistent_context(p, headless: bool = True):
+    """Launch persistent Chromium context with resilient session strategy.
+
+    Strategy:
+    1. Prefer persistent profile (even if lockfile exists; try anyway).
+    2. If launch fails, fallback to temp profile.
+    3. Inject cookies from env and local cache.
+    """
+    effective_headless = True if IS_CI else headless
+
+    if IS_CI:
+        user_data_dir = os.path.join(tempfile.gettempdir(), "playwright-scraper-ci")
+        context = await _launch_context(p, user_data_dir, effective_headless)
+    else:
+        try:
+            context = await _launch_context(p, PLAYWRIGHT_PERSISTENT_DIR, effective_headless)
+            logger.info(f"Playwright usando perfil persistente: {PLAYWRIGHT_PERSISTENT_DIR}")
+        except Exception as e:
+            fallback_dir = tempfile.mkdtemp(prefix="sherlock-scraper-")
+            logger.warning(
+                f"Falha ao abrir perfil persistente ({e}). Usando temporario: {fallback_dir}"
+            )
+            context = await _launch_context(p, fallback_dir, effective_headless)
+
+    cookies = _load_cookies_from_env() or _load_cached_cookies()
+    if cookies:
+        try:
+            await context.add_cookies(cookies)
+            logger.info(f"Injetados {len(cookies)} cookies no contexto Playwright.")
+        except Exception as e:
+            logger.warning(f"Falha ao injetar cookies: {e}")
+
+    await _save_cached_cookies(context)
     return context

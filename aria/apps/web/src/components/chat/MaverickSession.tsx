@@ -21,7 +21,24 @@ interface MaverickSessionProps {
   onClose: () => void;
 }
 
-interface IgVideo { title: string; content: string; url: string; views: number; viralScore: number }
+interface IgVideo {
+  title: string;
+  content: string;
+  url: string;
+  views: number;
+  viralScore: number;
+  matchedKeywords?: string[];
+}
+
+interface IgVideosMeta {
+  source: string;
+  totalInstagramCandidates: number;
+  totalAfterKeywordFilter: number;
+  requestedKeywords: string[];
+  keywordFilterApplied: boolean;
+  sort: string;
+  limit: number;
+}
 
 interface HistoryEntry {
   id: string;
@@ -182,6 +199,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
   const [igVideos, setIgVideos] = useState<IgVideo[]>([]);
   const [igVideosLoading, setIgVideosLoading] = useState(false);
   const [selectedVideos, setSelectedVideos] = useState<IgVideo[]>([]);
+  const [igVideosMeta, setIgVideosMeta] = useState<IgVideosMeta | null>(null);
 
   // Histórico
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -227,31 +245,6 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
       .finally(() => setHistoryLoading(false));
   }, []);
 
-  // Salva no histórico quando roteiro é gerado
-  useEffect(() => {
-    if (phase !== 'result' || !script || !mode || !chosenHook) return;
-    const label = mode === 'content'
-      ? (discoverResult?.niche ?? scopingAnswers.temaInimigo ?? '')
-      : mode === 'sales'
-      ? (scopingAnswers.produto ?? '')
-      : (scopingAnswers.local ?? '');
-    fetch(`${API_BASE}/api/maverick/history`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode,
-        label,
-        hook: chosenHook,
-        scriptPreview: script.slice(0, 140),
-        script,
-        keywords: discoverResult?.keywords,
-      }),
-    })
-      .then(r => r.json())
-      .then(d => { if (d.entry) setHistory(prev => [d.entry, ...prev]); })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
 
   // ── Oracle para modos sales/microcopy ──────────────────────────────────────
   const handleOracle = async () => {
@@ -287,6 +280,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setDiscoverResult(null);
     setIgVideos([]);
     setSelectedVideos([]);
+    setIgVideosMeta(null);
     try {
       // 1. Descobre keywords do nicho via Tavily
       const discoverRes = await fetch(`${API_BASE}/api/maverick/discover`, {
@@ -322,14 +316,16 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setIgVideosLoading(true);
     setIgVideos([]);
     setSelectedVideos([]);
+    setIgVideosMeta(null);
     const keywords = discoverResult.keywords ?? [];
     try {
       const res = await fetch(
-        `${API_BASE}/api/maverick/instagram-videos?keywords=${encodeURIComponent(keywords.join(','))}`
+        `${API_BASE}/api/maverick/instagram-videos?keywords=${encodeURIComponent(keywords.join(','))}&limit=20`
       );
       if (res.ok) {
         const vData = await res.json();
         setIgVideos(vData.videos ?? []);
+        setIgVideosMeta(vData.meta ?? null);
       }
     } catch { /* vídeos são opcionais — não bloqueia o fluxo */ }
     finally { setIgVideosLoading(false); }
@@ -446,6 +442,7 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
     setDiscoverResult(null);
     setIgVideos([]);
     setSelectedVideos([]);
+    setIgVideosMeta(null);
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -822,11 +819,21 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                             <p className="text-[11px] text-white/25 text-center py-2">Buscando vídeos do nicho...</p>
                           ) : (
                             <>
-                              <p className="text-[10px] text-white/25">Selecione até 3 como referência — Maverick vai espelhar o que viralizou</p>
+                              <p className="text-[10px] text-white/25">Selecione até 10 como referência — Maverick vai combinar padrões de viralização</p>
+                              {igVideosMeta && (
+                                <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05] text-[10px] text-white/35 space-y-1">
+                                  <p>
+                                    Critérios: {igVideosMeta.totalAfterKeywordFilter} de {igVideosMeta.totalInstagramCandidates} vídeos do Instagram, ordenados por score viral.
+                                  </p>
+                                  {igVideosMeta.keywordFilterApplied && igVideosMeta.requestedKeywords.length > 0 && (
+                                    <p>Keywords usadas: {igVideosMeta.requestedKeywords.join(', ')}</p>
+                                  )}
+                                </div>
+                              )}
                               <div className="space-y-1.5">
                                 {igVideos.map((v, i) => {
                                   const isSelected = selectedVideos.some(s => s.url === v.url);
-                                  const canSelect = isSelected || selectedVideos.length < 3;
+                                  const canSelect = isSelected || selectedVideos.length < 10;
                                   return (
                                     <button
                                       key={i}
@@ -861,6 +868,11 @@ export function MaverickSession({ onClose }: MaverickSessionProps) {
                                               {v.views >= 1000000
                                                 ? `${(v.views / 1000000).toFixed(1)}M views`
                                                 : `${(v.views / 1000).toFixed(0)}K views`}
+                                            </p>
+                                          )}
+                                          {v.matchedKeywords && v.matchedKeywords.length > 0 && (
+                                            <p className="text-cyan-300/60 text-[10px] mt-1 line-clamp-1">
+                                              Match: {v.matchedKeywords.join(', ')}
                                             </p>
                                           )}
                                         </div>

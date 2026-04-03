@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 
 // Logos as public paths
-const clickupLogo = '/integrations/clickup.png';
 const telegramLogo = '/integrations/telegram.png';
 const notionLogo = '/integrations/notion.png';
 const figmaLogo = '/integrations/figma.png';
@@ -22,15 +21,6 @@ interface QuickAction {
 }
 
 const ACTIONS: QuickAction[] = [
-    {
-        id: 'clickup',
-        label: 'Nova Tarefa',
-        description: 'ClickUp',
-        logo: clickupLogo,
-        color: '#7B68EE',
-        href: 'https://app.clickup.com/new/task',
-        toastMessage: 'Abrindo ClickUp para criar tarefa…',
-    },
     {
         id: 'telegram',
         label: 'Nova Mensagem',

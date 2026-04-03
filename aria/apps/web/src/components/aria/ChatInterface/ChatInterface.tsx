@@ -258,7 +258,17 @@ export function ChatInterface() {
             ) : trafficOpen ? (
               <TrafficSession onClose={() => setTrafficOpen(false)} />
             ) : maverickOpen ? (
-              <MaverickSession onClose={() => setMaverickOpen(false)} />
+              <MaverickSession
+                onClose={() => {
+                  clearQueue();
+                  stopListening();
+                  setSpeakingMessageId(null);
+                  setRevealLength(0);
+                  setMaverickOpen(false);
+                  setShowDashboard(true);
+                  startNewConversation();
+                }}
+              />
             ) : (
               <>
                 <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0">

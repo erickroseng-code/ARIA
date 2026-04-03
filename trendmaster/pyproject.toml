@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "trendmaster"
+version = "0.1.0"
+description = "TrendMaster Intelligence Engine"
+authors = ["Erick <erick@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "*"
+uvicorn = "*"
+playwright-stealth = "*"
+apify-client = "*"
+sqlmodel = "*"
+anthropic = "*"
+openai = "*"
+python-dotenv = "*"
+pytrends = "*"
+beautifulsoup4 = "*"
+lxml = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -45,7 +45,7 @@ router.post('/reports/:id/refresh', async (req: Request, res: Response) => {
     }
 
     // Aggregate data for the user
-    // In production: fetch actual data from ClickUp, Notion, Calendar
+    // In production: fetch actual data from Notion and Calendar
     const reportData = await reportAggService.aggregateReportData(userId, {
       start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
       end: new Date(),

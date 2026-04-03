@@ -8,7 +8,6 @@ import { registerRateLimitPlugin } from './plugins/rate-limit.plugin';
 import { registerChatRoutes } from './modules/chat/chat.routes';
 import { registerDocumentsRoutes } from './modules/documents/documents.routes';
 import { registerAuthRoutes } from './modules/auth/auth.routes';
-import { registerClickUpRoutes } from './routes/clickup.routes';
 import { registerScheduledReportsRoutes } from './routes/scheduled-reports-fastify.routes';
 import { registerAudioRoutes } from './routes/audio-fastify.routes';
 import { registerReportsRoutes } from './routes/reports-fastify.routes';
@@ -16,7 +15,6 @@ import { registerGoogleCalendarRoutes } from './routes/google-calendar-fastify.r
 import { registerGoogleAuthRoutes, checkGoogleHealth } from './routes/google-auth.routes';
 import { registerTelegramWebhookRoutes } from './routes/telegram-webhook.routes';
 import { registerScheduledTasksRoutes } from './routes/scheduled-tasks.routes';
-import { registerClickUpAuthRoutes } from './routes/clickup-auth.routes';
 import { registerNotionAuthRoutes } from './routes/notion-auth.routes';
 import { registerTelegramAuthRoutes } from './routes/telegram-auth.routes';
 import { workspaceActionRoutes } from './routes/workspace-action.routes';
@@ -24,14 +22,13 @@ import { registerFinanceRoutes } from './modules/finance/finance.routes';
 import { registerTrafficRoutes } from './modules/traffic/traffic.routes';
 import { registerMaverickRoutes } from './modules/maverick/maverick.v2.routes';
 import { registerSherlockRoutes } from './modules/sherlock/sherlock.routes';
+import { registerUmaRoutes } from './modules/uma/uma.routes';
 import { registerTTSRoutes } from './routes/tts.routes';
 import { registerAuthPlugin } from './plugins/auth.middleware';
 import fastifyMultipart from '@fastify/multipart';
 import { ChatService, contextStore, createGroqClient } from '@aria/core';
 import { setChatService } from './modules/chat/chat.controller';
 import {
-  initializeClickUpClient,
-  initializeClickUpQueryService,
   setWorkspaceTokenResolver,
   setOnInvalidGrant,
   setWorkspaceTokenPersistor,
@@ -124,30 +121,7 @@ const startServer = async () => {
   }
   const groqClient = createGroqClient(groqApiKey);
 
-  // Initialize ClickUp integration (if configured)
-  // Support BOTH naming conventions: CLICKUP_API_KEY and CLICKUP_API_TOKEN
-  const clickupApiToken = process.env.CLICKUP_API_TOKEN || process.env.CLICKUP_API_KEY;
-  const clickupListId = process.env.CLICKUP_DEFAULT_LIST_ID || process.env.CLICKUP_ID_LIST || process.env.CLICKUP_LIST_ID;
-  const clickupTeamId = process.env.CLICKUP_TEAM_ID;
-  const clickupUserId = process.env.CLICKUP_USER_ID ? parseInt(process.env.CLICKUP_USER_ID) : undefined;
-
-  console.log('[server] ClickUp Config Check:', {
-    hasToken: !!clickupApiToken,
-    hasListId: !!clickupListId,
-    listId: clickupListId,
-    userId: clickupUserId,
-  });
-
-  let clickupQueryService = undefined;
-  if (clickupApiToken && clickupListId) {
-    const clickupClient = initializeClickUpClient(clickupApiToken, clickupListId);
-    clickupQueryService = initializeClickUpQueryService(clickupClient, clickupTeamId ?? '', clickupListId, clickupUserId);
-    console.log('[server] ClickUp integration initialized ✓');
-  } else {
-    console.warn('[server] ClickUp not configured — ensure CLICKUP_API_KEY and CLICKUP_LIST_ID are set in .env');
-  }
-
-  const chatService = new ChatService(groqClient, contextStore, clickupQueryService);
+  const chatService = new ChatService(groqClient, contextStore);
   setChatService(chatService);
 
 
@@ -163,7 +137,6 @@ const startServer = async () => {
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       services: {
-        clickup: clickupQueryService ? 'configured' : 'not_configured',
         chat: !!chatService ? 'ready' : 'not_ready',
         fastify: 'ready',
         google: googleStatus,
@@ -175,11 +148,6 @@ const startServer = async () => {
       },
     };
 
-    // Check for any issues
-    if (!clickupQueryService) {
-      health.status = 'warning';
-      console.warn('[Health Check] ⚠️  ClickUp not configured');
-    }
     if (!chatService) {
       health.status = 'error';
       console.error('[Health Check] ❌ Chat service not initialized');
@@ -192,13 +160,11 @@ const startServer = async () => {
   await fastify.register(registerChatRoutes, { prefix: '/api/chat' });
   await fastify.register(registerDocumentsRoutes, { prefix: '/api' });
   await fastify.register(registerAuthRoutes, { prefix: '/api' });
-  await fastify.register(registerClickUpRoutes, { prefix: '/api/clickup', clickupQueryService });
   await fastify.register(registerScheduledReportsRoutes, { prefix: '/api/scheduled-reports' });
   await fastify.register(registerAudioRoutes, { prefix: '/api/audio' });
   await fastify.register(registerReportsRoutes, { prefix: '/api/reports' });
   await fastify.register(registerGoogleCalendarRoutes, { prefix: '/api/calendar' });
   await fastify.register(registerGoogleAuthRoutes, { prefix: '/api/auth/google' });
-  await fastify.register(registerClickUpAuthRoutes, { prefix: '/api/auth/clickup' });
   await fastify.register(registerNotionAuthRoutes, { prefix: '/api/auth/notion' });
   await fastify.register(registerTelegramAuthRoutes, { prefix: '/api/auth/telegram' });
   await fastify.register(workspaceActionRoutes);
@@ -206,6 +172,7 @@ const startServer = async () => {
   await fastify.register(registerTrafficRoutes, { prefix: '/api/traffic' });
   await fastify.register(registerMaverickRoutes, { prefix: '/api/maverick' });
   await fastify.register(registerSherlockRoutes, { prefix: '/api/sherlock' });
+  await fastify.register(registerUmaRoutes, { prefix: '/api/uma' });
   await fastify.register(registerTTSRoutes, { prefix: '/api/tts' });
   await fastify.register(registerTelegramWebhookRoutes, { prefix: '/api/telegram' });
   await fastify.register(registerScheduledTasksRoutes, { prefix: '/api/tasks' });
@@ -247,7 +214,6 @@ const startServer = async () => {
     console.log(`✅ ARIA API Server STABLE`);
     console.log(`   URL: http://localhost:${env.PORT}`);
     console.log(`   Status: READY`);
-    console.log(`   ClickUp: ${clickupQueryService ? '✅ Connected' : '⚠️  Not configured'}`);
     console.log(`${'='.repeat(60)}\n`);
 
     // Non-blocking boot validation — check Google tokens after server is live

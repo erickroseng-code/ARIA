@@ -5,5 +5,5 @@ export * from './BullQueueService';
 export * from './DeliveryExecutionService';
 export * from './PromptTemplates';
 export * from './NotionDataCollector';
-export * from './ClickUpDataCollector';
+export * from './TaskDataCollector';
 export * from './GoogleCalendarDataCollector';

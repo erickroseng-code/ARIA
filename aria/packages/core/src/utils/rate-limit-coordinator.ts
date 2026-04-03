@@ -1,10 +1,10 @@
 /**
  * RateLimitCoordinator - Centralized rate limiting for all external APIs
- * Coordinates limits across Whisper, ClickUp, Notion, and Claude APIs
+ * Coordinates limits across Whisper, Notion, and Claude APIs
  */
 
 export interface RateLimitConfig {
-  service: 'whisper' | 'clickup' | 'notion' | 'claude';
+  service: 'whisper' | 'notion' | 'claude';
   requestsPerMinute: number;
   requestsPerSecond: number;
   burstAllowance: number; // Extra requests allowed in a burst
@@ -40,13 +40,6 @@ const DEFAULT_CONFIGS: Record<RateLimitConfig['service'], RateLimitConfig> = {
     requestsPerMinute: 60, // Conservative estimate
     requestsPerSecond: 1,
     burstAllowance: 5,
-    retryAfterMs: 60000,
-  },
-  clickup: {
-    service: 'clickup',
-    requestsPerMinute: 100,
-    requestsPerSecond: 2,
-    burstAllowance: 10,
     retryAfterMs: 60000,
   },
   notion: {

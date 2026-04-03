@@ -94,52 +94,6 @@ async function validateGoogle() {
     }
 }
 
-async function validateClickUp() {
-    console.log('\n--- 2. ClickUp Validation ---');
-    const token = (process.env.CLICKUP_API_TOKEN || '').trim();
-    const rawListId = (process.env.CLICKUP_DEFAULT_LIST_ID || process.env.CLICKUP_ID_LIST || '').trim();
-
-    if (!token) {
-        console.log('❌ CLICKUP_API_TOKEN not set in .env');
-        return;
-    }
-
-    try {
-        const response = await request('https://api.clickup.com/api/v2/user', {
-            headers: { 'Authorization': token }
-        });
-        if (response.status === 200) {
-            console.log(`✅ ClickUp API reachable. User: ${response.data.user.username} (#${response.data.user.id})`);
-
-            if (rawListId) {
-                // Try the list ID as is, and also try stripping any non-numeric parts if it fails
-                const listIdsToTry = [rawListId];
-                const numericOnly = rawListId.replace(/\D/g, '');
-                if (numericOnly && numericOnly !== rawListId) listIdsToTry.push(numericOnly);
-
-                for (const listId of listIdsToTry) {
-                    console.log(`Testing List ID: "${listId}"`);
-                    const listRes = await request(`https://api.clickup.com/api/v2/list/${listId}`, {
-                        headers: { 'Authorization': token }
-                    });
-                    if (listRes.status === 200) {
-                        console.log(`✅ ClickUp List ${listId} accessible: ${listRes.data.name}`);
-                        return; // Found a working one
-                    } else {
-                        console.log(`⚠️ ClickUp List "${listId}" NOT accessible (Status: ${listRes.status})`);
-                    }
-                }
-            } else {
-                console.log('⚠️ No ClickUp List ID configured in .env');
-            }
-        } else {
-            console.log(`❌ ClickUp API returned Status ${response.status}: ${JSON.stringify(response.data)}`);
-        }
-    } catch (e: any) {
-        console.log(`❌ ClickUp Validation FAILED: ${e.message}`);
-    }
-}
-
 async function validateNotion() {
     console.log('\n--- 3. Notion Validation ---');
     const token = (process.env.NOTION_TOKEN || process.env.NOTION_API_KEY || '').trim();
@@ -170,7 +124,6 @@ async function validateNotion() {
 async function run() {
     console.log('Starting Live API Diagnostic...');
     await validateGoogle();
-    await validateClickUp();
     await validateNotion();
     console.log('\nDiagnostic Complete.');
 }

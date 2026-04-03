@@ -1,0 +1,54 @@
+[
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 04",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "13"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "6"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "4"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "10"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "account": "Pety Paio",
+    "campaign": "[ENG][CAÇA-AOS-OVOS][1-2-1] — Campanha 05",
+    "messaging": [
+      {
+        "action_type": "onsite_conversion.total_messaging_connection",
+        "value": "60"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_2_message_send",
+        "value": "24"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_user_depth_3_message_send",
+        "value": "15"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_first_reply",
+        "value": "55"
+      },
+      {
+        "action_type": "onsite_conversion.messaging_conversation_started_7d",
+        "value": "62"
+      }
+    ]
+  }
+]
