@@ -27,6 +27,7 @@ import { ptBR } from 'date-fns/locale';
 import { PortfolioBreakdown } from './graham/PortfolioBreakdown';
 import { BalanceDistribution } from './graham/BalanceDistribution';
 import { HealthScoreGauge } from './graham/HealthScoreGauge';
+import { PortfolioPerformance } from './graham/PortfolioPerformance';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -912,6 +913,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         ) : (
           <>
+            {/* PORTFOLIO PERFORMANCE - Top Chart */}
+            <PortfolioPerformance />
+
             {/* PORTFOLIO BREAKDOWN */}
             <PortfolioBreakdown
               items={[
