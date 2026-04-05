@@ -177,6 +177,7 @@ const EXPENSE_CATEGORIES = [
   'Assinaturas',
   'Viagem',
   'Pets',
+  'Dívida',
   'Outros',
 ];
 
@@ -257,6 +258,7 @@ function OverdueBadge({ days }: { days: number }) {
 }
 
 export function FinanceSession({ onClose }: FinanceSessionProps) {
+  const sessionScrollRef = useRef<HTMLDivElement | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
@@ -314,6 +316,12 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [overduePayModal, setOverduePayModal] = useState<OverdueRecord | null>(null);
   const [overduePayInput, setOverduePayInput] = useState('');
   const [overduePaySaving, setOverduePaySaving] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringExpenseRecord | null>(null);
+  const [recurringEditDescription, setRecurringEditDescription] = useState('');
+  const [recurringEditCategory, setRecurringEditCategory] = useState('Outros');
+  const [recurringEditAmount, setRecurringEditAmount] = useState('');
+  const [recurringEditDay, setRecurringEditDay] = useState('');
+  const [recurringEditSaving, setRecurringEditSaving] = useState(false);
 
   const parseAmount = (value: unknown): number => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -330,8 +338,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     return monthParam(d);
   };
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (opts?: { showLoading?: boolean }) => {
+    const showLoading = opts?.showLoading ?? true;
+    if (showLoading) setLoading(true);
     try {
       const month = monthParam(selectedMonth);
       const aprilMonth = monthParam(new Date(selectedMonth.getFullYear(), 3, 1));
@@ -428,9 +437,20 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     } catch (err: any) {
       setLoadError(err?.message ?? 'Falha ao carregar dados. Verifique se a API está online.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [selectedMonth]);
+
+  const refreshInline = useCallback(async () => {
+    const el = sessionScrollRef.current;
+    const prevTop = el?.scrollTop ?? 0;
+    await loadAll({ showLoading: false });
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = prevTop;
+      });
+    }
+  }, [loadAll]);
 
   useEffect(() => {
     loadAll();
@@ -796,6 +816,64 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     await loadAll();
   };
 
+  const openEditRecurring = (item: RecurringExpenseRecord) => {
+    setEditingRecurring(item);
+    setRecurringEditDescription(item.description);
+    setRecurringEditCategory(item.category || 'Outros');
+    setRecurringEditAmount(formatCurrencyInputFromNumber(item.amount));
+    setRecurringEditDay(String(item.dayOfMonth ?? ''));
+  };
+
+  const closeRecurringEdit = () => {
+    if (recurringEditSaving) return;
+    setEditingRecurring(null);
+    setRecurringEditDescription('');
+    setRecurringEditCategory('Outros');
+    setRecurringEditAmount('');
+    setRecurringEditDay('');
+  };
+
+  const saveRecurringEdit = async () => {
+    if (!editingRecurring) return;
+    const description = recurringEditDescription.trim();
+    const category = recurringEditCategory.trim();
+    const amount = parseCurrencyInput(recurringEditAmount);
+    const dayOfMonth = Number(recurringEditDay);
+
+    if (!description || !category) {
+      window.alert('Descrição e categoria são obrigatórias.');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      window.alert('Valor inválido.');
+      return;
+    }
+    if (!Number.isFinite(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) {
+      window.alert('Dia de vencimento inválido.');
+      return;
+    }
+
+    setRecurringEditSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/finance/recurring-expenses/${editingRecurring.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description, category, amount, dayOfMonth }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Falha ao atualizar despesa fixa.');
+      }
+
+      closeRecurringEdit();
+      await refreshInline();
+    } catch (err: any) {
+      window.alert(err?.message ?? 'Falha ao atualizar despesa fixa.');
+    } finally {
+      setRecurringEditSaving(false);
+    }
+  };
+
   const selectedMonthKey = useMemo(() => monthParam(selectedMonth), [selectedMonth]);
 
   const getRecurringMonthMatches = useCallback((item: RecurringExpenseRecord) => {
@@ -836,7 +914,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             throw new Error(err?.error ?? 'Falha ao remover pagamento da despesa fixa.');
           }
         }
-        await loadAll();
+        await refreshInline();
         return;
       }
 
@@ -863,7 +941,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         throw new Error(err?.error ?? 'Falha ao registrar pagamento da despesa fixa.');
       }
 
-      await loadAll();
+      await refreshInline();
     } catch (err: any) {
       window.alert(err?.message ?? 'Falha ao atualizar pagamento da despesa fixa.');
     }
@@ -940,7 +1018,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
         }
-        await loadAll();
+        await refreshInline();
       } catch (err: any) {
         window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
       }
@@ -965,7 +1043,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error ?? 'Falha ao atualizar efetivação da despesa.');
       }
-      await loadAll();
+      await refreshInline();
     } catch (err: any) {
       window.alert(err?.message ?? 'Falha ao atualizar efetivação da despesa.');
     }
@@ -1004,7 +1082,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
       }
       closeEffectiveModal();
-      await loadAll();
+      await refreshInline();
     } catch (err: any) {
       window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
     } finally {
@@ -1112,7 +1190,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   ];
 
   return (
-    <div className="h-full overflow-y-auto bg-background text-foreground">
+    <div ref={sessionScrollRef} className="h-full overflow-y-auto bg-background text-foreground">
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card sticky top-0 z-10">
@@ -1439,6 +1517,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => { openEditRecurring(r); }} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                                 <button onClick={() => { void deleteRecurring(r.id); }} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                                   <Trash2 className="w-3 h-3" />
                                 </button>
@@ -1794,6 +1875,94 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </>
         )}
       </div>
+
+      {/* Modal de efetivação */}
+      {editingRecurring && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0d1117] border border-amber-500/25 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-amber-500/20 bg-amber-500/8 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-sm">✎</div>
+                <h3 className="text-sm font-semibold text-white/90">Editar despesa fixa</h3>
+              </div>
+              <button
+                onClick={closeRecurringEdit}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors"
+                disabled={recurringEditSaving}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Descrição</label>
+                <input
+                  value={recurringEditDescription}
+                  onChange={(e) => setRecurringEditDescription(e.target.value)}
+                  placeholder="Ex.: Aluguel"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Categoria</label>
+                <select value={recurringEditCategory} onChange={(e) => setRecurringEditCategory(e.target.value)} className={inputClass}>
+                  {!!recurringEditCategory && !EXPENSE_CATEGORIES.includes(recurringEditCategory) && (
+                    <option value={recurringEditCategory} style={{ background: '#0d1117' }}>{recurringEditCategory}</option>
+                  )}
+                  {EXPENSE_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat} style={{ background: '#0d1117' }}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor (R$)</label>
+                  <input
+                    value={recurringEditAmount}
+                    onChange={(e) => setRecurringEditAmount(formatCurrencyInput(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="R$ 0,00"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Dia do vencimento</label>
+                  <input
+                    value={recurringEditDay}
+                    onChange={(e) => setRecurringEditDay(e.target.value)}
+                    type="number"
+                    min={1}
+                    max={31}
+                    placeholder="Ex: 10"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={closeRecurringEdit}
+                  disabled={recurringEditSaving}
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold bg-white/5 border border-white/15 text-white/70 hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { void saveRecurringEdit(); }}
+                  disabled={recurringEditSaving}
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-white transition-colors disabled:opacity-50"
+                >
+                  {recurringEditSaving ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de efetivação */}
       {effectiveTx && (
