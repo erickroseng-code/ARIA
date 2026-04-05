@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { addMonths, format, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { PortfolioBreakdown } from './graham/PortfolioBreakdown';
+import { BalanceDistribution } from './graham/BalanceDistribution';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -1007,165 +1009,50 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         ) : (
           <>
             {/* PORTFOLIO BREAKDOWN */}
-            <div className="bg-card rounded-2xl p-5 shadow-sm border">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[15px] font-semibold text-card-foreground">Portfolio Breakdown</h2>
-                <button className="text-muted-foreground hover:text-card-foreground transition-colors">
-                  <MoreHorizontal className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4 mb-4">
-                {/* Receitas */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1 h-10 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-green))' }} />
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground">Receitas</p>
-                      <p className="text-xs text-muted-foreground">
-                        Previsto: {fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-card-foreground">{fmtCurrency(totalsByType.receber)}</p>
-                    <p
-                      className="text-xs font-medium"
-                      style={{ color: incomeDelta >= 0 ? 'hsl(var(--chart-green))' : 'hsl(var(--destructive))' }}
-                    >
-                      {incomeDelta >= 0 ? '+ ' : ''}{fmtCurrency(incomeDelta)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Despesas */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1 h-10 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} />
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground">Despesas</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Previsto:</span>
-                        <input
-                          value={plannedExpensesInput}
-                          onChange={(e) => setPlannedExpensesInput(formatCurrencyInput(e.target.value))}
-                          onBlur={() => { void saveMonthlyPlan(true); }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); void saveMonthlyPlan(); }
-                          }}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="R$ 0,00"
-                          className="h-5 w-28 rounded bg-transparent border border-transparent px-1 text-xs font-medium text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-destructive/30 focus:bg-muted/50 tabular-nums"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-card-foreground">{fmtCurrency(totalsByType.pagar)}</p>
-                    <p
-                      className="text-xs font-medium"
-                      style={{ color: expensesDelta <= 0 ? 'hsl(var(--chart-green))' : 'hsl(var(--destructive))' }}
-                    >
-                      {expensesDelta > 0 ? '+ ' : ''}{fmtCurrency(expensesDelta)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Saldo Líquido */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-1 h-10 rounded-full"
-                      style={{ backgroundColor: actualBalance >= 0 ? 'hsl(var(--chart-blue))' : 'hsl(var(--destructive))' }}
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground">Saldo Líquido</p>
-                      <p className="text-xs text-muted-foreground">Resultado do mês</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className="text-sm font-semibold"
-                      style={{ color: actualBalance >= 0 ? 'hsl(var(--card-foreground))' : 'hsl(var(--destructive))' }}
-                    >
-                      {fmtCurrency(actualBalance)}
-                    </p>
-                    <p
-                      className="text-xs font-medium"
-                      style={{ color: balanceDelta >= 0 ? 'hsl(var(--chart-green))' : 'hsl(var(--destructive))' }}
-                    >
-                      {balanceDelta >= 0 ? '+ ' : ''}{fmtCurrency(balanceDelta)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {planError && (
-                <div className="mb-2 text-[10px] text-destructive">{planError}</div>
-              )}
-
-              <div className="border-t pt-2">
-                <HealthScoreGauge score={healthScore} />
-              </div>
-            </div>
+            <PortfolioBreakdown
+              items={[
+                {
+                  label: 'Receitas',
+                  description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}`,
+                  value: fmtCurrency(totalsByType.receber),
+                  change: `${incomeDelta >= 0 ? '+ ' : ''}${fmtCurrency(incomeDelta)}`,
+                  positive: incomeDelta >= 0,
+                  color: 'hsl(var(--chart-green))',
+                },
+                {
+                  label: 'Despesas',
+                  description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}`,
+                  value: fmtCurrency(totalsByType.pagar),
+                  change: `${expensesDelta > 0 ? '+ ' : ''}${fmtCurrency(expensesDelta)}`,
+                  positive: expensesDelta <= 0,
+                  color: 'hsl(var(--destructive))',
+                },
+                {
+                  label: 'Saldo Líquido',
+                  description: 'Resultado do mês',
+                  value: fmtCurrency(actualBalance),
+                  change: `${balanceDelta >= 0 ? '+ ' : ''}${fmtCurrency(balanceDelta)}`,
+                  positive: balanceDelta >= 0,
+                  color: actualBalance >= 0 ? 'hsl(var(--chart-blue))' : 'hsl(var(--destructive))',
+                },
+              ]}
+              healthScore={healthScore}
+            />
 
             {/* BALANCE DISTRIBUTION */}
-            <div className="bg-card rounded-2xl p-5 shadow-sm border">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[15px] font-semibold text-card-foreground">Balance Distribution</h2>
-                <button className="text-muted-foreground hover:text-card-foreground transition-colors">
-                  <MoreHorizontal className="h-5 w-5" />
-                </button>
-              </div>
-
-              {categoryData.length > 0 && (
-                <div className="flex items-center gap-4 mb-4 flex-wrap">
-                  {categoryData.slice(0, 3).map((item) => (
-                    <div key={item.label} className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-xs text-muted-foreground">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mb-5">
-                <p className="text-3xl font-bold text-card-foreground tracking-tight">
-                  {fmtCurrency(totalsByType.pagar)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">Total de despesas no mês</p>
-              </div>
-
-              <div className="space-y-3">
-                {categoryData.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">Nenhuma despesa registrada</p>
-                ) : (
-                  categoryData.map((item) => (
-                    <div key={item.label} className="flex items-center gap-3">
-                      <span className="text-[11px] font-medium text-muted-foreground w-24 shrink-0 truncate">{item.label}</span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-semibold text-card-foreground w-8 text-right">{item.pct}%</span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {totalsByType.dividas > 0 && (
-                <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-3.5 h-3.5 text-chart-orange" />
-                    <span className="text-xs text-muted-foreground">Dívidas ativas</span>
-                  </div>
-                  <span className="text-xs font-semibold text-chart-orange">{fmtCurrency(totalsByType.dividas)}</span>
-                </div>
-              )}
-            </div>
+            <BalanceDistribution
+              totalBalance={fmtCurrency(totalsByType.pagar)}
+              totalBalanceLabel="Total de despesas no mês"
+              barData={categoryData.map(item => ({
+                label: item.label,
+                value: item.pct,
+                color: item.color,
+              }))}
+              legend={categoryData.slice(0, 2).map(item => ({
+                name: item.label,
+                color: item.color,
+              }))}
+            />
 
             {/* TABS SECTION */}
             <div className="bg-card rounded-2xl shadow-sm border overflow-hidden">
