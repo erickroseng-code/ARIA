@@ -150,6 +150,20 @@ function fmtDate(date: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function parseYmdLocal(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    return Number.isFinite(dt.getTime()) ? dt : null;
+  }
+  const dt = new Date(value);
+  return Number.isFinite(dt.getTime()) ? dt : null;
+}
+
 const EXPENSE_CATEGORIES = [
   'Alimentação',
   'Transporte',
@@ -309,6 +323,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const normalizeText = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+  const monthKeyFromDate = (value: string | null | undefined): string | null => {
+    const d = parseYmdLocal(value);
+    if (!d) return null;
+    return monthParam(d);
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -341,8 +362,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           `${normalizeText(tx.category)}|${normalizeText(tx.description)}|${parseAmount(tx.amount).toFixed(2)}|${normalizedDate}`;
 
         const normalizeToCurrentMonthDate = (rawDate: string) => {
-          const parsedDate = rawDate ? new Date(rawDate) : new Date(monthYear, monthIndex, 1);
-          const sourceDay = Number.isFinite(parsedDate.getTime()) ? parsedDate.getDate() : 1;
+          const parsedDate = parseYmdLocal(rawDate) ?? new Date(monthYear, monthIndex, 1);
+          const sourceDay = parsedDate.getDate();
           const clampedDay = Math.max(1, Math.min(sourceDay, monthMaxDay));
           return format(new Date(monthYear, monthIndex, clampedDay), 'yyyy-MM-dd');
         };
@@ -773,6 +794,79 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const deleteRecurring = async (id: number) => {
     await fetch(`${API_URL}/api/finance/recurring-expenses/${id}`, { method: 'DELETE' });
     await loadAll();
+  };
+
+  const selectedMonthKey = useMemo(() => monthParam(selectedMonth), [selectedMonth]);
+
+  const getRecurringMonthMatches = useCallback((item: RecurringExpenseRecord) => {
+    const year = selectedMonth.getFullYear();
+    const month = selectedMonth.getMonth();
+    const maxDay = new Date(year, month + 1, 0).getDate();
+    const dueDay = Math.max(1, Math.min(item.dayOfMonth || 1, maxDay));
+
+    return (dashboard?.transactions ?? []).filter((tx) => {
+      if (tx.type !== 'despesa' || !tx.isEffective) return false;
+      if (monthKeyFromDate(tx.date) !== selectedMonthKey) return false;
+      const txDate = parseYmdLocal(tx.date);
+      if (!txDate) return false;
+      if (txDate.getDate() !== dueDay) return false;
+      const sameDescription = normalizeText(tx.description) === normalizeText(item.description);
+      const sameCategory = normalizeText(tx.category) === normalizeText(item.category);
+      const sameAmount = Math.abs(parseAmount(tx.amount) - parseAmount(item.amount)) < 0.01;
+      return sameDescription && sameCategory && sameAmount;
+    });
+  }, [dashboard?.transactions, selectedMonth, selectedMonthKey]);
+
+  const recurringPaidMap = useMemo(() => {
+    const map = new Map<number, boolean>();
+    recurring.forEach((item) => {
+      map.set(item.id, getRecurringMonthMatches(item).length > 0);
+    });
+    return map;
+  }, [recurring, getRecurringMonthMatches]);
+
+  const toggleRecurringPayment = async (item: RecurringExpenseRecord) => {
+    const matches = getRecurringMonthMatches(item);
+    try {
+      if (matches.length > 0) {
+        for (const target of matches) {
+          const res = await fetch(`${API_URL}/api/finance/transaction/${target.index}?source=${target.source}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err?.error ?? 'Falha ao remover pagamento da despesa fixa.');
+          }
+        }
+        await loadAll();
+        return;
+      }
+
+      const year = selectedMonth.getFullYear();
+      const month = selectedMonth.getMonth();
+      const maxDay = new Date(year, month + 1, 0).getDate();
+      const day = Math.max(1, Math.min(item.dayOfMonth || 1, maxDay));
+      const date = format(new Date(year, month, day), 'yyyy-MM-dd');
+
+      const res = await fetch(`${API_URL}/api/finance/transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'despesa',
+          description: item.description,
+          category: item.category,
+          amount: parseAmount(item.amount),
+          isEffective: true,
+          date,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Falha ao registrar pagamento da despesa fixa.');
+      }
+
+      await loadAll();
+    } catch (err: any) {
+      window.alert(err?.message ?? 'Falha ao atualizar pagamento da despesa fixa.');
+    }
   };
 
   const downloadPdf = async () => {
@@ -1306,6 +1400,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">Categoria</th>
                           <th className="text-right px-4 py-2.5 text-muted-foreground font-medium">Valor</th>
                           <th className="text-right px-4 py-2.5 text-muted-foreground font-medium">Dia</th>
+                          <th className="text-center px-4 py-2.5 text-muted-foreground font-medium">Pagamento</th>
                           <th className="text-center px-4 py-2.5 text-muted-foreground font-medium">Status</th>
                           <th className="px-4 py-2.5" />
                         </tr>
@@ -1317,6 +1412,19 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                             <td className="px-4 py-2.5 text-muted-foreground">{r.category}</td>
                             <td className="px-4 py-2.5 text-right text-card-foreground font-medium tabular-nums">{fmtCurrency(r.amount)}</td>
                             <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">dia {r.dayOfMonth}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              <button
+                                onClick={() => { void toggleRecurringPayment(r); }}
+                                title={recurringPaidMap.get(r.id) ? 'Marcar como não pago' : 'Marcar como pago'}
+                                className={`h-6 w-6 rounded-md border transition-colors inline-flex items-center justify-center ${
+                                  recurringPaidMap.get(r.id)
+                                    ? 'border-accent/60 text-accent bg-accent/10'
+                                    : 'border-border text-muted-foreground hover:bg-muted'
+                                }`}
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                            </td>
                             <td className="px-4 py-2.5 text-center">
                               <button
                                 onClick={() => { void toggleRecurring(r); }}
@@ -1340,7 +1448,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         ))}
                         {recurring.length === 0 && (
                           <tr>
-                            <td colSpan={6} className="px-4 py-10 text-center">
+                            <td colSpan={7} className="px-4 py-10 text-center">
                               <div className="text-muted-foreground text-xs">Nenhuma despesa fixa cadastrada</div>
                             </td>
                           </tr>
