@@ -5,6 +5,9 @@ interface HealthScoreGaugeProps {
 }
 
 export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
+  const normalizedScore = Math.max(0, Math.min(100, Number.isFinite(score) ? score : 0));
+  const displayScore = normalizedScore.toFixed(1);
+
   const cx = 100, cy = 100;
   const totalSweep = 250;
   const startDeg = -215;
@@ -52,8 +55,8 @@ export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
 
   return (
     <div className="flex flex-col items-center pt-6 pb-2">
-      <div className="relative" style={{ width: 220, height: 150 }}>
-        <svg viewBox="0 0 200 135" className="w-full h-full overflow-visible">
+      <div className="relative w-full max-w-[240px] mx-auto" style={{ height: 172 }}>
+        <svg viewBox="0 0 200 165" className="w-full h-full overflow-visible">
           <defs>
             <pattern id="hatchFine" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(55)">
               <line x1="0" y1="0" x2="0" y2="4" stroke="hsl(140, 40%, 38%)" strokeWidth="1.2" opacity="0.35" />
@@ -68,10 +71,10 @@ export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {segments.filter(s => s.from < score).map((seg, i) => (
+          {segments.filter(s => s.from < normalizedScore).map((seg, i) => (
             <path
               key={`ot-${i}`}
-              d={arcPathStroke(outerThinR, seg.from, Math.min(seg.to, score))}
+              d={arcPathStroke(outerThinR, seg.from, Math.min(seg.to, normalizedScore))}
               fill="none"
               stroke={seg.color}
               strokeWidth="2"
@@ -92,7 +95,7 @@ export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
 
           {/* Hatch on filled portion only */}
           <path
-            d={sectorPath(mainOuterR, mainInnerR, 0, score)}
+            d={sectorPath(mainOuterR, mainInnerR, 0, normalizedScore)}
             fill="url(#hatchFine)"
           />
 
@@ -114,10 +117,10 @@ export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
             strokeWidth="1.5"
             strokeLinecap="round"
           />
-          {segments.filter(s => s.from < score).map((seg, i) => (
+          {segments.filter(s => s.from < normalizedScore).map((seg, i) => (
             <path
               key={`it-${i}`}
-              d={arcPathStroke(innerThinR, seg.from, Math.min(seg.to, score))}
+              d={arcPathStroke(innerThinR, seg.from, Math.min(seg.to, normalizedScore))}
               fill="none"
               stroke={seg.color}
               strokeWidth="1.5"
@@ -127,8 +130,11 @@ export function HealthScoreGauge({ score }: HealthScoreGaugeProps) {
         </svg>
 
         {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ paddingTop: 56 }}>
-          <span className="text-[28px] font-bold text-card-foreground leading-none tracking-tight">{score}%</span>
+        <div
+          className="absolute left-0 right-0 flex flex-col items-center"
+          style={{ top: 106, transform: "translateY(-50%)" }}
+        >
+          <span className="text-[28px] font-bold text-card-foreground leading-none tracking-tight whitespace-nowrap tabular-nums">{displayScore}%</span>
           <span className="text-[10px] font-semibold text-accent mt-2 bg-accent/10 px-3 py-0.5 rounded-full border border-accent/20">
             Health Score
           </span>

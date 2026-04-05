@@ -30,7 +30,7 @@ export function BalanceDistribution({
     <div className="bg-card rounded-2xl p-6 shadow-sm border">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[15px] font-semibold text-card-foreground">Balance Distribution</h2>
+        <h2 className="text-[15px] font-semibold text-card-foreground">Distribuição de Despesas</h2>
         <button className="text-muted-foreground hover:text-card-foreground transition-colors">
           <MoreHorizontal className="h-5 w-5" />
         </button>

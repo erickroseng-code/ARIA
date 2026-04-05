@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   ComposedChart,
-  Area,
+  Line,
   Bar,
   XAxis,
   YAxis,
@@ -14,33 +14,33 @@ import {
 import { ChevronLeft } from 'lucide-react';
 
 const data = [
-  { month: 'Jan', area: 6000, bar: 3000 },
-  { month: 'Feb', area: 7500, bar: 4500 },
-  { month: 'Mar', area: 6800, bar: 3800 },
-  { month: 'Apr', area: 9000, bar: 5500 },
-  { month: 'May', area: 8200, bar: 12000 },
-  { month: 'Jun', area: 10800, bar: 14000 },
-  { month: 'Jul', area: 9500, bar: 13500 },
-  { month: 'Aug', area: 15200, bar: 8000 },
-  { month: 'Sep', area: 18000, bar: 6000 },
-  { month: 'Oct', area: 16200, bar: 5000 },
-  { month: 'Nov', area: 19800, bar: 4500 },
-  { month: 'Dec', area: 21000, bar: 4000 },
+  { month: 'Jan', income: 6000, expense: 3000 },
+  { month: 'Fev', income: 7500, expense: 4500 },
+  { month: 'Mar', income: 6800, expense: 3800 },
+  { month: 'Abr', income: 9000, expense: 5500 },
+  { month: 'Mai', income: 8200, expense: 12000 },
+  { month: 'Jun', income: 10800, expense: 14000 },
+  { month: 'Jul', income: 9500, expense: 13500 },
+  { month: 'Ago', income: 15200, expense: 8000 },
+  { month: 'Set', income: 18000, expense: 6000 },
+  { month: 'Out', income: 16200, expense: 5000 },
+  { month: 'Nov', income: 19800, expense: 4500 },
+  { month: 'Dez', income: 21000, expense: 4000 },
 ];
 
 const periods = ['1W', '1M', '3M', '6M', '1Y', 'All'];
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
-    const areaVal = payload.find((p: any) => p.dataKey === 'area');
-    const barVal = payload.find((p: any) => p.dataKey === 'bar');
+    const incomeVal = payload.find((p: any) => p.dataKey === 'income');
+    const expenseVal = payload.find((p: any) => p.dataKey === 'expense');
     return (
       <div className="bg-foreground text-background px-3 py-2 rounded-lg text-[11px] shadow-lg">
         <p className="font-semibold">
-          Actual ${areaVal ? (areaVal.value / 1000).toFixed(1) : 0}K
+          Receitas R$ {incomeVal ? (incomeVal.value / 1000).toFixed(1) : 0}K
         </p>
         <p className="text-muted-foreground">
-          Potential ${barVal ? (barVal.value / 1000).toFixed(1) : 0}K
+          Despesas R$ {expenseVal ? (expenseVal.value / 1000).toFixed(1) : 0}K
         </p>
       </div>
     );
@@ -48,16 +48,24 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+interface PerformancePoint {
+  month: string;
+  income: number | null;
+  expense: number | null;
+}
+
 interface PortfolioPerformanceProps {
   title?: string;
   value?: string;
   change?: string;
+  points?: PerformancePoint[];
 }
 
 export function PortfolioPerformance({
-  title = 'Portfolio Performance',
-  value = '$128,4K',
+  title = 'Evolução Receitas x Despesas',
+  value = 'R$ 128,4K',
   change = '+ 14.6%',
+  points = data,
 }: PortfolioPerformanceProps) {
   const [activePeriod, setActivePeriod] = useState('1Y');
 
@@ -96,13 +104,7 @@ export function PortfolioPerformance({
 
       <div className="h-[240px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(212, 80%, 71%)" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="hsl(212, 80%, 71%)" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
+          <ComposedChart data={points} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="hsl(220, 13%, 91%)"
@@ -119,22 +121,23 @@ export function PortfolioPerformance({
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: 'hsl(220, 10%, 55%)', fontWeight: 500 }}
-              tickFormatter={(v) => `$${v / 1000}K`}
+              tickFormatter={(v) => `R$ ${v / 1000}K`}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar
-              dataKey="bar"
-              fill="hsl(25, 85%, 60%)"
-              opacity={0.6}
+              dataKey="expense"
+              fill="hsl(var(--destructive))"
+              opacity={0.7}
               radius={[2, 2, 0, 0]}
               barSize={8}
             />
-            <Area
+            <Line
               type="monotone"
-              dataKey="area"
-              stroke="hsl(212, 80%, 65%)"
-              strokeWidth={2}
-              fill="url(#areaGradient)"
+              dataKey="income"
+              stroke="hsl(var(--accent))"
+              strokeWidth={2.5}
+              dot={{ r: 2.5, fill: 'hsl(var(--accent))', strokeWidth: 0 }}
+              activeDot={{ r: 4, fill: 'hsl(var(--accent))', strokeWidth: 0 }}
             />
           </ComposedChart>
         </ResponsiveContainer>

@@ -5,11 +5,13 @@ import { HealthScoreGauge } from './HealthScoreGauge';
 
 interface BreakdownItem {
   label: string;
-  description: string;
+  description?: string;
+  emphasizeDescription?: boolean;
   value: string;
   change: string;
   positive: boolean;
   color: string;
+  valueColor?: string;
 }
 
 interface PortfolioBreakdownProps {
@@ -21,7 +23,7 @@ export function PortfolioBreakdown({ items, healthScore }: PortfolioBreakdownPro
   return (
     <div className="bg-card rounded-2xl p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-[15px] font-semibold text-card-foreground">Portfolio Breakdown</h2>
+        <h2 className="text-[15px] font-semibold text-card-foreground">Fluxo de Caixa</h2>
         <button className="text-muted-foreground hover:text-card-foreground transition-colors">
           <MoreHorizontal className="h-5 w-5" />
         </button>
@@ -37,11 +39,20 @@ export function PortfolioBreakdown({ items, healthScore }: PortfolioBreakdownPro
               />
               <div>
                 <p className="text-sm font-medium text-card-foreground">{item.label}</p>
-                <p className="text-xs text-muted-foreground">{item.description}</p>
+                {item.description ? (
+                  <p className={item.emphasizeDescription ? 'text-xs font-semibold text-card-foreground/90' : 'text-xs text-muted-foreground'}>
+                    {item.description}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-card-foreground">{item.value}</p>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: item.valueColor ?? 'hsl(var(--card-foreground))' }}
+              >
+                {item.value}
+              </p>
               <p
                 className="text-xs font-medium"
                 style={{

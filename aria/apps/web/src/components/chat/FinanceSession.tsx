@@ -67,6 +67,7 @@ interface DashboardData {
     isEffective: boolean;
     effectiveAmount?: number | null;
     isRecurring?: boolean;
+    projected?: boolean;
   }>;
 }
 
@@ -247,6 +248,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [tabLoading, setTabLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [aprilDashboard, setAprilDashboard] = useState<DashboardData | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [overdue, setOverdue] = useState<OverdueRecord[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpenseRecord[]>([]);
@@ -299,12 +301,22 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [overduePayInput, setOverduePayInput] = useState('');
   const [overduePaySaving, setOverduePaySaving] = useState(false);
 
+  const parseAmount = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value !== 'string') return 0;
+    const normalized = value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const month = monthParam(selectedMonth);
-      const [dRes, debtRes, overdueRes, recurringRes, sheetRes, cardsRes] = await Promise.all([
+      const aprilMonth = monthParam(new Date(selectedMonth.getFullYear(), 3, 1));
+      const [dRes, aprilRes, debtRes, overdueRes, recurringRes, sheetRes, cardsRes] = await Promise.all([
         fetch(`${API_URL}/api/finance/dashboard?month=${month}`),
+        fetch(`${API_URL}/api/finance/dashboard?month=${aprilMonth}`),
         fetch(`${API_URL}/api/finance/debts`),
         fetch(`${API_URL}/api/finance/overdue`),
         fetch(`${API_URL}/api/finance/recurring-expenses`),
@@ -312,8 +324,65 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         fetch(`${API_URL}/api/finance/credit-cards`),
       ]);
 
-      const dData = await dRes.json();
+      let dData = await dRes.json();
+      const aprilData = await aprilRes.json();
+
+      const isAfterApril = selectedMonth.getMonth() > 3;
+      const monthYear = selectedMonth.getFullYear();
+      const monthIndex = selectedMonth.getMonth();
+      const monthMaxDay = new Date(monthYear, monthIndex + 1, 0).getDate();
+
+      if (isAfterApril) {
+        const existingIncome = (dData?.transactions ?? []).filter((tx: DashboardData['transactions'][number]) => tx.type === 'receita');
+        const aprilIncome = (aprilData?.transactions ?? []).filter((tx: DashboardData['transactions'][number]) => tx.type === 'receita');
+
+        const normalizeText = (value: string) => String(value ?? '').trim().toLowerCase();
+        const buildKey = (tx: DashboardData['transactions'][number], normalizedDate: string) =>
+          `${normalizeText(tx.category)}|${normalizeText(tx.description)}|${parseAmount(tx.amount).toFixed(2)}|${normalizedDate}`;
+
+        const normalizeToCurrentMonthDate = (rawDate: string) => {
+          const parsedDate = rawDate ? new Date(rawDate) : new Date(monthYear, monthIndex, 1);
+          const sourceDay = Number.isFinite(parsedDate.getTime()) ? parsedDate.getDate() : 1;
+          const clampedDay = Math.max(1, Math.min(sourceDay, monthMaxDay));
+          return format(new Date(monthYear, monthIndex, clampedDay), 'yyyy-MM-dd');
+        };
+
+        const existingKeys = new Set(
+          existingIncome.map((tx: DashboardData['transactions'][number]) => buildKey(tx, normalizeToCurrentMonthDate(tx.date)))
+        );
+
+        const missingIncome = aprilIncome.filter((tx: DashboardData['transactions'][number]) => {
+          const normalizedDate = normalizeToCurrentMonthDate(tx.date);
+          const key = buildKey(tx, normalizedDate);
+          return !existingKeys.has(key);
+        });
+
+        if (missingIncome.length > 0) {
+          await Promise.all(
+            missingIncome.map((tx: DashboardData['transactions'][number]) => {
+              const targetDate = normalizeToCurrentMonthDate(tx.date);
+              return fetch(`${API_URL}/api/finance/transaction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  type: 'receita',
+                  description: tx.description,
+                  category: tx.category,
+                  amount: parseAmount(tx.amount),
+                  isEffective: tx.isEffective,
+                  date: targetDate,
+                }),
+              });
+            })
+          );
+
+          const refreshedDashboardRes = await fetch(`${API_URL}/api/finance/dashboard?month=${month}`);
+          dData = await refreshedDashboardRes.json();
+        }
+      }
+
       setDashboard(dData);
+      setAprilDashboard(aprilData);
       setPlannedExpensesInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedExpenses ?? 0)));
 
       const debtData = await debtRes.json();
@@ -367,6 +436,50 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     const saldo = receber - pagar;
     return { receber, pagar, dividas, atrasadas, saldo };
   }, [dashboard, debts, overdue]);
+
+  const isFutureOfApril = useMemo(() => selectedMonth.getMonth() > 3, [selectedMonth]);
+
+  const projectedMonthlyBase = useMemo(() => {
+    const aprilIncome = parseAmount(aprilDashboard?.comparison?.actualIncome);
+    const aprilExpenses = parseAmount(aprilDashboard?.comparison?.actualExpenses);
+    const aprilFixedExpensesFromTx = (aprilDashboard?.transactions ?? [])
+      .filter((item) => item.type === 'despesa' && item.isRecurring)
+      .reduce((acc, item) => acc + parseAmount(item.amount), 0);
+    const recurringFixedExpenses = recurring
+      .filter((item) => item.active)
+      .reduce((acc, item) => acc + parseAmount(item.amount), 0);
+
+    const projectedIncome = aprilIncome > 0 ? aprilIncome : parseAmount(totalsByType.receber);
+    const projectedExpense = recurringFixedExpenses > 0
+      ? recurringFixedExpenses
+      : (aprilFixedExpensesFromTx > 0 ? aprilFixedExpensesFromTx : (aprilExpenses > 0 ? aprilExpenses : parseAmount(totalsByType.pagar)));
+
+    return { projectedIncome, projectedExpense };
+  }, [aprilDashboard, recurring, totalsByType.receber, totalsByType.pagar]);
+
+  const performancePoints = useMemo(() => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const aprilIndex = 3;
+    const aprilIncome = projectedMonthlyBase.projectedIncome;
+    const aprilExpenses = parseAmount(aprilDashboard?.comparison?.actualExpenses) || parseAmount(totalsByType.pagar);
+    const carriedExpenses = projectedMonthlyBase.projectedExpense;
+
+    return months.map((month, index) => {
+      if (index < aprilIndex) {
+        return { month, income: null, expense: null };
+      }
+
+      if (index === aprilIndex) {
+        return { month, income: aprilIncome, expense: aprilExpenses };
+      }
+
+      return {
+        month,
+        income: aprilIncome,
+        expense: carriedExpenses,
+      };
+    });
+  }, [aprilDashboard?.comparison?.actualExpenses, projectedMonthlyBase.projectedIncome, projectedMonthlyBase.projectedExpense, totalsByType.pagar]);
 
   const openAdd = (m: AddMode) => {
     setMode(m);
@@ -764,6 +877,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     }
   };
 
+  void setExpenseEffective;
+
   const closeEffectiveModal = () => {
     if (effectiveSaving) return;
     setEffectiveTx(null);
@@ -813,18 +928,33 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     [dashboard?.transactions],
   );
 
-  const variableExpenses = useMemo(
-    () => expenseTransactions.filter(tx => !tx.isRecurring),
+  const transactionRows = useMemo(
+    () =>
+      [...expenseTransactions]
+        .filter((tx) => tx.isEffective)
+        .sort((a, b) => String(b.date).localeCompare(String(a.date))),
     [expenseTransactions],
   );
 
-  const actualBalance = Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo);
+  const displayTotals = useMemo(() => {
+    if (!isFutureOfApril) {
+      return { receber: totalsByType.receber, pagar: totalsByType.pagar };
+    }
+    return {
+      receber: projectedMonthlyBase.projectedIncome,
+      pagar: projectedMonthlyBase.projectedExpense,
+    };
+  }, [isFutureOfApril, projectedMonthlyBase.projectedExpense, projectedMonthlyBase.projectedIncome, totalsByType.pagar, totalsByType.receber]);
+
+  const actualBalance = isFutureOfApril
+    ? (displayTotals.receber - displayTotals.pagar)
+    : Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo);
 
   const healthScore = useMemo(() => {
-    if (!totalsByType.receber || totalsByType.receber <= 0) return 0;
-    const score = (totalsByType.saldo / totalsByType.receber) * 100;
+    if (!displayTotals.receber || displayTotals.receber <= 0) return 0;
+    const score = ((displayTotals.receber - displayTotals.pagar) / displayTotals.receber) * 100;
     return Math.max(0, Math.min(100, score));
-  }, [totalsByType]);
+  }, [displayTotals.pagar, displayTotals.receber]);
 
   const categoryData = useMemo(() => {
     const categories = new Map<string, number>();
@@ -841,6 +971,37 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
       }));
   }, [expenseTransactions]);
+
+  const projectedCategoryData = useMemo(() => {
+    const categories = new Map<string, number>();
+    recurring
+      .filter((item) => item.active)
+      .forEach((item) => {
+        categories.set(item.category, (categories.get(item.category) || 0) + parseAmount(item.amount));
+      });
+
+    if (categories.size === 0) {
+      (aprilDashboard?.transactions ?? [])
+        .filter((item) => item.type === 'despesa' && item.isRecurring)
+        .forEach((item) => {
+          categories.set(item.category, (categories.get(item.category) || 0) + parseAmount(item.amount));
+        });
+    }
+
+    const total = Array.from(categories.values()).reduce((a, b) => a + b, 0);
+    return Array.from(categories.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, amount], i) => ({
+        label,
+        amount,
+        pct: total > 0 ? Math.round((amount / total) * 100) : 0,
+        color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+      }));
+  }, [aprilDashboard?.transactions, recurring]);
+
+  const displayCategoryData = isFutureOfApril && projectedCategoryData.length > 0
+    ? projectedCategoryData
+    : categoryData;
 
   const incomeDelta = dashboard?.comparison?.incomeDelta ?? 0;
   const expensesDelta = dashboard?.comparison?.expensesDelta ?? 0;
@@ -913,54 +1074,84 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         ) : (
           <>
-            {/* PORTFOLIO PERFORMANCE - Top Chart */}
-            <PortfolioPerformance />
+            {/* TOP SECTION: PORTFOLIO PERFORMANCE + CHAT PANEL */}
+            <div className="flex gap-6 mb-6">
+              {/* PORTFOLIO PERFORMANCE - Flex 1 */}
+              <div className="flex-1 min-w-0">
+                <PortfolioPerformance points={performancePoints} />
+              </div>
 
-            {/* PORTFOLIO BREAKDOWN */}
-            <PortfolioBreakdown
-              items={[
-                {
-                  label: 'Receitas',
-                  description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}`,
-                  value: fmtCurrency(totalsByType.receber),
-                  change: `${incomeDelta >= 0 ? '+ ' : ''}${fmtCurrency(incomeDelta)}`,
-                  positive: incomeDelta >= 0,
-                  color: 'hsl(var(--chart-green))',
-                },
-                {
-                  label: 'Despesas',
-                  description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}`,
-                  value: fmtCurrency(totalsByType.pagar),
-                  change: `${expensesDelta > 0 ? '+ ' : ''}${fmtCurrency(expensesDelta)}`,
-                  positive: expensesDelta <= 0,
-                  color: 'hsl(var(--destructive))',
-                },
-                {
-                  label: 'Saldo Líquido',
-                  description: 'Resultado do mês',
-                  value: fmtCurrency(actualBalance),
-                  change: `${balanceDelta >= 0 ? '+ ' : ''}${fmtCurrency(balanceDelta)}`,
-                  positive: balanceDelta >= 0,
-                  color: actualBalance >= 0 ? 'hsl(var(--chart-blue))' : 'hsl(var(--destructive))',
-                },
-              ]}
-              healthScore={healthScore}
-            />
+              {/* CHAT PANEL - Fixed width */}
+              <div className="w-[300px] shrink-0 bg-card rounded-2xl shadow-sm border p-4 flex flex-col">
+                <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase">Assistente Financeiro</h3>
+                <div className="flex-1 overflow-y-auto mb-3 min-h-0">
+                  <div className="text-xs text-muted-foreground italic">
+                    Faça perguntas sobre suas finanças...
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Pergunte algo..."
+                    className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button className="px-3 py-2 rounded-lg bg-primary/10 border border-primary/25 text-primary hover:bg-primary/15 transition-colors">
+                    <span className="text-xs font-medium">→</span>
+                  </button>
+                </div>
+              </div>
+            </div>
 
-            {/* BALANCE DISTRIBUTION */}
-            <BalanceDistribution
-              totalBalance={fmtCurrency(totalsByType.pagar)}
-              totalBalanceLabel="Total de despesas no mês"
-              barData={categoryData.map(item => ({
-                label: item.label,
-                value: item.pct,
-                color: item.color,
-              }))}
-              legend={categoryData.slice(0, 2).map(item => ({
-                name: item.label,
-                color: item.color,
-              }))}
-            />
+            {/* PORTFOLIO BREAKDOWN + BALANCE DISTRIBUTION - Side by side */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* PORTFOLIO BREAKDOWN */}
+              <PortfolioBreakdown
+                items={[
+                  {
+                    label: 'Receitas',
+                    description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}`,
+                    emphasizeDescription: true,
+                    value: fmtCurrency(displayTotals.receber),
+                    change: `${incomeDelta >= 0 ? '+ ' : ''}${fmtCurrency(incomeDelta)}`,
+                    positive: incomeDelta >= 0,
+                    color: 'hsl(var(--accent))',
+                  },
+                  {
+                    label: 'Despesas',
+                    description: undefined,
+                    value: fmtCurrency(displayTotals.pagar),
+                    change: `${expensesDelta > 0 ? '+ ' : ''}${fmtCurrency(expensesDelta)}`,
+                    positive: expensesDelta <= 0,
+                    color: 'hsl(var(--destructive))',
+                  },
+                  {
+                    label: 'Saldo Líquido',
+                    description: undefined,
+                    value: fmtCurrency(actualBalance),
+                    change: `${balanceDelta >= 0 ? '+ ' : ''}${fmtCurrency(balanceDelta)}`,
+                    positive: balanceDelta >= 0,
+                    color: actualBalance >= 0 ? 'hsl(var(--chart-blue))' : 'hsl(var(--destructive))',
+                    valueColor: actualBalance >= 0 ? 'hsl(var(--accent))' : 'hsl(var(--destructive))',
+                  },
+                ]}
+                healthScore={healthScore}
+              />
+
+              {/* BALANCE DISTRIBUTION */}
+              <BalanceDistribution
+                totalBalance={fmtCurrency(displayTotals.pagar)}
+                totalBalanceLabel="Total de despesas no mês"
+                barData={displayCategoryData.map(item => ({
+                  label: item.label,
+                  value: item.pct,
+                  color: item.color,
+                }))}
+                legend={displayCategoryData.slice(0, 2).map(item => ({
+                  name: item.label,
+                  color: item.color,
+                }))}
+              />
+            </div>
 
             {/* TABS SECTION */}
             <div className="bg-card rounded-2xl shadow-sm border overflow-hidden">
@@ -1072,44 +1263,17 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                           <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">Categoria</th>
                           <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">Descrição</th>
                           <th className="text-right px-4 py-2.5 text-muted-foreground font-medium">Valor</th>
-                          <th className="text-center px-4 py-2.5 text-muted-foreground font-medium">Efetivação</th>
                           <th className="px-4 py-2.5" />
                         </tr>
                       </thead>
                       <tbody>
-                        {variableExpenses.map((tx) => (
+                        {transactionRows.map((tx) => (
                           <tr key={`${tx.source}-${tx.index}`} className="border-t border-border hover:bg-muted/30 transition-colors group">
                             <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{fmtDate(tx.date)}</td>
                             <td className="px-4 py-2.5 text-muted-foreground">{tx.category}</td>
                             <td className="px-4 py-2.5 text-card-foreground">{tx.description}</td>
                             <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-destructive">
                               - {fmtCurrency(tx.amount)}
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={() => { void setExpenseEffective(tx, false); }}
-                                  title="Marcar como previsto"
-                                  className={`h-6 w-6 rounded-md border transition-colors ${
-                                    !tx.isEffective
-                                      ? 'border-amber-400/60 text-amber-600 bg-amber-500/10'
-                                      : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                                  }`}
-                                >
-                                  <X className="w-3 h-3 mx-auto" />
-                                </button>
-                                <button
-                                  onClick={() => { void setExpenseEffective(tx, true); }}
-                                  title="Marcar como efetivado"
-                                  className={`h-6 w-6 rounded-md border transition-colors ${
-                                    tx.isEffective
-                                      ? 'border-accent/60 text-accent bg-accent/10'
-                                      : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                                  }`}
-                                >
-                                  <Check className="w-3 h-3 mx-auto" />
-                                </button>
-                              </div>
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -1123,10 +1287,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                             </td>
                           </tr>
                         ))}
-                        {variableExpenses.length === 0 && (
+                        {transactionRows.length === 0 && (
                           <tr>
-                            <td colSpan={6} className="px-4 py-10 text-center">
-                              <div className="text-muted-foreground text-xs">Nenhuma despesa variável registrada neste mês</div>
+                            <td colSpan={5} className="px-4 py-10 text-center">
+                              <div className="text-muted-foreground text-xs">Nenhuma despesa registrada neste mês</div>
                             </td>
                           </tr>
                         )}
@@ -1208,7 +1372,9 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                               + {fmtCurrency(tx.amount)}
                             </td>
                             <td className="px-4 py-2.5 text-xs">
-                              {tx.isEffective && tx.effectiveAmount !== null && tx.effectiveAmount !== undefined && Math.abs(tx.effectiveAmount - tx.amount) > 0.009 ? (
+                              {tx.projected ? (
+                                <span className="text-amber-600">Projeção</span>
+                              ) : tx.isEffective && tx.effectiveAmount !== null && tx.effectiveAmount !== undefined && Math.abs(tx.effectiveAmount - tx.amount) > 0.009 ? (
                                 <span className="text-accent font-semibold">{fmtCurrency(tx.effectiveAmount)}</span>
                               ) : tx.isEffective ? (
                                 <span className="text-muted-foreground">Mesmo valor</span>
@@ -1217,40 +1383,48 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                               )}
                             </td>
                             <td className="px-4 py-2.5">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={() => { void setIncomeEffective(tx, false); }}
-                                  title="Marcar como previsto"
-                                  className={`h-6 w-6 rounded-md border transition-colors ${
-                                    !tx.isEffective
-                                      ? 'border-amber-400/60 text-amber-600 bg-amber-500/10'
-                                      : 'border-border text-muted-foreground hover:bg-muted'
-                                  }`}
-                                >
-                                  <X className="w-3 h-3 mx-auto" />
-                                </button>
-                                <button
-                                  onClick={() => { void setIncomeEffective(tx, true); }}
-                                  title="Marcar como efetivado"
-                                  className={`h-6 w-6 rounded-md border transition-colors ${
-                                    tx.isEffective
-                                      ? 'border-accent/60 text-accent bg-accent/10'
-                                      : 'border-border text-muted-foreground hover:bg-muted'
-                                  }`}
-                                >
-                                  <Check className="w-3 h-3 mx-auto" />
-                                </button>
-                              </div>
+                              {tx.projected ? (
+                                <div className="flex items-center justify-center text-muted-foreground">-</div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => { void setIncomeEffective(tx, false); }}
+                                    title="Marcar como previsto"
+                                    className={`h-6 w-6 rounded-md border transition-colors ${
+                                      !tx.isEffective
+                                        ? 'border-amber-400/60 text-amber-600 bg-amber-500/10'
+                                        : 'border-border text-muted-foreground hover:bg-muted'
+                                    }`}
+                                  >
+                                    <X className="w-3 h-3 mx-auto" />
+                                  </button>
+                                  <button
+                                    onClick={() => { void setIncomeEffective(tx, true); }}
+                                    title="Marcar como efetivado"
+                                    className={`h-6 w-6 rounded-md border transition-colors ${
+                                      tx.isEffective
+                                        ? 'border-accent/60 text-accent bg-accent/10'
+                                        : 'border-border text-muted-foreground hover:bg-muted'
+                                    }`}
+                                  >
+                                    <Check className="w-3 h-3 mx-auto" />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-2.5">
-                              <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEditTx(tx)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                                  <Pencil className="w-3 h-3" />
-                                </button>
-                                <button onClick={() => { void deleteTx(tx); }} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
+                              {tx.projected ? (
+                                <div className="flex justify-end text-muted-foreground">-</div>
+                              ) : (
+                                <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => openEditTx(tx)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={() => { void deleteTx(tx); }} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
