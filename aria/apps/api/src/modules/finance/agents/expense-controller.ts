@@ -3,6 +3,8 @@ import { SheetsService } from '@aria/integrations';
 import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { checkBudgetAlerts } from './budget-planner';
+import { addTransactionDirect } from './entries';
+import { getDashboardData } from './dashboard';
 
 
 interface TransactionExtraction {
@@ -30,12 +32,6 @@ export async function recordTransaction(userMessage: string): Promise<{
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
 }> {
   const spreadsheetId = getSpreadsheetId();
-  if (!spreadsheetId) {
-    return {
-      reply: 'Você ainda não configurou sua planilha financeira. Inicie o diagnóstico financeiro primeiro.',
-      alerts: [],
-    };
-  }
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.substring(0, 7);
@@ -60,13 +56,24 @@ JSON:
   const raw = await llmChat(userPrompt, systemPrompt, 0);
   const tx = extractJson<TransactionExtraction>(raw);
 
-  // Registrar na aba Transações
-  const service = new SheetsService();
-  const row = [tx.date, tx.type, tx.category, tx.description, String(tx.amount), tx.tags];
-  await service.appendRows(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A1`, [row]);
+  // Registrar na aba Transações quando houver planilha; caso contrário, usa banco local.
+  if (spreadsheetId) {
+    const service = new SheetsService();
+    const row = [tx.date, tx.type, tx.category, tx.description, String(tx.amount), tx.tags];
+    await service.appendRows(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A1`, [row]);
+  } else {
+    await addTransactionDirect({
+      type: tx.type,
+      category: tx.category,
+      description: tx.description,
+      amount: tx.amount,
+      date: tx.date,
+      isEffective: true,
+    });
+  }
 
   // Verificar alertas de orçamento (apenas despesas)
-  const alerts = tx.type === 'despesa'
+  const alerts = spreadsheetId && tx.type === 'despesa'
     ? await checkBudgetAlerts(spreadsheetId, currentMonth)
     : [];
 
@@ -82,13 +89,27 @@ JSON:
  */
 export async function queryBalance(month?: string): Promise<string> {
   const spreadsheetId = getSpreadsheetId();
-  if (!spreadsheetId) return 'Planilha não configurada. Inicie o diagnóstico financeiro.';
 
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);
+  const monthLabel = new Date(`${targetMonth}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  if (!spreadsheetId) {
+    const data = await getDashboardData(targetMonth);
+    const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const topCategories = data.byCategory
+      .slice(0, 3)
+      .map((entry) => `  • ${entry.category}: ${fmt(entry.spent)}`)
+      .join('\n');
+
+    return `## Resumo — ${monthLabel}\n\n` +
+      `💰 **Receitas:** ${fmt(data.totalIncome)}\n` +
+      `💸 **Despesas:** ${fmt(data.totalExpenses)}\n` +
+      `📊 **Saldo:** ${fmt(data.netBalance)}\n\n` +
+      `**Top categorias de gasto:**\n${topCategories || '  Nenhuma despesa ainda'}`;
+  }
+
   const service = new SheetsService();
   const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A2:F10000`);
-
-  const monthLabel = new Date(`${targetMonth}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   if (data.values.length === 0) {
     return `Nenhuma transação registrada para ${monthLabel}.`;
@@ -137,9 +158,25 @@ export async function queryBalance(month?: string): Promise<string> {
  */
 export async function queryTransactions(month?: string, category?: string): Promise<string> {
   const spreadsheetId = getSpreadsheetId();
-  if (!spreadsheetId) return 'Planilha não configurada.';
 
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  if (!spreadsheetId) {
+    const data = await getDashboardData(targetMonth);
+    let tx = data.transactions;
+    if (category) {
+      const search = category.toLowerCase();
+      tx = tx.filter((t) => (t.category ?? '').toLowerCase().includes(search));
+    }
+    if (tx.length === 0) return 'Nenhuma transação encontrada.';
+
+    const lines = tx.slice(0, 20).map((t) =>
+      `${t.date} | ${t.type === 'receita' ? '💰' : '💸'} ${t.category} | ${t.description} | ${fmt(t.amount)}`
+    );
+    return `**Últimas transações${category ? ` (${category})` : ''}:**\n\n${lines.join('\n')}`;
+  }
+
   const service = new SheetsService();
   const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A2:F10000`);
 
@@ -148,7 +185,6 @@ export async function queryTransactions(month?: string, category?: string): Prom
 
   if (rows.length === 0) return `Nenhuma transação encontrada.`;
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const lines = rows.slice(-20).map(r =>
     `${r[0]} | ${r[1] === 'receita' ? '💰' : '💸'} ${r[2]} | ${r[3]} | ${fmt(parseFloat(r[4] ?? '0'))}`
   );
