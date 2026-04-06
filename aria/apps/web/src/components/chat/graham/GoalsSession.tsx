@@ -5,7 +5,7 @@ import { Goal } from '@/lib/types/goals.types';
 import { Plus, Pencil, Trash2, TrendingUp, Target } from 'lucide-react';
 import { PieChart, Pie, Cell } from 'recharts';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://aria-api-avq0.onrender.com';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);

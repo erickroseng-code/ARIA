@@ -37,7 +37,7 @@ import { HealthScoreGauge } from './graham/HealthScoreGauge';
 import { PortfolioPerformance } from './graham/PortfolioPerformance';
 import { GoalsSession } from './graham/GoalsSession';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://aria-api-avq0.onrender.com';
 
 type TxType = 'receita' | 'despesa';
 type SourceType = 'local' | 'sheets';
