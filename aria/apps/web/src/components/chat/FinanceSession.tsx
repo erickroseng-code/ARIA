@@ -606,7 +606,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     }
 
     const pct = ((currentBalance - previousBalance) / Math.abs(previousBalance)) * 100;
-    const tone = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
+    const tone: 'positive' | 'negative' | 'neutral' = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
     return { label: `${pct >= 0 ? '+ ' : ''}${pct.toFixed(1)}%`, tone };
   }, [performancePoints, selectedMonth]);
 

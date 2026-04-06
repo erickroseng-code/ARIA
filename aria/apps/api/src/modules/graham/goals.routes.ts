@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import {
   initializeGoalsTable,
   createGoal,
@@ -14,7 +14,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   initializeGoalsTable();
 
   // GET /api/graham/goals — Listar todas as metas
-  fastify.get('/goals', async (_req: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/goals', async (_req, reply) => {
     try {
       const goals = getGoals();
       return reply.send({ success: true, goals });
@@ -25,7 +25,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   });
 
   // GET /api/graham/goals/:id — Obter meta específica
-  fastify.get<{ Params: { id: string } }>('/goals/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+  fastify.get<{ Params: { id: string } }>('/goals/:id', async (req, reply) => {
     try {
       const goal = getGoalById(req.params.id);
       if (!goal) {
@@ -41,7 +41,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   // POST /api/graham/goals — Criar nova meta
   fastify.post<{ Body: { description: string; targetValue: number } }>(
     '/goals',
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req, reply) => {
       try {
         const { description, targetValue } = req.body;
 
@@ -64,7 +64,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   // PATCH /api/graham/goals/:id/progress — Atualizar progresso da meta
   fastify.patch<{ Params: { id: string }; Body: { currentValue: number } }>(
     '/goals/:id/progress',
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req, reply) => {
       try {
         const { currentValue } = req.body;
 
@@ -88,7 +88,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   // PUT /api/graham/goals/:id — Atualizar meta
   fastify.put<{ Params: { id: string }; Body: { description?: string; targetValue?: number } }>(
     '/goals/:id',
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    async (req, reply) => {
       try {
         const goal = getGoalById(req.params.id);
         if (!goal) {
@@ -115,7 +115,7 @@ export async function registerGoalsRoutes(fastify: FastifyInstance) {
   );
 
   // DELETE /api/graham/goals/:id — Deletar meta
-  fastify.delete<{ Params: { id: string } }>('/goals/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+  fastify.delete<{ Params: { id: string } }>('/goals/:id', async (req, reply) => {
     try {
       const deleted = deleteGoal(req.params.id);
       if (!deleted) {

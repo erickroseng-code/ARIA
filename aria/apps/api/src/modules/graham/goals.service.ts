@@ -44,7 +44,7 @@ export function createGoal(description: string, targetValue: number): Goal {
 
 export function getGoals(): Goal[] {
   try {
-    return db.prepare('SELECT * FROM goals ORDER BY createdAt DESC').all() as Goal[];
+    return db.prepare('SELECT * FROM goals ORDER BY createdAt DESC').all() as unknown as Goal[];
   } catch {
     return [];
   }
@@ -52,7 +52,7 @@ export function getGoals(): Goal[] {
 
 export function getGoalById(id: string): Goal | null {
   try {
-    return db.prepare('SELECT * FROM goals WHERE id = ?').get(id) as Goal | undefined || null;
+    return (db.prepare('SELECT * FROM goals WHERE id = ?').get(id) as unknown as Goal | undefined) ?? null;
   } catch {
     return null;
   }
