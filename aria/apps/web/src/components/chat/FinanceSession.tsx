@@ -2061,11 +2061,6 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 ) : (
                   /* METAS E OBJETIVOS */
                   <GoalsSession />
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 )}
               </div>
             </div>
