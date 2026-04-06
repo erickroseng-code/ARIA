@@ -23,6 +23,7 @@ import { registerTrafficRoutes } from './modules/traffic/traffic.routes';
 import { registerMaverickRoutes } from './modules/maverick/maverick.v2.routes';
 import { registerSherlockRoutes } from './modules/sherlock/sherlock.routes';
 import { registerUmaRoutes } from './modules/uma/uma.routes';
+import { registerGoalsRoutes } from './modules/graham/goals.routes';
 import { registerTTSRoutes } from './routes/tts.routes';
 import { registerAuthPlugin } from './plugins/auth.middleware';
 import fastifyMultipart from '@fastify/multipart';
@@ -173,6 +174,7 @@ const startServer = async () => {
   await fastify.register(registerMaverickRoutes, { prefix: '/api/maverick' });
   await fastify.register(registerSherlockRoutes, { prefix: '/api/sherlock' });
   await fastify.register(registerUmaRoutes, { prefix: '/api/uma' });
+  await fastify.register(registerGoalsRoutes, { prefix: '/api/graham' });
   await fastify.register(registerTTSRoutes, { prefix: '/api/tts' });
   await fastify.register(registerTelegramWebhookRoutes, { prefix: '/api/telegram' });
   await fastify.register(registerScheduledTasksRoutes, { prefix: '/api/tasks' });

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   AlertTriangle,
+  Calendar,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -12,15 +13,21 @@ import {
   Download,
   ExternalLink,
   Check,
+  Home,
+  LayoutList,
+  Target,
+  Link2,
   MoreHorizontal,
+  Search,
   Save,
   Loader2,
   Pencil,
   Plus,
   TrendingDown,
-  TrendingUp,
   Trash2,
+  Wallet,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { addMonths, format, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +35,7 @@ import { PortfolioBreakdown } from './graham/PortfolioBreakdown';
 import { BalanceDistribution } from './graham/BalanceDistribution';
 import { HealthScoreGauge } from './graham/HealthScoreGauge';
 import { PortfolioPerformance } from './graham/PortfolioPerformance';
+import { GoalsSession } from './graham/GoalsSession';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -35,6 +43,7 @@ type TxType = 'receita' | 'despesa';
 type SourceType = 'local' | 'sheets';
 type AddMode = 'receita' | 'despesa' | 'divida' | 'atrasada' | 'cartao';
 type ActiveTab = 'transacoes' | 'fixas' | 'receitas' | 'dividas' | 'atrasadas' | 'cartoes' | 'planejamento';
+type SidebarView = 'home' | 'receitas' | 'cartoes' | 'dividas' | 'planejamento';
 
 interface FinanceSessionProps {
   onClose: () => void;
@@ -206,14 +215,15 @@ const CATEGORY_COLORS = [
   'hsl(180, 55%, 50%)',
   'hsl(340, 70%, 55%)',
 ];
+const TRANSACTIONS_PER_PAGE = 10;
 
 function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange: (d: Date) => void }) {
-  const setMonthFromInput = (value: string) => {
-    if (!value) return;
-    const [year, month] = value.split('-').map(Number);
-    if (!year || !month) return;
-    onChange(new Date(year, month - 1, 1));
-  };
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
+
+  useEffect(() => {
+    setPickerYear(currentDate.getFullYear());
+  }, [currentDate]);
 
   return (
     <div className="flex items-center justify-between px-5 py-3 border-b border-border">
@@ -224,18 +234,62 @@ function CalendarPicker({ currentDate, onChange }: { currentDate: Date; onChange
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
-      <label className="relative cursor-pointer">
-        <span className="px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/25 text-accent text-sm font-medium hover:bg-accent/15 transition-colors inline-flex items-center gap-2 select-none">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+          className="px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/25 text-accent text-sm font-medium hover:bg-accent/15 transition-colors inline-flex items-center gap-2 select-none"
+        >
           <CalendarDays className="w-3.5 h-3.5" />
           <span className="capitalize">{format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}</span>
-        </span>
-        <input
-          type="month"
-          value={format(currentDate, 'yyyy-MM')}
-          onChange={(e) => setMonthFromInput(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-        />
-      </label>
+        </button>
+        {isMonthPickerOpen && (
+          <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 z-20 w-72 rounded-xl border border-border bg-card shadow-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setPickerYear((y) => y - 1)}
+                className="h-7 w-7 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Ano anterior"
+              >
+                <ChevronLeft className="w-4 h-4 mx-auto" />
+              </button>
+              <span className="text-sm font-semibold text-card-foreground tabular-nums">{pickerYear}</span>
+              <button
+                type="button"
+                onClick={() => setPickerYear((y) => y + 1)}
+                className="h-7 w-7 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Próximo ano"
+              >
+                <ChevronRight className="w-4 h-4 mx-auto" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 12 }, (_, monthIdx) => {
+                const monthDate = new Date(pickerYear, monthIdx, 1);
+                const isActive = currentDate.getFullYear() === pickerYear && currentDate.getMonth() === monthIdx;
+                return (
+                  <button
+                    key={`${pickerYear}-${monthIdx}`}
+                    type="button"
+                    onClick={() => {
+                      onChange(monthDate);
+                      setIsMonthPickerOpen(false);
+                    }}
+                    className={`h-8 rounded-md text-xs font-medium transition-colors capitalize ${
+                      isActive
+                        ? 'bg-accent/15 border border-accent/35 text-accent'
+                        : 'bg-muted/30 border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {format(monthDate, 'MMM', { locale: ptBR })}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
       <button
         onClick={() => onChange(addMonths(currentDate, 1))}
         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -271,6 +325,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [cards, setCards] = useState<CreditCardRecord[]>([]);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('transacoes');
+  const [activeView, setActiveView] = useState<SidebarView>('home');
+  const [transactionsPage, setTransactionsPage] = useState(1);
   const tabLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [mode, setMode] = useState<AddMode | null>(null);
@@ -322,6 +378,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [recurringEditAmount, setRecurringEditAmount] = useState('');
   const [recurringEditDay, setRecurringEditDay] = useState('');
   const [recurringEditSaving, setRecurringEditSaving] = useState(false);
+  const [txFilterCategory, setTxFilterCategory] = useState('all');
+  const [txFilterDateFrom, setTxFilterDateFrom] = useState('');
+  const [txFilterDateTo, setTxFilterDateTo] = useState('');
+  const [txFilterDescription, setTxFilterDescription] = useState('');
+  const [txFilterMinValue, setTxFilterMinValue] = useState('');
+  const [txFilterMaxValue, setTxFilterMaxValue] = useState('');
+  const [isTxFiltersOpen, setIsTxFiltersOpen] = useState(false);
 
   const parseAmount = (value: unknown): number => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -521,6 +584,31 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       };
     });
   }, [aprilDashboard?.comparison?.actualExpenses, projectedMonthlyBase.projectedIncome, projectedMonthlyBase.projectedExpense, totalsByType.pagar]);
+
+  const performanceChange = useMemo(() => {
+    const currentIndex = selectedMonth.getMonth();
+    if (currentIndex <= 0 || currentIndex >= performancePoints.length) {
+      return { label: '-', tone: 'neutral' as const };
+    }
+
+    const current = performancePoints[currentIndex];
+    const previous = performancePoints[currentIndex - 1];
+    if (!current || !previous) return { label: '-', tone: 'neutral' as const };
+    if (current.income === null || current.expense === null || previous.income === null || previous.expense === null) {
+      return { label: '-', tone: 'neutral' as const };
+    }
+
+    const currentBalance = current.income - current.expense;
+    const previousBalance = previous.income - previous.expense;
+    if (Math.abs(previousBalance) < 0.000001) {
+      if (Math.abs(currentBalance) < 0.000001) return { label: '0.0%', tone: 'neutral' as const };
+      return { label: '-', tone: 'neutral' as const };
+    }
+
+    const pct = ((currentBalance - previousBalance) / Math.abs(previousBalance)) * 100;
+    const tone = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
+    return { label: `${pct >= 0 ? '+ ' : ''}${pct.toFixed(1)}%`, tone };
+  }, [performancePoints, selectedMonth]);
 
   const openAdd = (m: AddMode) => {
     setMode(m);
@@ -835,6 +923,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const saveRecurringEdit = async () => {
     if (!editingRecurring) return;
+    const previousMatches = getRecurringMonthMatches(editingRecurring);
     const description = recurringEditDescription.trim();
     const category = recurringEditCategory.trim();
     const amount = parseCurrencyInput(recurringEditAmount);
@@ -863,6 +952,34 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error ?? 'Falha ao atualizar despesa fixa.');
+      }
+
+      // Keep monthly payment row in sync when the fixed expense was already marked as paid.
+      if (previousMatches.length > 0) {
+        const year = selectedMonth.getFullYear();
+        const month = selectedMonth.getMonth();
+        const maxDay = new Date(year, month + 1, 0).getDate();
+        const normalizedDay = Math.max(1, Math.min(dayOfMonth, maxDay));
+        const normalizedDate = format(new Date(year, month, normalizedDay), 'yyyy-MM-dd');
+
+        for (const tx of previousMatches) {
+          const txRes = await fetch(`${API_URL}/api/finance/transaction/${tx.index}?source=${tx.source}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'despesa',
+              description,
+              category,
+              amount,
+              isEffective: tx.isEffective,
+              date: normalizedDate,
+            }),
+          });
+          if (!txRes.ok) {
+            const err = await txRes.json().catch(() => ({}));
+            throw new Error(err?.error ?? 'Falha ao sincronizar lançamento efetivado da despesa fixa.');
+          }
+        }
       }
 
       closeRecurringEdit();
@@ -1003,6 +1120,10 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     tabLoadTimeoutRef.current = setTimeout(() => setTabLoading(false), 220);
   };
 
+  useEffect(() => {
+    setTransactionsPage(1);
+  }, [selectedMonth, activeView, activeTab, txFilterCategory, txFilterDateFrom, txFilterDateTo, txFilterDescription, txFilterMinValue, txFilterMaxValue]);
+
   const setIncomeEffective = async (tx: DashboardData['transactions'][number], isEffective: boolean) => {
     if (tx.type !== 'receita') return;
     if (tx.isEffective === isEffective) return;
@@ -1107,6 +1228,39 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         .sort((a, b) => String(b.date).localeCompare(String(a.date))),
     [expenseTransactions],
   );
+  const txFilterCategoryOptions = useMemo(
+    () => Array.from(new Set(transactionRows.map((tx) => tx.category))).sort((a, b) => a.localeCompare(b)),
+    [transactionRows],
+  );
+  const filteredTransactionRows = useMemo(() => {
+    const descriptionNeedle = txFilterDescription.trim().toLowerCase();
+    const minValue = Number(txFilterMinValue);
+    const maxValue = Number(txFilterMaxValue);
+    const hasMinValue = txFilterMinValue.trim() !== '' && Number.isFinite(minValue);
+    const hasMaxValue = txFilterMaxValue.trim() !== '' && Number.isFinite(maxValue);
+
+    return transactionRows.filter((tx) => {
+      if (txFilterCategory !== 'all' && tx.category !== txFilterCategory) return false;
+      if (txFilterDateFrom && tx.date < txFilterDateFrom) return false;
+      if (txFilterDateTo && tx.date > txFilterDateTo) return false;
+      if (descriptionNeedle && !String(tx.description ?? '').toLowerCase().includes(descriptionNeedle)) return false;
+      if (hasMinValue && tx.amount < minValue) return false;
+      if (hasMaxValue && tx.amount > maxValue) return false;
+      return true;
+    });
+  }, [transactionRows, txFilterCategory, txFilterDateFrom, txFilterDateTo, txFilterDescription, txFilterMinValue, txFilterMaxValue]);
+  const transactionTotalPages = Math.max(1, Math.ceil(filteredTransactionRows.length / TRANSACTIONS_PER_PAGE));
+  const pagedTransactionRows = useMemo(() => {
+    const page = Math.min(Math.max(1, transactionsPage), transactionTotalPages);
+    const start = (page - 1) * TRANSACTIONS_PER_PAGE;
+    return filteredTransactionRows.slice(start, start + TRANSACTIONS_PER_PAGE);
+  }, [filteredTransactionRows, transactionTotalPages, transactionsPage]);
+
+  useEffect(() => {
+    if (transactionsPage > transactionTotalPages) {
+      setTransactionsPage(transactionTotalPages);
+    }
+  }, [transactionTotalPages, transactionsPage]);
 
   const displayTotals = useMemo(() => {
     if (!isFutureOfApril) {
@@ -1124,8 +1278,15 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const healthScore = useMemo(() => {
     if (!displayTotals.receber || displayTotals.receber <= 0) return 0;
-    const score = ((displayTotals.receber - displayTotals.pagar) / displayTotals.receber) * 100;
-    return Math.max(0, Math.min(100, score));
+    const margin = (displayTotals.receber - displayTotals.pagar) / displayTotals.receber;
+    if (margin <= 0) {
+      // Faixa negativa/neutra: vermelho -> amarelo (0..25)
+      const negativeNormalized = Math.max(-1, margin); // limita perda em -100%
+      return Math.max(0, Math.min(25, (negativeNormalized + 1) * 25));
+    }
+    // Qualquer saldo positivo já entra na faixa verde (26..100)
+    const positiveNormalized = Math.min(1, margin); // 100% de margem = score 100
+    return 26 + (positiveNormalized * 74);
   }, [displayTotals.pagar, displayTotals.receber]);
 
   const categoryData = useMemo(() => {
@@ -1188,9 +1349,70 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     { key: 'cartoes', label: 'Cartões', badge: cards.length > 0 ? cards.length : undefined, badgeColor: 'violet' },
     { key: 'planejamento', label: 'Planejamento' },
   ];
+  const footerTabs = tabs.filter((tab) => tab.key !== 'dividas' && tab.key !== 'cartoes' && tab.key !== 'planejamento');
+  const viewToTab: Record<Exclude<SidebarView, 'home'>, ActiveTab> = {
+    receitas: 'receitas',
+    cartoes: 'cartoes',
+    dividas: 'dividas',
+    planejamento: 'planejamento',
+  };
+  const isHomeView = activeView === 'home';
+  const contentTab: ActiveTab = isHomeView ? activeTab : viewToTab[activeView];
+
+  const sidebarNavigation = [
+    { icon: Home, label: 'Home', action: 'home' as const },
+    { icon: Wallet, label: 'Receitas', action: 'tab' as const, tab: 'receitas' as const },
+    { icon: CreditCard, label: 'Cartoes', action: 'tab' as const, tab: 'cartoes' as const },
+    { icon: Link2, label: 'Dividas', action: 'tab' as const, tab: 'dividas' as const },
+    { icon: Target, label: 'Metas/Objetivos', action: 'tab' as const, tab: 'planejamento' as const },
+  ];
+
+  const sidebarItems = [
+    { icon: Home, label: 'Transações', tab: 'transacoes' },
+    { icon: Wallet, label: 'Fixas', tab: 'fixas' },
+    { icon: Wallet, label: 'Receitas', tab: 'receitas' },
+    { icon: Calendar, label: 'Planejamento', tab: 'planejamento' },
+    { icon: Link2, label: 'Dívidas', tab: 'dividas' },
+    { icon: Search, label: 'Atrasadas', tab: 'atrasadas' },
+    { icon: LayoutList, label: 'Cartões', tab: 'cartoes' },
+  ];
 
   return (
-    <div ref={sessionScrollRef} className="h-full overflow-y-auto bg-background text-foreground">
+    <div className="flex h-full bg-background text-foreground">
+      <aside data-sidebar-legacy-count={sidebarItems.length} className="w-[72px] shrink-0 border-r border-border bg-card hidden md:flex md:flex-col md:items-center md:py-6 md:gap-2">
+        <div className="mb-8">
+          <span className="text-2xl font-black italic text-card-foreground tracking-tighter">G</span>
+        </div>
+        <nav className="flex flex-col gap-1 flex-1">
+          {sidebarNavigation.map((item) => (
+            <button
+              key={item.label}
+              onClick={() => {
+                if (item.action === 'home') {
+                  setActiveView('home');
+                  switchTab('transacoes');
+                  sessionScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  return;
+                }
+                setActiveView(item.tab as Exclude<SidebarView, 'home'>);
+                switchTab(item.tab);
+                sessionScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              title={item.label}
+              className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                ((item.action === 'home' && isHomeView)
+                  || (item.action === 'tab' && activeView !== 'home' && contentTab === item.tab))
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+              }`}
+            >
+              <item.icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <div ref={sessionScrollRef} className="flex-1 h-full overflow-y-auto bg-background text-foreground">
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card sticky top-0 z-10">
@@ -1246,11 +1468,18 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         ) : (
           <>
+            {isHomeView && (
+              <>
             {/* TOP SECTION: PORTFOLIO PERFORMANCE + CHAT PANEL */}
             <div className="flex gap-6 mb-6">
               {/* PORTFOLIO PERFORMANCE - Flex 1 */}
               <div className="flex-1 min-w-0">
-                <PortfolioPerformance points={performancePoints} />
+                <PortfolioPerformance
+                  points={performancePoints}
+                  value={fmtCurrency(actualBalance)}
+                  change={performanceChange.label}
+                  changeTone={performanceChange.tone}
+                />
               </div>
 
               {/* CHAT PANEL - Fixed width */}
@@ -1281,8 +1510,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 items={[
                   {
                     label: 'Receitas',
-                    description: `Previsto: ${fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}`,
-                    emphasizeDescription: true,
+                    descriptionLabel: 'Previsto',
+                    descriptionValue: fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0),
                     value: fmtCurrency(displayTotals.receber),
                     change: `${incomeDelta >= 0 ? '+ ' : ''}${fmtCurrency(incomeDelta)}`,
                     positive: incomeDelta >= 0,
@@ -1302,7 +1531,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                     value: fmtCurrency(actualBalance),
                     change: `${balanceDelta >= 0 ? '+ ' : ''}${fmtCurrency(balanceDelta)}`,
                     positive: balanceDelta >= 0,
-                    color: actualBalance >= 0 ? 'hsl(var(--chart-blue))' : 'hsl(var(--destructive))',
+                    color: 'hsl(270 65% 60%)',
                     valueColor: actualBalance >= 0 ? 'hsl(var(--accent))' : 'hsl(var(--destructive))',
                   },
                 ]}
@@ -1324,41 +1553,51 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                 }))}
               />
             </div>
+              </>
+            )}
 
             {/* TABS SECTION */}
             <div className="bg-card rounded-2xl shadow-sm border overflow-hidden">
               {/* Tab header */}
-              <div className="flex gap-0 border-b overflow-x-auto">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => switchTab(tab.key)}
-                    className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
-                      tab.key === activeTab
-                        ? 'border-foreground text-card-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-card-foreground'
-                    }`}
-                  >
-                    {tab.label}
-                    {tab.badge !== undefined && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                        tab.badgeColor === 'red' ? 'bg-destructive/15 text-destructive' :
-                        tab.badgeColor === 'amber' ? 'bg-amber-500/15 text-amber-600' :
-                        tab.badgeColor === 'green' ? 'bg-accent/15 text-accent' :
-                        tab.badgeColor === 'violet' ? 'bg-violet-500/15 text-violet-600' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {tab.badge}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              {isHomeView ? (
+                <div className="flex gap-0 border-b overflow-x-auto">
+                  {footerTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => switchTab(tab.key)}
+                      className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
+                        tab.key === activeTab
+                          ? 'border-foreground text-card-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-card-foreground'
+                      }`}
+                    >
+                      {tab.label}
+                      {tab.badge !== undefined && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                          tab.badgeColor === 'red' ? 'bg-destructive/15 text-destructive' :
+                          tab.badgeColor === 'amber' ? 'bg-amber-500/15 text-amber-600' :
+                          tab.badgeColor === 'green' ? 'bg-accent/15 text-accent' :
+                          tab.badgeColor === 'violet' ? 'bg-violet-500/15 text-violet-600' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {tab.badge}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-3 border-b border-border">
+                  <div className="text-xs font-semibold text-card-foreground uppercase tracking-wide">
+                    {contentTab === 'receitas' ? 'Receitas' : contentTab === 'cartoes' ? 'Cartoes' : contentTab === 'dividas' ? 'Dividas' : 'Metas/Objetivos'}
+                  </div>
+                </div>
+              )}
 
               {/* Action buttons row */}
               {!tabLoading && (
                 <div className="px-4 py-3 border-b border-border">
-                  {activeTab === 'transacoes' && (
+                  {contentTab === 'transacoes' && (
                     <div className="flex gap-2">
                       <button
                         onClick={() => openAdd('despesa')}
@@ -1367,9 +1606,16 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         <Plus className="w-3.5 h-3.5" />
                         Nova Despesa
                       </button>
+                      <button
+                        onClick={() => setIsTxFiltersOpen(true)}
+                        className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        Filtros
+                      </button>
                     </div>
                   )}
-                  {activeTab === 'fixas' && (
+                  {contentTab === 'fixas' && (
                     <button
                       onClick={() => openAdd('despesa')}
                       className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/25 text-amber-600 hover:bg-amber-500/15 transition-colors"
@@ -1378,7 +1624,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       Nova Despesa Fixa
                     </button>
                   )}
-                  {activeTab === 'receitas' && (
+                  {contentTab === 'receitas' && (
                     <button
                       onClick={() => openAdd('receita')}
                       className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-accent/10 border border-accent/25 text-accent hover:bg-accent/15 transition-colors"
@@ -1387,7 +1633,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       Nova Receita
                     </button>
                   )}
-                  {activeTab === 'dividas' && (
+                  {contentTab === 'dividas' && (
                     <button
                       onClick={() => openAdd('divida')}
                       className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/25 text-amber-600 hover:bg-amber-500/15 transition-colors"
@@ -1396,7 +1642,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       Nova Dívida
                     </button>
                   )}
-                  {activeTab === 'atrasadas' && (
+                  {contentTab === 'atrasadas' && (
                     <button
                       onClick={() => openAdd('atrasada')}
                       className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-destructive/10 border border-destructive/25 text-destructive hover:bg-destructive/15 transition-colors"
@@ -1405,7 +1651,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       Nova Conta Atrasada
                     </button>
                   )}
-                  {activeTab === 'cartoes' && (
+                  {contentTab === 'cartoes' && (
                     <button
                       onClick={() => openAdd('cartao')}
                       className="h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-violet-500/10 border border-violet-500/25 text-violet-600 hover:bg-violet-500/15 transition-colors"
@@ -1414,7 +1660,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       Novo Cartão
                     </button>
                   )}
-                  {activeTab === 'planejamento' && (
+                  {contentTab === 'planejamento' && (
                     <span className="text-xs text-muted-foreground">Visão geral do planejamento financeiro</span>
                   )}
                 </div>
@@ -1426,7 +1672,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   </div>
-                ) : activeTab === 'transacoes' ? (
+                ) : contentTab === 'transacoes' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[560px] text-xs">
                       <thead>
@@ -1439,7 +1685,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {transactionRows.map((tx) => (
+                        {pagedTransactionRows.map((tx) => (
                           <tr key={`${tx.source}-${tx.index}`} className="border-t border-border hover:bg-muted/30 transition-colors group">
                             <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{fmtDate(tx.date)}</td>
                             <td className="px-4 py-2.5 text-muted-foreground">{tx.category}</td>
@@ -1459,7 +1705,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                             </td>
                           </tr>
                         ))}
-                        {transactionRows.length === 0 && (
+                        {filteredTransactionRows.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-4 py-10 text-center">
                               <div className="text-muted-foreground text-xs">Nenhuma despesa registrada neste mês</div>
@@ -1468,8 +1714,30 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         )}
                       </tbody>
                     </table>
+                    {filteredTransactionRows.length > TRANSACTIONS_PER_PAGE && (
+                      <div className="px-4 py-3 border-t border-border flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Pagina {Math.min(transactionsPage, transactionTotalPages)} de {transactionTotalPages}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {Array.from({ length: transactionTotalPages }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => setTransactionsPage(page)}
+                              className={`h-6 min-w-6 px-1.5 text-[11px] rounded-md transition-colors ${
+                                transactionsPage === page
+                                  ? 'text-foreground bg-muted/60'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : activeTab === 'fixas' ? (
+                ) : contentTab === 'fixas' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[480px] text-xs">
                       <thead>
@@ -1537,7 +1805,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       </tbody>
                     </table>
                   </div>
-                ) : activeTab === 'receitas' ? (
+                ) : contentTab === 'receitas' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[600px] text-xs">
                       <thead>
@@ -1627,7 +1895,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       </tbody>
                     </table>
                   </div>
-                ) : activeTab === 'dividas' ? (
+                ) : contentTab === 'dividas' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[560px] text-xs">
                       <thead>
@@ -1674,7 +1942,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       </tbody>
                     </table>
                   </div>
-                ) : activeTab === 'atrasadas' ? (
+                ) : contentTab === 'atrasadas' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[440px] text-xs">
                       <thead>
@@ -1744,7 +2012,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                       </tbody>
                     </table>
                   </div>
-                ) : activeTab === 'cartoes' ? (
+                ) : contentTab === 'cartoes' ? (
                   <div className="p-4 space-y-3">
                     {cards.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-border p-8 text-center">
@@ -1791,79 +2059,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                     )}
                   </div>
                 ) : (
-                  /* PLANEJAMENTO */
-                  <div className="p-4 space-y-4">
-                    <div className="rounded-xl border border-border bg-muted/30 p-4">
-                      <h3 className="text-sm font-semibold text-card-foreground mb-1">Previsto x Efetivado</h3>
-                      <p className="text-[11px] text-muted-foreground mb-4">Receitas, despesas e saldo do mês selecionado</p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">Receita Prevista</label>
-                          <div className="h-10 rounded-lg bg-card border border-border px-3 text-sm text-card-foreground flex items-center tabular-nums">
-                            {fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium block mb-1.5">Despesa Prevista</label>
-                          <input
-                            value={plannedExpensesInput}
-                            onChange={(e) => setPlannedExpensesInput(formatCurrencyInput(e.target.value))}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="R$ 0,00"
-                            className="h-10 w-full rounded-lg bg-card border border-border px-3 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors tabular-nums"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <div className="rounded-lg bg-accent/10 border border-accent/20 p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-accent/70 mb-1">Receitas</div>
-                          <div className="text-xs text-muted-foreground">Previsto: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.plannedIncome ?? 0)}</span></div>
-                          <div className="text-xs text-muted-foreground">Efetivado: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.actualIncome ?? 0)}</span></div>
-                          <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.incomeDelta ?? 0) >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                            Diferença: {fmtCurrency(dashboard?.comparison?.incomeDelta ?? 0)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-destructive/70 mb-1">Despesas</div>
-                          <div className="text-xs text-muted-foreground">Previsto: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.plannedExpenses ?? 0)}</span></div>
-                          <div className="text-xs text-muted-foreground">Efetivado: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.actualExpenses ?? 0)}</span></div>
-                          <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.expensesDelta ?? 0) <= 0 ? 'text-accent' : 'text-destructive'}`}>
-                            Diferença: {fmtCurrency(dashboard?.comparison?.expensesDelta ?? 0)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-muted border border-border p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Saldo</div>
-                          <div className="text-xs text-muted-foreground">Previsto: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.plannedBalance ?? 0)}</span></div>
-                          <div className="text-xs text-muted-foreground">Efetivado: <span className="font-semibold text-card-foreground">{fmtCurrency(dashboard?.comparison?.actualBalance ?? 0)}</span></div>
-                          <div className={`text-xs font-semibold mt-1 ${(dashboard?.comparison?.balanceDelta ?? 0) >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                            Diferença: {fmtCurrency(dashboard?.comparison?.balanceDelta ?? 0)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-border bg-muted/30 p-4">
-                      <h3 className="text-sm font-semibold text-card-foreground mb-4">Próximos Vencimentos</h3>
-                      <div className="space-y-2">
-                        {[...debts, ...overdue].length === 0 ? (
-                          <div className="text-muted-foreground text-xs text-center py-6">Nenhum vencimento agendado</div>
-                        ) : (
-                          debts.slice(0, 3).map((d) => (
-                            <div key={`${d.source}-${d.index}`} className="flex items-center justify-between py-2 px-3 rounded-lg bg-card border border-border">
-                              <div>
-                                <div className="text-xs font-medium text-card-foreground">{d.creditor}</div>
-                                <div className="text-[10px] text-muted-foreground">{fmtDate(d.dueDate)}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs font-semibold text-amber-600">{fmtCurrency(d.monthlyInstallment)}</div>
-                                <div className={`text-[10px] ${d.daysOverdue > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                  {d.daysOverdue > 0 ? `${d.daysOverdue}d atraso` : 'Em dia'}
-                                </div>
-                              </div>
-                            </div>
+                  /* METAS E OBJETIVOS */
+                  <GoalsSession />
                           ))
                         )}
                       </div>
@@ -1877,6 +2074,101 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       </div>
 
       {/* Modal de efetivação */}
+      {isTxFiltersOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-[#0d1117] border border-cyan-500/25 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-cyan-500/20 bg-cyan-500/8 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+                  <Search className="w-3.5 h-3.5 text-cyan-300" />
+                </div>
+                <h3 className="text-sm font-semibold text-white/90">Filtros de transacoes</h3>
+              </div>
+              <button
+                onClick={() => setIsTxFiltersOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white/90 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Categoria</label>
+                <select value={txFilterCategory} onChange={(e) => setTxFilterCategory(e.target.value)} className={inputClass}>
+                  <option value="all" style={{ background: '#0d1117' }}>Todas</option>
+                  {txFilterCategoryOptions.map((category) => (
+                    <option key={category} value={category} style={{ background: '#0d1117' }}>{category}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Descricao</label>
+                <input
+                  type="text"
+                  value={txFilterDescription}
+                  onChange={(e) => setTxFilterDescription(e.target.value)}
+                  placeholder="Ex.: Aluguel, Mercado..."
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Data inicial</label>
+                <input type="date" value={txFilterDateFrom} onChange={(e) => setTxFilterDateFrom(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Data final</label>
+                <input type="date" value={txFilterDateTo} onChange={(e) => setTxFilterDateTo(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor minimo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={txFilterMinValue}
+                  onChange={(e) => setTxFilterMinValue(e.target.value)}
+                  placeholder="0.00"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider font-medium block mb-1.5">Valor maximo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={txFilterMaxValue}
+                  onChange={(e) => setTxFilterMaxValue(e.target.value)}
+                  placeholder="0.00"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-white/10 flex gap-2">
+              <button
+                onClick={() => {
+                  setTxFilterCategory('all');
+                  setTxFilterDateFrom('');
+                  setTxFilterDateTo('');
+                  setTxFilterDescription('');
+                  setTxFilterMinValue('');
+                  setTxFilterMaxValue('');
+                }}
+                className="h-10 px-4 rounded-xl text-sm font-semibold bg-white/5 border border-white/15 text-white/70 hover:bg-white/10 transition-colors"
+              >
+                Limpar
+              </button>
+              <button
+                onClick={() => setIsTxFiltersOpen(false)}
+                className="flex-1 h-10 rounded-xl text-sm font-semibold bg-cyan-500 hover:bg-cyan-400 text-white transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingRecurring && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-[#0d1117] border border-amber-500/25 rounded-2xl shadow-2xl overflow-hidden">
@@ -2398,6 +2690,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
