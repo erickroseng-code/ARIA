@@ -5,8 +5,6 @@ import { Goal } from '@/lib/types/goals.types';
 import { Plus, Pencil, Trash2, TrendingUp, Target } from 'lucide-react';
 import { PieChart, Pie, Cell } from 'recharts';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://aria-api-avq0.onrender.com';
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 }
@@ -49,7 +47,7 @@ export function GoalsSession() {
   async function loadGoals() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/graham/goals`);
+      const res = await fetch(`/api/graham/goals`);
       if (!res.ok) throw new Error('Erro ao carregar metas');
       const data = await res.json();
       setGoals(data.goals || []);
@@ -74,7 +72,7 @@ export function GoalsSession() {
       }
 
       if (editingGoal) {
-        const res = await fetch(`${API_URL}/api/graham/goals/${editingGoal.id}`, {
+        const res = await fetch(`/api/graham/goals/${editingGoal.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -84,7 +82,7 @@ export function GoalsSession() {
         });
         if (!res.ok) throw new Error('Erro ao atualizar meta');
       } else {
-        const res = await fetch(`${API_URL}/api/graham/goals`, {
+        const res = await fetch(`/api/graham/goals`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -118,7 +116,7 @@ export function GoalsSession() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/graham/goals/${progressData.goalId}/progress`, {
+      const res = await fetch(`/api/graham/goals/${progressData.goalId}/progress`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentValue }),
@@ -138,7 +136,7 @@ export function GoalsSession() {
     if (!confirm('Tem certeza que deseja deletar esta meta?')) return;
 
     try {
-      const res = await fetch(`${API_URL}/api/graham/goals/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/graham/goals/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao deletar meta');
       await loadGoals();
     } catch (error) {

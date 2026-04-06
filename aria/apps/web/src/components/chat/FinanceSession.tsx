@@ -37,8 +37,6 @@ import { HealthScoreGauge } from './graham/HealthScoreGauge';
 import { PortfolioPerformance } from './graham/PortfolioPerformance';
 import { GoalsSession } from './graham/GoalsSession';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://aria-api-avq0.onrender.com';
-
 type TxType = 'receita' | 'despesa';
 type SourceType = 'local' | 'sheets';
 type AddMode = 'receita' | 'despesa' | 'divida' | 'atrasada' | 'cartao';
@@ -408,13 +406,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       const month = monthParam(selectedMonth);
       const aprilMonth = monthParam(new Date(selectedMonth.getFullYear(), 3, 1));
       const [dRes, aprilRes, debtRes, overdueRes, recurringRes, sheetRes, cardsRes] = await Promise.all([
-        fetch(`${API_URL}/api/finance/dashboard?month=${month}`),
-        fetch(`${API_URL}/api/finance/dashboard?month=${aprilMonth}`),
-        fetch(`${API_URL}/api/finance/debts`),
-        fetch(`${API_URL}/api/finance/overdue`),
-        fetch(`${API_URL}/api/finance/recurring-expenses`),
-        fetch(`${API_URL}/api/finance/spreadsheet`),
-        fetch(`${API_URL}/api/finance/credit-cards`),
+        fetch(`/api/finance/dashboard?month=${month}`),
+        fetch(`/api/finance/dashboard?month=${aprilMonth}`),
+        fetch(`/api/finance/debts`),
+        fetch(`/api/finance/overdue`),
+        fetch(`/api/finance/recurring-expenses`),
+        fetch(`/api/finance/spreadsheet`),
+        fetch(`/api/finance/credit-cards`),
       ]);
 
       let dData = await dRes.json();
@@ -454,7 +452,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           await Promise.all(
             missingIncome.map((tx: DashboardData['transactions'][number]) => {
               const targetDate = normalizeToCurrentMonthDate(tx.date);
-              return fetch(`${API_URL}/api/finance/transaction`, {
+              return fetch(`/api/finance/transaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -469,7 +467,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             })
           );
 
-          const refreshedDashboardRes = await fetch(`${API_URL}/api/finance/dashboard?month=${month}`);
+          const refreshedDashboardRes = await fetch(`/api/finance/dashboard?month=${month}`);
           dData = await refreshedDashboardRes.json();
         }
       }
@@ -697,14 +695,14 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       };
 
       if (editingTx) {
-        await fetch(`${API_URL}/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
+        await fetch(`/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
       } else if (mode === 'despesa' && txIsFixed) {
         const dayOfMonth = Math.max(1, Math.min(31, Number(txFixedDueDay || '1')));
-        await fetch(`${API_URL}/api/finance/recurring-expenses`, {
+        await fetch(`/api/finance/recurring-expenses`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -721,7 +719,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             const overdueAmt = parseCurrencyInput(entry.amount || '');
             const dueDate = entry.dueDate;
             if (!Number.isFinite(overdueAmt) || overdueAmt <= 0 || !dueDate) continue;
-            await fetch(`${API_URL}/api/finance/overdue`, {
+            await fetch(`/api/finance/overdue`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -733,7 +731,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           }
         }
       } else {
-        await fetch(`${API_URL}/api/finance/transaction`, {
+        await fetch(`/api/finance/transaction`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -755,7 +753,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/finance/debts`, {
+      await fetch(`/api/finance/debts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -780,7 +778,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/finance/overdue`, {
+      await fetch(`/api/finance/overdue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -805,7 +803,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/finance/credit-cards`, {
+      await fetch(`/api/finance/credit-cards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -825,22 +823,22 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const deleteCard = async (id: number) => {
-    await fetch(`${API_URL}/api/finance/credit-cards/${id}`, { method: 'DELETE' });
+    await fetch(`/api/finance/credit-cards/${id}`, { method: 'DELETE' });
     await loadAll();
   };
 
   const deleteTx = async (tx: DashboardData['transactions'][number]) => {
-    await fetch(`${API_URL}/api/finance/transaction/${tx.index}?source=${tx.source}`, { method: 'DELETE' });
+    await fetch(`/api/finance/transaction/${tx.index}?source=${tx.source}`, { method: 'DELETE' });
     await loadAll();
   };
 
   const deleteDebt = async (debt: DebtRecord) => {
-    await fetch(`${API_URL}/api/finance/debts/${debt.index}?source=${debt.source}`, { method: 'DELETE' });
+    await fetch(`/api/finance/debts/${debt.index}?source=${debt.source}`, { method: 'DELETE' });
     await loadAll();
   };
 
   const deleteOverdue = async (item: OverdueRecord) => {
-    await fetch(`${API_URL}/api/finance/overdue/${item.index}?source=${item.source}`, { method: 'DELETE' });
+    await fetch(`/api/finance/overdue/${item.index}?source=${item.source}`, { method: 'DELETE' });
     await loadAll();
   };
 
@@ -848,7 +846,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     const maybe = window.prompt('Valor da parcela (deixe vazio para usar parcela mensal):', debt.monthlyInstallment ? String(debt.monthlyInstallment) : '');
     const parsed = Number(maybe);
     const body = maybe && Number.isFinite(parsed) && parsed > 0 ? { amount: parsed } : {};
-    await fetch(`${API_URL}/api/finance/debts/${debt.index}/pay-installment?source=${debt.source}`, {
+    await fetch(`/api/finance/debts/${debt.index}/pay-installment?source=${debt.source}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -857,7 +855,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const payDebtFull = async (debt: DebtRecord) => {
-    await fetch(`${API_URL}/api/finance/debts/${debt.index}/pay-full?source=${debt.source}`, { method: 'POST' });
+    await fetch(`/api/finance/debts/${debt.index}/pay-full?source=${debt.source}`, { method: 'POST' });
     await loadAll();
   };
 
@@ -872,7 +870,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     if (!Number.isFinite(amount) || amount <= 0) return;
     setOverduePaySaving(true);
     try {
-      await fetch(`${API_URL}/api/finance/overdue/${overduePayModal.index}/pay?source=${overduePayModal.source}`, {
+      await fetch(`/api/finance/overdue/${overduePayModal.index}/pay?source=${overduePayModal.source}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
@@ -886,12 +884,12 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const undoOverduePay = async (item: OverdueRecord) => {
-    await fetch(`${API_URL}/api/finance/overdue/${item.index}/undo-pay`, { method: 'POST' });
+    await fetch(`/api/finance/overdue/${item.index}/undo-pay`, { method: 'POST' });
     await loadAll();
   };
 
   const toggleRecurring = async (item: RecurringExpenseRecord) => {
-    await fetch(`${API_URL}/api/finance/recurring-expenses/${item.id}`, {
+    await fetch(`/api/finance/recurring-expenses/${item.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !item.active }),
@@ -900,7 +898,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const deleteRecurring = async (id: number) => {
-    await fetch(`${API_URL}/api/finance/recurring-expenses/${id}`, { method: 'DELETE' });
+    await fetch(`/api/finance/recurring-expenses/${id}`, { method: 'DELETE' });
     await loadAll();
   };
 
@@ -944,7 +942,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
     setRecurringEditSaving(true);
     try {
-      const res = await fetch(`${API_URL}/api/finance/recurring-expenses/${editingRecurring.id}`, {
+      const res = await fetch(`/api/finance/recurring-expenses/${editingRecurring.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description, category, amount, dayOfMonth }),
@@ -963,7 +961,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         const normalizedDate = format(new Date(year, month, normalizedDay), 'yyyy-MM-dd');
 
         for (const tx of previousMatches) {
-          const txRes = await fetch(`${API_URL}/api/finance/transaction/${tx.index}?source=${tx.source}`, {
+          const txRes = await fetch(`/api/finance/transaction/${tx.index}?source=${tx.source}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1025,7 +1023,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     try {
       if (matches.length > 0) {
         for (const target of matches) {
-          const res = await fetch(`${API_URL}/api/finance/transaction/${target.index}?source=${target.source}`, { method: 'DELETE' });
+          const res = await fetch(`/api/finance/transaction/${target.index}?source=${target.source}`, { method: 'DELETE' });
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err?.error ?? 'Falha ao remover pagamento da despesa fixa.');
@@ -1041,7 +1039,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       const day = Math.max(1, Math.min(item.dayOfMonth || 1, maxDay));
       const date = format(new Date(year, month, day), 'yyyy-MM-dd');
 
-      const res = await fetch(`${API_URL}/api/finance/transaction`, {
+      const res = await fetch(`/api/finance/transaction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1066,7 +1064,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
   const downloadPdf = async () => {
     const month = monthParam(selectedMonth);
-    const res = await fetch(`${API_URL}/api/finance/report/pdf?month=${month}`);
+    const res = await fetch(`/api/finance/report/pdf?month=${month}`);
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -1084,7 +1082,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setSavingPlan(true);
     setPlanError(null);
     try {
-      const res = await fetch(`${API_URL}/api/finance/monthly-plan`, {
+      const res = await fetch(`/api/finance/monthly-plan`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1130,7 +1128,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
 
     if (!isEffective) {
       try {
-        const res = await fetch(`${API_URL}/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+        const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isEffective: false }),
@@ -1155,7 +1153,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     if (tx.type !== 'despesa') return;
     if (tx.isEffective === isEffective) return;
     try {
-      const res = await fetch(`${API_URL}/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+      const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isEffective }),
@@ -1193,7 +1191,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         actualAmount = parsed;
       }
 
-      const res = await fetch(`${API_URL}/api/finance/transaction/${effectiveTx.index}/effective?source=${effectiveTx.source}`, {
+      const res = await fetch(`/api/finance/transaction/${effectiveTx.index}/effective?source=${effectiveTx.source}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isEffective: true, actualAmount }),
