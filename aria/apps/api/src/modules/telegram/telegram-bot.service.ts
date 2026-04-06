@@ -15,8 +15,11 @@ import {
   GeneratedCopy,
 } from '../traffic/agents/atlas-creative-service';
 import { processFinanceMessage } from '../finance/agents/orchestrator';
+import { getDashboardData } from '../finance/agents/dashboard';
+import { addTransactionDirect, getCreditCards, type CreditCardRecord } from '../finance/agents/entries';
 import { handleWorkspaceMessage } from './workspace-handler';
 import { routeByNlp, transcribeVoice } from './nlp-router';
+import { db } from '../../config/db';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -717,6 +720,8 @@ async function handleCreativeApproval(
 
 async function handleGrahamChat(chatId: number, text: string): Promise<void> {
   try {
+    if (await handleGrahamQuickActions(chatId, text)) return;
+
     const response = await processFinanceMessage(text);
     const reply = response.reply.slice(0, 4000);
     await send(chatId, reply);
@@ -731,6 +736,188 @@ async function handleGrahamChat(chatId: number, text: string): Promise<void> {
   } catch (err: any) {
     await send(chatId, `❌ Erro no Graham: ${err.message}`);
   }
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function fmtCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function parseAmountFromText(text: string): number | null {
+  const brl = text.match(/r\$\s*([0-9][0-9\.\,]*)/i)?.[1];
+  const generic = text.match(/([0-9]+(?:[\.,][0-9]{1,2})?)/)?.[1];
+  const raw = brl ?? generic;
+  if (!raw) return null;
+
+  const hasComma = raw.includes(',');
+  const normalized = hasComma
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw.replace(',', '.');
+  const value = Number(normalized);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function inferTransactionCategory(type: 'receita' | 'despesa', text: string): string {
+  const t = normalizeText(text);
+  if (type === 'receita') {
+    if (/(salario|salario|pagamento|holerite)/.test(t)) return 'Salário';
+    if (/(freela|freelance|projeto|cliente)/.test(t)) return 'Freelance';
+    if (/(investimento|dividendo|juros|rendimento)/.test(t)) return 'Investimentos';
+    return 'Outros Ganhos';
+  }
+
+  if (/(mercado|supermercado|ifood|restaurante|lanche|comida)/.test(t)) return 'Alimentação';
+  if (/(uber|99|taxi|combustivel|gasolina|onibus|metro)/.test(t)) return 'Transporte';
+  if (/(aluguel|condominio|energia|luz|agua|internet|moradia)/.test(t)) return 'Moradia';
+  if (/(farmacia|medico|consulta|saude)/.test(t)) return 'Saúde';
+  if (/(netflix|spotify|assinatura)/.test(t)) return 'Assinaturas';
+  return 'Outros';
+}
+
+function inferTransactionDescription(type: 'receita' | 'despesa', text: string): string {
+  const cleaned = text
+    .replace(/r\$\s*[0-9][0-9\.\,]*/gi, ' ')
+    .replace(/\b(gastei|gasto|paguei|comprei|recebi|ganhei|entrada|entrou|de|no|na|com|cartao|cartão)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned) return cleaned.slice(0, 80);
+  return type === 'receita' ? 'Receita registrada via Telegram' : 'Despesa registrada via Telegram';
+}
+
+function findCardInText(text: string, cards: CreditCardRecord[]): CreditCardRecord | null {
+  const t = normalizeText(text);
+  for (const card of cards) {
+    const name = normalizeText(card.name);
+    const bank = normalizeText(card.bank);
+    if ((name && t.includes(name)) || (bank && t.includes(bank))) {
+      return card;
+    }
+  }
+  return null;
+}
+
+function extractMonthKey(date = new Date()): string {
+  return date.toISOString().slice(0, 7);
+}
+
+function isBalanceQuery(text: string): boolean {
+  const t = normalizeText(text);
+  return /(saldo|balanco|resumo|como estao meus gastos|quanto eu tenho)/.test(t);
+}
+
+function isCardLimitQuery(text: string): boolean {
+  const t = normalizeText(text);
+  return /(limite|cartao|quanto posso gastar|disponivel no cartao)/.test(t);
+}
+
+async function tryHandleQuickTransaction(chatId: number, text: string): Promise<boolean> {
+  const t = normalizeText(text);
+  const isExpense = /(gastei|paguei|comprei|despesa)/.test(t);
+  const isIncome = /(recebi|ganhei|entrou|receita)/.test(t);
+  if (!isExpense && !isIncome) return false;
+
+  const amount = parseAmountFromText(text);
+  if (!amount) return false;
+
+  const type: 'receita' | 'despesa' = isExpense ? 'despesa' : 'receita';
+  const category = inferTransactionCategory(type, text);
+  const description = inferTransactionDescription(type, text);
+  const cards = await getCreditCards();
+  const selectedCard = findCardInText(text, cards);
+  const isCredit = type === 'despesa' && /(cartao|cartão|credito|crédito)/.test(t);
+
+  await addTransactionDirect({
+    type,
+    category,
+    description,
+    amount,
+    isEffective: true,
+    paymentMethod: isCredit ? 'credito' : 'outros',
+    creditCardId: isCredit ? (selectedCard?.id ?? null) : null,
+  });
+
+  const typeLabel = type === 'receita' ? 'Receita' : 'Despesa';
+  const cardLabel = isCredit
+    ? `\nCartão: ${selectedCard ? `${selectedCard.name} (${selectedCard.bank})` : 'não identificado'}`
+    : '';
+  await send(
+    chatId,
+    `✅ <b>${typeLabel} registrada</b>\n` +
+    `Valor: <b>${fmtCurrency(amount)}</b>\n` +
+    `Categoria: ${category}\n` +
+    `Descrição: ${description}${cardLabel}`,
+  );
+  return true;
+}
+
+async function handleBalanceQuery(chatId: number): Promise<void> {
+  const data = await getDashboardData();
+  await send(
+    chatId,
+    `📊 <b>Resumo do mês</b>\n\n` +
+    `💰 Receitas: <b>${fmtCurrency(data.totalIncome)}</b>\n` +
+    `💸 Despesas: <b>${fmtCurrency(data.totalExpenses)}</b>\n` +
+    `📌 Saldo: <b>${fmtCurrency(data.netBalance)}</b>`,
+  );
+}
+
+async function handleCardLimitQuery(chatId: number, text: string): Promise<void> {
+  const cards = await getCreditCards();
+  if (cards.length === 0) {
+    await send(chatId, '💳 Você ainda não tem cartões cadastrados.');
+    return;
+  }
+
+  const selected = findCardInText(text, cards);
+  const list = selected ? [selected] : cards;
+  const monthKey = extractMonthKey();
+
+  const lines = list.map((card) => {
+    const row = db.prepare(`
+      SELECT COALESCE(SUM(COALESCE(effectiveAmount, amount)), 0) AS spent
+      FROM finance_transactions
+      WHERE type = 'despesa'
+        AND paymentMethod = 'credito'
+        AND creditCardId = ?
+        AND substr(date, 1, 7) = ?
+    `).get(card.id, monthKey) as { spent?: number } | undefined;
+
+    const spent = Number(row?.spent ?? 0);
+    const limit = Number(card.cardLimit ?? 0);
+    const available = limit - spent;
+    const availableLabel = limit > 0 ? fmtCurrency(Math.max(available, 0)) : 'sem limite definido';
+    return (
+      `💳 <b>${card.name}</b> (${card.bank})\n` +
+      `• Limite: <b>${limit > 0 ? fmtCurrency(limit) : 'não definido'}</b>\n` +
+      `• Gasto no mês: <b>${fmtCurrency(spent)}</b>\n` +
+      `• Disponível: <b>${availableLabel}</b>`
+    );
+  });
+
+  await send(chatId, `📌 <b>Limite de cartão (${monthKey})</b>\n\n${lines.join('\n\n')}`);
+}
+
+async function handleGrahamQuickActions(chatId: number, text: string): Promise<boolean> {
+  if (await tryHandleQuickTransaction(chatId, text)) return true;
+
+  if (isCardLimitQuery(text)) {
+    await handleCardLimitQuery(chatId, text);
+    return true;
+  }
+
+  if (isBalanceQuery(text)) {
+    await handleBalanceQuery(chatId);
+    return true;
+  }
+
+  return false;
 }
 
 // ── Workspace chat ────────────────────────────────────────────────────────────
