@@ -8,7 +8,8 @@
     "start": "node dist/apps/api/src/server.js",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "migrate": "tsx migrate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
