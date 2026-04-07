@@ -517,6 +517,36 @@ export async function deleteDebt(
 }
 
 export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
+  // Tentar Supabase primeiro
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('overdue_accounts')
+      .select('*')
+      .order('status', { ascending: true })
+      .order('id', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      console.log('[Finance] Loaded', data.length, 'overdue accounts from Supabase');
+      return data.map((r: any, idx: number) => ({
+        index: idx,
+        source: 'supabase' as const,
+        account: String(r.account_name ?? ''),
+        overdueAmount: Number(r.overdue_amount ?? 0),
+        daysOverdue: Number(r.days_overdue ?? 0),
+        dueDate: normalizeDate(String(r.registration_date ?? '')),
+        registeredAt: String(r.registration_date ?? ''),
+        status: String(r.status ?? 'pendente'),
+        paidAmount: r.paid_amount ? Number(r.paid_amount) : null,
+        paidAt: r.paid_at ?? null,
+        paidTransactionId: r.paid_transaction_id ?? null,
+      }));
+    }
+  } catch (err: any) {
+    console.warn('[Finance] Supabase overdue read error:', err.message);
+  }
+
+  // Fallback para Sheets
   const spreadsheetId = await getSpreadsheetId();
   if (spreadsheetId) {
     try {
@@ -749,6 +779,34 @@ export async function undoPayOverdue(
 }
 
 export async function getRecurringExpenses(): Promise<RecurringExpenseRecord[]> {
+  // Tentar Supabase primeiro
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .select('*')
+      .order('active', { ascending: false })
+      .order('day_of_month', { ascending: true })
+      .order('id', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      console.log('[Finance] Loaded', data.length, 'recurring expenses from Supabase');
+      return data.map((r: any) => ({
+        id: crypto.randomUUID(),
+        description: String(r.description ?? ''),
+        category: String(r.category ?? ''),
+        amount: Number(r.amount ?? 0),
+        dayOfMonth: Number(r.day_of_month ?? 0),
+        startMonth: String(r.start_month ?? ''),
+        active: Boolean(r.active ?? true),
+        lastAppliedMonth: String(r.last_applied_month ?? ''),
+      }));
+    }
+  } catch (err: any) {
+    console.warn('[Finance] Supabase recurring read error:', err.message);
+  }
+
+  // Fallback para SQLite
   const rows = db.prepare(`
     SELECT id, description, category, amount, dayOfMonth, startMonth, active, lastAppliedMonth
     FROM finance_recurring_expenses
