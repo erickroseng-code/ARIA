@@ -496,40 +496,55 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/finance/migrate — Migrar dados do SQLite para Supabase
-  fastify.post('/migrate', async (_req: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/migrate', async (
+    req: FastifyRequest<{ Body?: { transactions?: any[] } }>,
+    reply: FastifyReply
+  ) => {
     try {
-      const { db } = await import('../../config/db');
       const { getSupabase } = await import('../../config/supabase');
-
-      console.log('[Finance] Starting migration from SQLite to Supabase...');
-
       const supabase = getSupabase();
       let migratedCount = 0;
 
-      // Migrar transactions
-      try {
-        const transactions = (db.prepare(`
-          SELECT date, type, category, description, amount, tags
-          FROM finance_transactions
-        `).all() as any[]) || [];
+      // Se dados foram enviados no POST, usar esses
+      if (req.body?.transactions && Array.isArray(req.body.transactions)) {
+        console.log(`[Finance] Inserting ${req.body.transactions.length} transactions via POST...`);
+        const { error } = await supabase.from('transactions').insert(req.body.transactions);
+        if (error) throw error;
+        migratedCount = req.body.transactions.length;
+      } else {
+        // Senão, tentar ler do SQLite local (que pode não estar disponível no Render)
+        try {
+          const { db } = await import('../../config/db');
+          console.log('[Finance] Starting migration from SQLite to Supabase...');
 
-        if (transactions.length > 0) {
-          const data = transactions.map(t => ({
-            date: t.date,
-            type: t.type === 'receita' ? 'income' : 'expense',
-            category: t.category,
-            description: t.description || '',
-            amount: parseFloat(t.amount) || 0,
-            tags: t.tags ? t.tags.split(',').map((x: string) => x.trim()).filter(Boolean) : [],
-          }));
+          const transactions = (db.prepare(`
+            SELECT date, type, category, description, amount, tags
+            FROM finance_transactions
+          `).all() as any[]) || [];
 
-          const { error } = await supabase.from('transactions').insert(data);
-          if (error) throw error;
-          migratedCount += data.length;
-          console.log(`[Finance] Migrated ${data.length} transactions`);
+          if (transactions.length > 0) {
+            const data = transactions.map(t => ({
+              date: t.date,
+              type: t.type === 'receita' ? 'income' : 'expense',
+              category: t.category,
+              description: t.description || '',
+              amount: parseFloat(t.amount) || 0,
+              tags: t.tags ? t.tags.split(',').map((x: string) => x.trim()).filter(Boolean) : [],
+            }));
+
+            const { error } = await supabase.from('transactions').insert(data);
+            if (error) throw error;
+            migratedCount += data.length;
+            console.log(`[Finance] Migrated ${data.length} transactions`);
+          }
+        } catch (err: any) {
+          console.warn('[Finance] SQLite migration error:', err.message);
+          return reply.status(400).send({
+            success: false,
+            message: 'No data provided in POST body. Send JSON array of transactions.',
+            migratedCount: 0
+          });
         }
-      } catch (err: any) {
-        console.warn('[Finance] Transaction migration error:', err.message);
       }
 
       return reply.send({
