@@ -1,16 +1,8 @@
-import { db } from '../../config/db';
 import { google } from 'googleapis';
 import { createWorkspaceClient } from '@aria/integrations';
 import { SheetsService } from '@aria/integrations';
 import { SHEET_NAMES, SHEET_HEADERS, DEFAULT_BUDGET_CATEGORIES, headerRange, colLetter } from './sheets-schema';
-
-// Garantir que a tabela de settings existe
-db.exec(`
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )
-`);
+import { getSetting, setSetting } from '../../config/supabase';
 
 const SPREADSHEET_ID_KEY = 'finance_spreadsheet_id';
 const ONBOARDING_STATE_KEY = 'finance_onboarding_state';
@@ -34,30 +26,29 @@ export interface OnboardingState {
   answers: Record<string, string>;
 }
 
-export function getSpreadsheetId(): string | null {
+export async function getSpreadsheetId(): Promise<string | null> {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(SPREADSHEET_ID_KEY) as any;
-    const dbId = row?.value?.trim?.() ? String(row.value).trim() : null;
-    return dbId ?? getSpreadsheetIdFromEnv();
+    const dbId = await getSetting(SPREADSHEET_ID_KEY);
+    return dbId?.trim() ?? getSpreadsheetIdFromEnv();
   } catch {
     return getSpreadsheetIdFromEnv();
   }
 }
 
-export function saveSpreadsheetId(id: string): void {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(SPREADSHEET_ID_KEY, id);
+export async function saveSpreadsheetId(id: string): Promise<void> {
+  await setSetting(SPREADSHEET_ID_KEY, id);
 }
 
-export function getOnboardingState(): OnboardingState {
+export async function getOnboardingState(): Promise<OnboardingState> {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(ONBOARDING_STATE_KEY) as any;
-    if (row?.value) return JSON.parse(row.value) as OnboardingState;
+    const value = await getSetting(ONBOARDING_STATE_KEY);
+    if (value) return JSON.parse(value) as OnboardingState;
   } catch { /* fall through */ }
   return { completed: false, step: 0, answers: {} };
 }
 
-export function saveOnboardingState(state: OnboardingState): void {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(ONBOARDING_STATE_KEY, JSON.stringify(state));
+export async function saveOnboardingState(state: OnboardingState): Promise<void> {
+  await setSetting(ONBOARDING_STATE_KEY, JSON.stringify(state));
 }
 
 /**
@@ -94,7 +85,7 @@ export async function setupSpreadsheet(): Promise<{ spreadsheetId: string; sprea
   const budgetRows = DEFAULT_BUDGET_CATEGORIES.map((cat) => [cat, '', '', '', '']);
   await service.appendRows(spreadsheetId, `${SHEET_NAMES.BUDGET}!A2`, budgetRows);
 
-  saveSpreadsheetId(spreadsheetId);
+  await saveSpreadsheetId(spreadsheetId);
   console.log(`[Finance] ✅ Planilha criada: ${spreadsheetUrl}`);
   return { spreadsheetId, spreadsheetUrl };
 }
@@ -102,8 +93,8 @@ export async function setupSpreadsheet(): Promise<{ spreadsheetId: string; sprea
 /**
  * Retorna a URL da planilha do usuário no Google Drive.
  */
-export function getSpreadsheetUrl(): string | null {
-  const id = getSpreadsheetId();
+export async function getSpreadsheetUrl(): Promise<string | null> {
+  const id = await getSpreadsheetId();
   if (!id) return null;
   return `https://docs.google.com/spreadsheets/d/${id}/edit`;
 }

@@ -216,20 +216,20 @@ function addLocalExpenseTransaction(description: string, amount: number, categor
 }
 
 export async function addTransactionDirect(input: TransactionInput): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
+  const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
   const date = input.date ?? new Date().toISOString().split('T')[0];
   const isEffective = Boolean(input.isEffective ?? (input.type === 'despesa'));
   const statusTag = isEffective ? 'efetivado' : 'previsto';
 
-  if (spreadsheetId) {
+  if (useSheets && spreadsheetId) {
     try {
       const service = new SheetsService();
       await service.appendRows(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A1`, [
         [date, input.type, input.category, input.description, String(input.amount), statusTag],
       ]);
-      return;
     } catch (err) {
-      console.warn('[Finance] addTransactionDirect fallback -> sqlite:', (err as any)?.message ?? err);
+      console.warn('[Finance] addTransactionDirect sheets error -> sqlite:', (err as any)?.message ?? err);
     }
   }
 
@@ -256,7 +256,7 @@ export async function updateTransactionDirect(
   source: TransactionSource = 'local',
 ): Promise<void> {
   const date = input.date ?? new Date().toISOString().split('T')[0];
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
 
   if (source === 'sheets' && spreadsheetId) {
     try {
@@ -300,7 +300,7 @@ export async function updateTransactionEffectiveDirect(
   actualAmount?: number,
   source: TransactionSource = 'local',
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   const hasCustomAmount = Number.isFinite(actualAmount) && Number(actualAmount) > 0;
   const statusTag = !isEffective
     ? 'previsto'
@@ -351,7 +351,7 @@ export async function deleteTransactionDirect(
   index: number,
   source: TransactionSource = 'local',
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
 
   if (source === 'sheets' && spreadsheetId) {
     try {
@@ -368,7 +368,7 @@ export async function deleteTransactionDirect(
 }
 
 export async function getDebts(): Promise<DebtRecord[]> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (spreadsheetId) {
     try {
       const service = new SheetsService();
@@ -416,7 +416,7 @@ export async function getDebts(): Promise<DebtRecord[]> {
 export async function addDebt(input: DebtInput): Promise<void> {
   const dueDate = normalizeDate(input.dueDate);
   const dueDay = input.dueDay ?? getDueDayFromDate(dueDate);
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (spreadsheetId) {
     try {
       const service = new SheetsService();
@@ -453,7 +453,7 @@ export async function deleteDebt(
   rowIndex: number,
   source: TransactionSource = 'local',
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
@@ -469,7 +469,7 @@ export async function deleteDebt(
 }
 
 export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (spreadsheetId) {
     try {
       const service = new SheetsService();
@@ -517,7 +517,7 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
 }
 
 export async function addOverdueAccount(input: OverdueInput): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   const today = new Date().toISOString().split('T')[0];
   const dueDate = normalizeDate(input.dueDate);
   const daysOverdue = calculateDaysOverdue(dueDate) || (input.daysOverdue ?? 0);
@@ -548,7 +548,7 @@ export async function deleteOverdueAccount(
   rowIndex: number,
   source: TransactionSource = 'local',
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
@@ -569,7 +569,7 @@ export async function payDebt(
   mode: 'installment' | 'full' = 'installment',
   amount?: number,
 ): Promise<void> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
 
   if (source === 'sheets' && spreadsheetId) {
     try {

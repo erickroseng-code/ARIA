@@ -91,10 +91,11 @@ async function extractQueryParams(message: string): Promise<{ month: string | nu
 }
 
 async function handleGeneralQuestion(message: string): Promise<string> {
-  const spreadsheetId = getSpreadsheetId();
+  const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
+  const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
   const context = spreadsheetId
-    ? 'O usuário tem planilha financeira configurada na ARIA.'
-    : 'O usuário ainda não configurou a planilha financeira.';
+    ? 'O usuário tem planilha financeira configurada na ARIA (Google Sheets).'
+    : 'O usuário usa o banco de dados (Supabase) para finanças.';
 
   return llmChat(
     message,
@@ -175,7 +176,7 @@ export async function processFinanceMessage(userMessage: string): Promise<Orches
       }
 
       case 'debt_query': {
-        const spreadsheetId = getSpreadsheetId();
+        const spreadsheetId = await getSpreadsheetId();
         if (spreadsheetId) {
           const { SheetsService } = await import('@aria/integrations');
           const service = new SheetsService();

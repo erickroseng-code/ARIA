@@ -31,7 +31,7 @@ export async function recordTransaction(userMessage: string): Promise<{
   reply: string;
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
 }> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.substring(0, 7);
@@ -88,12 +88,13 @@ JSON:
  * Consulta o saldo e resumo do mês atual.
  */
 export async function queryBalance(month?: string): Promise<string> {
-  const spreadsheetId = getSpreadsheetId();
+  const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
+  const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
 
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);
   const monthLabel = new Date(`${targetMonth}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  if (!spreadsheetId) {
+  if (!useSheets || !spreadsheetId) {
     const data = await getDashboardData(targetMonth);
     const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const topCategories = data.byCategory
@@ -157,7 +158,7 @@ export async function queryBalance(month?: string): Promise<string> {
  * Lista as transações do mês com filtros opcionais.
  */
 export async function queryTransactions(month?: string, category?: string): Promise<string> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
 
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

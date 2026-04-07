@@ -3,7 +3,7 @@ import { processFinanceMessage } from './agents/orchestrator';
 import { generateReportPdf } from './agents/pdf-generator';
 import { generateReportData } from './agents/report-generator';
 import { getDashboardData, getMonthlyPlan, upsertMonthlyPlan } from './agents/dashboard';
-import { setupSpreadsheet, getSpreadsheetId, getSpreadsheetUrl } from './finance.service';
+import { setupSpreadsheet, getSpreadsheetId, getSpreadsheetUrl, saveSpreadsheetId } from './finance.service';
 import {
   addTransactionDirect, updateTransactionDirect, deleteTransactionDirect, addDebt, deleteDebt, getDebts,
   updateTransactionEffectiveDirect,
@@ -18,9 +18,10 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   // POST /api/finance/setup — Cria planilha no Google Drive
   fastify.post('/setup', async (_req: FastifyRequest, reply: FastifyReply) => {
     try {
-      const existing = getSpreadsheetId();
+      const existing = await getSpreadsheetId();
       if (existing) {
-        return reply.send({ success: true, spreadsheetId: existing, spreadsheetUrl: getSpreadsheetUrl(), message: 'Planilha já configurada.' });
+        const url = await getSpreadsheetUrl();
+        return reply.send({ success: true, spreadsheetId: existing, spreadsheetUrl: url, message: 'Planilha já configurada.' });
       }
       const { spreadsheetId, spreadsheetUrl } = await setupSpreadsheet();
       return reply.send({ success: true, spreadsheetId, spreadsheetUrl });
@@ -380,11 +381,16 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/spreadsheet', async (_req: FastifyRequest, reply: FastifyReply) => {
-    const spreadsheetUrl = getSpreadsheetUrl();
+    const spreadsheetUrl = await getSpreadsheetUrl();
     if (!spreadsheetUrl) {
       return reply.status(404).send({ error: 'Planilha não configurada.' });
     }
     return reply.send({ spreadsheetUrl });
+  });
+
+  fastify.delete('/spreadsheet', async (_req: FastifyRequest, reply: FastifyReply) => {
+    await saveSpreadsheetId('');
+    return reply.send({ success: true, message: 'Planilha removida. Usando banco local.' });
   });
 
   // GET /api/finance/recurring-expenses — Listar despesas fixas mensais

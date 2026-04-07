@@ -22,7 +22,7 @@ export interface ReportData {
  * Gera os dados do relatório financeiro de um mês.
  */
 export async function generateReportData(month?: string): Promise<ReportData> {
-  const spreadsheetId = getSpreadsheetId();
+  const spreadsheetId = await getSpreadsheetId();
   if (!spreadsheetId) throw new Error('Planilha não configurada');
 
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);

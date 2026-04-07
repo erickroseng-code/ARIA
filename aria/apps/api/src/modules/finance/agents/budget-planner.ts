@@ -1,6 +1,21 @@
 import { SheetsService } from '@aria/integrations';
 import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
+import { db } from '../../../config/db';
+
+function getCurrentMonth(): string {
+  return new Date().toISOString().substring(0, 7);
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS finance_budgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month TEXT NOT NULL,
+    category TEXT NOT NULL,
+    budgeted REAL NOT NULL,
+    UNIQUE(month, category)
+  )
+`);
 
 export interface BudgetAlert {
   category: string;
@@ -72,59 +87,36 @@ export async function checkBudgetAlerts(spreadsheetId: string, month: string): P
  * Define ou atualiza o orçamento de uma categoria.
  */
 export async function setBudget(category: string, amount: number): Promise<string> {
-  const spreadsheetId = getSpreadsheetId();
-  if (!spreadsheetId) return 'Planilha não configurada. Inicie o diagnóstico financeiro.';
-
-  const service = new SheetsService();
-  const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.BUDGET}!A2:E100`);
-
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // Procurar linha existente para a categoria
-  const rows = data.values;
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i][0]?.toLowerCase() === category.toLowerCase()) {
-      // Atualizar linha existente (coluna B = índice 1, base 1)
-      const lineNum = i + 2; // +2: header + 1-based
-      await service.writeRange(spreadsheetId, `${SHEET_NAMES.BUDGET}!B${lineNum}`, [[String(amount)]]);
-      return `✅ Orçamento de **${category}** atualizado para ${fmt(amount)}.`;
-    }
-  }
+  db.prepare(`
+    INSERT INTO finance_budgets (month, category, budgeted)
+    VALUES (?, ?, ?)
+    ON CONFLICT(month, category) DO UPDATE SET budgeted = excluded.budgeted
+  `).run(getCurrentMonth(), category, amount);
 
-  // Adicionar nova linha
-  const nextLine = rows.length + 2;
-  await service.writeRange(spreadsheetId, `${SHEET_NAMES.BUDGET}!A${nextLine}:E${nextLine}`, [
-    [category, String(amount), '', '', ''],
-  ]);
-  return `✅ Orçamento de **${category}** definido para ${fmt(amount)}.`;
+  return `✅ Orçamento de **${category}** atualizado para ${fmt(amount)}.`;
 }
 
 /**
  * Retorna o resumo do orçamento do mês atual.
  */
 export async function getBudgetSummary(): Promise<string> {
-  const spreadsheetId = getSpreadsheetId();
-  if (!spreadsheetId) return 'Planilha não configurada.';
-
-  const service = new SheetsService();
-  const month = new Date().toISOString().substring(0, 7);
-
-  const budgetData = await service.readRange(spreadsheetId, `${SHEET_NAMES.BUDGET}!A2:B100`);
-  const txData = await service.readRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A2:F10000`);
+  const month = getCurrentMonth();
+  
+  const budgetRows = db.prepare(`
+    SELECT category, budgeted FROM finance_budgets WHERE month = ?
+  `).all(month) as Array<{ category: string; budgeted: number }>;
 
   const budgetMap: Record<string, number> = {};
-  for (const row of budgetData.values) {
-    const cat = row[0];
-    const val = parseFloat(row[1] ?? '0') || 0;
-    if (cat && val > 0) budgetMap[cat] = val;
+  for (const row of budgetRows) {
+    if (row.budgeted > 0) budgetMap[row.category] = row.budgeted;
   }
 
+  const dashboardData = await import('./dashboard.js').then(m => m.getDashboardData(month));
   const spentMap: Record<string, number> = {};
-  for (const row of txData.values) {
-    if (!row[0]?.startsWith(month)) continue;
-    if (row[1] !== 'despesa') continue;
-    const cat = row[2] ?? 'Outros';
-    spentMap[cat] = (spentMap[cat] ?? 0) + (parseFloat(row[4] ?? '0') || 0);
+  for (const entry of dashboardData.byCategory) {
+    spentMap[entry.category] = entry.spent;
   }
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

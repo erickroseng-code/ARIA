@@ -53,14 +53,14 @@ export async function processOnboardingMessage(userMessage: string): Promise<{
   diagnosis?: DiagnosisResult;
   spreadsheetUrl?: string;
 }> {
-  const state = getOnboardingState();
+  const state = await getOnboardingState();
   const currentStep = ONBOARDING_STEPS[state.step];
 
   const updatedAnswers = { ...state.answers, [currentStep.field]: userMessage };
   const nextStep = state.step + 1;
 
   if (nextStep < ONBOARDING_STEPS.length) {
-    saveOnboardingState({ completed: false, step: nextStep, answers: updatedAnswers });
+    await saveOnboardingState({ completed: false, step: nextStep, answers: updatedAnswers });
     const next = ONBOARDING_STEPS[nextStep];
     return {
       reply: `Entendido! **(${nextStep + 1}/${ONBOARDING_STEPS.length})**\n\n${next.question}${next.hint ? `\n\n_${next.hint}_` : ''}`,
@@ -72,7 +72,7 @@ export async function processOnboardingMessage(userMessage: string): Promise<{
   const diagnosis = await generateDiagnosis(updatedAnswers);
   const spreadsheetUrl = await populateSpreadsheet(diagnosis, updatedAnswers);
 
-  saveOnboardingState({ completed: true, step: nextStep, answers: updatedAnswers });
+  await saveOnboardingState({ completed: true, step: nextStep, answers: updatedAnswers });
 
   return {
     reply: formatDiagnosisReply(diagnosis, spreadsheetUrl),
@@ -118,7 +118,7 @@ JSON esperado:
 }
 
 async function populateSpreadsheet(diagnosis: DiagnosisResult, answers: Record<string, string>): Promise<string> {
-  let spreadsheetId = getSpreadsheetId();
+  let spreadsheetId = await getSpreadsheetId();
   let spreadsheetUrl: string;
 
   if (!spreadsheetId) {
@@ -284,7 +284,7 @@ export async function processStructuredOnboarding(formData: StructuredFormData):
   // Popular a aba de Contas em Atraso se houver dados
   if (formData.overdueAccounts.length > 0) {
     try {
-      const spreadsheetId = getSpreadsheetId();
+      const spreadsheetId = await getSpreadsheetId();
       if (spreadsheetId) {
         const service = new SheetsService();
         const overdueRows = formData.overdueAccounts.map(o => [
