@@ -3,6 +3,7 @@ import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { checkBudgetAlerts } from './budget-planner';
 import { db } from '../../../config/db';
+import { getSupabase } from '../../../config/supabase';
 import { applyRecurringExpensesForMonth } from './entries';
 
 db.exec(`
@@ -259,12 +260,44 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const targetMonth = normalizeMonth(month);
   await applyRecurringExpensesForMonth(targetMonth);
 
-  const rows = db.prepare(`
-    SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
-    FROM finance_transactions
-    WHERE date LIKE ?
-    ORDER BY date DESC, id DESC
-  `).all(`${targetMonth}%`) as Array<any>;
+  // Tentar ler do Supabase primeiro
+  let rows: any[] = [];
+  try {
+    const supabase = getSupabase();
+    const { data: supabaseRows, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .gte('date', `${targetMonth}-01`)
+      .lt('date', `${String(parseInt(targetMonth.split('-')[1]) + 1).padStart(2, '0')}`);
+
+    if (!error && supabaseRows && supabaseRows.length > 0) {
+      // Mapear dados do Supabase para o formato esperado
+      rows = supabaseRows.map((row: any) => ({
+        id: row.id,
+        date: row.date,
+        type: row.type === 'income' ? 'receita' : 'despesa',
+        category: row.category,
+        description: row.description,
+        amount: row.amount,
+        tags: Array.isArray(row.tags) ? row.tags.join(',') : row.tags || '',
+        isEffective: 1,
+        effectiveAmount: row.amount,
+      }));
+      console.log('[Finance] Loaded', rows.length, 'transactions from Supabase');
+    }
+  } catch (err) {
+    console.warn('[Finance] Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
+  }
+
+  // Fallback para SQLite se Supabase falhou
+  if (rows.length === 0) {
+    rows = db.prepare(`
+      SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
+      FROM finance_transactions
+      WHERE date LIKE ?
+      ORDER BY date DESC, id DESC
+    `).all(`${targetMonth}%`) as Array<any>;
+  }
 
   if (!useSheets || !spreadsheetId) {
     return buildDashboardFromRows(rows, targetMonth);
