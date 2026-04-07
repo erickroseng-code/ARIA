@@ -17,6 +17,7 @@
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@supabase/supabase-js": "^2.102.1",
     "@libsql/client": "^0.17.0",
     "@prisma/adapter-libsql": "^7.4.2",
     "@prisma/client": "^7.4.1",
