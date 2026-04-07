@@ -2,6 +2,7 @@ import { SheetsService } from '@aria/integrations';
 import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { db } from '../../../config/db';
+import { getSupabase } from '../../../config/supabase';
 
 export interface TransactionInput {
   type: 'receita' | 'despesa';
@@ -14,7 +15,7 @@ export interface TransactionInput {
   paymentMethod?: string; // pix | credito | debito | outros
   creditCardId?: number | null;
 }
-export type TransactionSource = 'local' | 'sheets';
+export type TransactionSource = 'local' | 'sheets' | 'supabase';
 
 export interface DebtInput {
   creditor: string;
@@ -295,7 +296,7 @@ export async function updateTransactionDirect(
 }
 
 export async function updateTransactionEffectiveDirect(
-  index: number,
+  index: number | string,
   isEffective: boolean,
   actualAmount?: number,
   source: TransactionSource = 'local',
@@ -309,7 +310,7 @@ export async function updateTransactionEffectiveDirect(
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
-      const rowNum = index + 2; // A2 is index 0
+      const rowNum = Number(index) + 2; // A2 is index 0
       await service.writeRange(
         spreadsheetId,
         `${SHEET_NAMES.TRANSACTIONS}!F${rowNum}:F${rowNum}`,
@@ -321,12 +322,33 @@ export async function updateTransactionEffectiveDirect(
     }
   }
 
+  // Se for UUID (string com hífen), é do Supabase
+  if (source === 'supabase' || (typeof index === 'string' && index.includes('-'))) {
+    try {
+      const supabase = getSupabase();
+      const tags = statusTag.split(',').map((x: string) => x.trim()).filter(Boolean);
+
+      await supabase
+        .from('transactions')
+        .update({ tags })
+        .eq('id', index);
+
+      console.log('[Finance] Updated Supabase transaction:', index);
+      return;
+    } catch (err: any) {
+      console.warn('[Finance] Failed to update Supabase:', err.message);
+      // Continua pra tentar SQLite como fallback
+    }
+  }
+
+  // Fallback pra SQLite
+  const numIndex = Number(index);
   const current = db.prepare(`
     SELECT type, tags
     FROM finance_transactions
     WHERE id = ?
     LIMIT 1
-  `).get(index) as { type?: string; tags?: string } | undefined;
+  `).get(numIndex) as { type?: string; tags?: string } | undefined;
 
   const currentType = String(current?.type ?? '');
   const currentTags = String(current?.tags ?? '');
@@ -343,8 +365,34 @@ export async function updateTransactionEffectiveDirect(
     isEffective
       ? (hasCustomAmount ? Number(actualAmount) : null)
       : null,
-    index,
+    numIndex,
   );
+
+  // Tentar também atualizar Supabase se temos um UUID
+  try {
+    const supabase = getSupabase();
+    const tags = nextTags.split(',').map((x: string) => x.trim()).filter(Boolean);
+
+    // Procurar por UUID com description + date que bate
+    if (current) {
+      const { data } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('date', current.date)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        await supabase
+          .from('transactions')
+          .update({ tags })
+          .eq('id', data[0].id);
+
+        console.log('[Finance] Also updated Supabase for sync');
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Finance] Failed to sync with Supabase:', err.message);
+  }
 }
 
 export async function deleteTransactionDirect(

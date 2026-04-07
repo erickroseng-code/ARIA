@@ -291,17 +291,31 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
 
     if (!error && supabaseRows && supabaseRows.length > 0) {
       // Mapear dados do Supabase para o formato esperado
-      rows = supabaseRows.map((row: any) => ({
-        id: row.id,
-        date: row.date,
-        type: row.type === 'income' ? 'receita' : 'despesa',
-        category: row.category,
-        description: row.description,
-        amount: row.amount,
-        tags: Array.isArray(row.tags) ? row.tags.join(',') : row.tags || '',
-        isEffective: 1,
-        effectiveAmount: row.amount,
-      }));
+      rows = supabaseRows.map((row: any) => {
+        const tagsString = Array.isArray(row.tags) ? row.tags.join(',') : row.tags || '';
+        const isEffective = tagsString.includes('efetivado');
+        let effectiveAmount: number | null = null;
+
+        // Extrair effectiveAmount dos tags (ex: "efetivado:1577.27")
+        if (isEffective && tagsString.includes('efetivado:')) {
+          const match = tagsString.match(/efetivado:([0-9.]+)/);
+          if (match && match[1]) {
+            effectiveAmount = parseFloat(match[1]);
+          }
+        }
+
+        return {
+          id: row.id,
+          date: row.date,
+          type: row.type === 'income' ? 'receita' : 'despesa',
+          category: row.category,
+          description: row.description,
+          amount: row.amount,
+          tags: tagsString,
+          isEffective: isEffective ? 1 : 0,
+          effectiveAmount: effectiveAmount,
+        };
+      });
       console.log('[Finance] ✅ Loaded', rows.length, 'transactions from Supabase');
     } else {
       console.log('[Finance] ❌ No Supabase data, error:', error?.message);
