@@ -15,6 +15,19 @@ db.exec(`
 const SPREADSHEET_ID_KEY = 'finance_spreadsheet_id';
 const ONBOARDING_STATE_KEY = 'finance_onboarding_state';
 
+function getSpreadsheetIdFromEnv(): string | null {
+  const candidates = [
+    process.env.FINANCE_SPREADSHEET_ID,
+    process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+    process.env.SPREADSHEET_ID,
+  ];
+  for (const raw of candidates) {
+    const id = raw?.trim();
+    if (id) return id;
+  }
+  return null;
+}
+
 export interface OnboardingState {
   completed: boolean;
   step: number;
@@ -24,9 +37,10 @@ export interface OnboardingState {
 export function getSpreadsheetId(): string | null {
   try {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(SPREADSHEET_ID_KEY) as any;
-    return row?.value ?? null;
+    const dbId = row?.value?.trim?.() ? String(row.value).trim() : null;
+    return dbId ?? getSpreadsheetIdFromEnv();
   } catch {
-    return null;
+    return getSpreadsheetIdFromEnv();
   }
 }
 
