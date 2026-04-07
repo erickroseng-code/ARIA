@@ -535,13 +535,28 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
             tags: t.tags ? t.tags.split(',').map((x: string) => x.trim()).filter(Boolean) : [],
           }));
 
-          const { error } = await supabase.from('transactions').insert(data);
-          if (error) throw error;
+          console.log(`[Finance] Inserting ${data.length} transactions to Supabase...`);
+          const { error, data: insertedData } = await supabase.from('transactions').insert(data);
+          if (error) {
+            console.error('[Finance] Supabase insert error:', {
+              code: error.code,
+              message: error.message,
+              details: (error as any).details,
+              hint: (error as any).hint,
+            });
+            throw error;
+          }
+          console.log(`[Finance] Successfully inserted, returned:`, insertedData);
           totalMigrated += data.length;
           console.log(`[Finance] Migrated ${data.length} transactions`);
         }
       } catch (err: any) {
-        console.warn('[Finance] Transaction migration error:', err.message);
+        console.warn('[Finance] Transaction migration error:', {
+          message: err.message,
+          name: err.name,
+          code: err.code,
+          statusCode: err.statusCode,
+        });
       }
 
       // Migrar budget
@@ -604,8 +619,17 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
       // Se dados foram enviados no POST, usar esses
       if (req.body?.transactions && Array.isArray(req.body.transactions)) {
         console.log(`[Finance] Inserting ${req.body.transactions.length} transactions via POST...`);
-        const { error } = await supabase.from('transactions').insert(req.body.transactions);
-        if (error) throw error;
+        const { error, data: insertedData } = await supabase.from('transactions').insert(req.body.transactions);
+        if (error) {
+          console.error('[Finance] Supabase insert error:', {
+            code: error.code,
+            message: error.message,
+            details: (error as any).details,
+            hint: (error as any).hint,
+          });
+          throw error;
+        }
+        console.log(`[Finance] Successfully inserted ${req.body.transactions.length} transactions`);
         migratedCount = req.body.transactions.length;
       } else {
         // Senão, tentar ler do SQLite local (que pode não estar disponível no Render)
@@ -628,13 +652,26 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
               tags: t.tags ? t.tags.split(',').map((x: string) => x.trim()).filter(Boolean) : [],
             }));
 
-            const { error } = await supabase.from('transactions').insert(data);
-            if (error) throw error;
+            console.log(`[Finance] Inserting ${data.length} transactions to Supabase...`);
+            const { error, data: insertedData } = await supabase.from('transactions').insert(data);
+            if (error) {
+              console.error('[Finance] Supabase insert error:', {
+                code: error.code,
+                message: error.message,
+                details: (error as any).details,
+                hint: (error as any).hint,
+              });
+              throw error;
+            }
+            console.log(`[Finance] Successfully inserted ${data.length} transactions`);
             migratedCount += data.length;
             console.log(`[Finance] Migrated ${data.length} transactions`);
           }
         } catch (err: any) {
-          console.warn('[Finance] SQLite migration error:', err.message);
+          console.warn('[Finance] SQLite migration error:', {
+            message: err.message,
+            code: err.code,
+          });
           return reply.status(400).send({
             success: false,
             message: 'No data provided in POST body. Send JSON array of transactions.',
@@ -649,7 +686,11 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
         migratedCount
       });
     } catch (err: any) {
-      console.error('[Finance] Migration error:', err);
+      console.error('[Finance] Migration error:', {
+        message: err.message,
+        name: err.name,
+        statusCode: err.statusCode,
+      });
       return reply.status(500).send({ error: err.message ?? 'Migration failed' });
     }
   });
