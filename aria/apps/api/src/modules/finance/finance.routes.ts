@@ -495,6 +495,89 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // POST /api/finance/migrate-auto — Executar migração completa (auto-descobrindo dados)
+  fastify.post('/migrate-auto', async (_req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { db } = await import('../../config/db');
+      const { getSupabase } = await import('../../config/supabase');
+
+      console.log('[Finance] Starting full auto-migration from SQLite to Supabase...');
+      const supabase = getSupabase();
+      let totalMigrated = 0;
+
+      // Migrar transactions
+      try {
+        const transactions = (db.prepare(`
+          SELECT date, type, category, description, amount, tags
+          FROM finance_transactions
+        `).all() as any[]) || [];
+
+        if (transactions.length > 0) {
+          const data = transactions.map(t => ({
+            date: t.date,
+            type: t.type === 'receita' ? 'income' : 'expense',
+            category: t.category,
+            description: t.description || '',
+            amount: parseFloat(t.amount) || 0,
+            tags: t.tags ? t.tags.split(',').map((x: string) => x.trim()).filter(Boolean) : [],
+          }));
+
+          const { error } = await supabase.from('transactions').insert(data);
+          if (error) throw error;
+          totalMigrated += data.length;
+          console.log(`[Finance] Migrated ${data.length} transactions`);
+        }
+      } catch (err: any) {
+        console.warn('[Finance] Transaction migration error:', err.message);
+      }
+
+      // Migrar budget
+      try {
+        const budgets = (db.prepare('SELECT category, budgeted FROM finance_budgets').all() as any[]) || [];
+
+        if (budgets.length > 0) {
+          const data = budgets.map(b => ({
+            category: b.category,
+            monthly_budget: parseFloat(b.budgeted) || 0,
+          }));
+
+          const { error } = await supabase.from('budget').insert(data);
+          if (error) throw error;
+          totalMigrated += data.length;
+          console.log(`[Finance] Migrated ${data.length} budgets`);
+        }
+      } catch (err: any) {
+        console.warn('[Finance] Budget migration error:', err.message);
+      }
+
+      // Migrar settings
+      try {
+        const settings = (db.prepare('SELECT key, value FROM settings').all() as any[]) || [];
+
+        if (settings.length > 0) {
+          const { error } = await supabase.from('settings').insert(
+            settings.map(s => ({ key: s.key, value: s.value }))
+          );
+          if (error) throw error;
+          totalMigrated += settings.length;
+          console.log(`[Finance] Migrated ${settings.length} settings`);
+        }
+      } catch (err: any) {
+        console.warn('[Finance] Settings migration error:', err.message);
+      }
+
+      return reply.send({
+        success: true,
+        message: `Full migration complete: ${totalMigrated} records migrated`,
+        totalMigrated,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.error('[Finance] Migration error:', err);
+      return reply.status(500).send({ error: err.message ?? 'Migration failed' });
+    }
+  });
+
   // POST /api/finance/migrate — Migrar dados do SQLite para Supabase
   fastify.post('/migrate', async (
     req: FastifyRequest<{ Body?: { transactions?: any[] } }>,
