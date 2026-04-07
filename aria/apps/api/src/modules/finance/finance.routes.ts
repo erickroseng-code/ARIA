@@ -498,8 +498,8 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   // POST /api/finance/migrate — Migrar dados do SQLite para Supabase
   fastify.post('/migrate', async (_req: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { db } = await import('../../../config/db');
-      const { getSupabase } = await import('../../../config/supabase');
+      const { db } = await import('../../config/db');
+      const { getSupabase } = await import('../../config/supabase');
 
       console.log('[Finance] Starting migration from SQLite to Supabase...');
 
