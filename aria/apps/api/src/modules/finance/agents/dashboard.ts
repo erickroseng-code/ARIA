@@ -264,11 +264,21 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   let rows: any[] = [];
   try {
     const supabase = getSupabase();
-    const nextMonth = String(parseInt(targetMonth.split('-')[1]) + 1).padStart(2, '0');
-    const nextYear = parseInt(targetMonth.split('-')[0]);
-    const dateFilter = nextMonth === '13' ? `${nextYear + 1}-01-01` : `${targetMonth.split('-')[0]}-${nextMonth}-01`;
+    const [year, month] = targetMonth.split('-');
+    const monthNum = parseInt(month);
 
-    console.log('[Finance] Querying Supabase for month:', targetMonth, 'filter:', dateFilter);
+    let nextMonth: string;
+    let nextYear: string;
+    if (monthNum === 12) {
+      nextMonth = '01';
+      nextYear = String(parseInt(year) + 1);
+    } else {
+      nextMonth = String(monthNum + 1).padStart(2, '0');
+      nextYear = year;
+    }
+    const dateFilter = `${nextYear}-${nextMonth}-01`;
+
+    console.log('[Finance] Querying Supabase for month:', targetMonth, 'start:', `${targetMonth}-01`, 'end:', dateFilter);
 
     const { data: supabaseRows, error } = await supabase
       .from('transactions')
@@ -276,7 +286,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       .gte('date', `${targetMonth}-01`)
       .lt('date', dateFilter);
 
-    console.log('[Finance] Supabase query error:', error);
+    console.log('[Finance] Supabase query error:', error?.message);
     console.log('[Finance] Supabase rows count:', supabaseRows?.length ?? 0);
 
     if (!error && supabaseRows && supabaseRows.length > 0) {
@@ -292,12 +302,12 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
         isEffective: 1,
         effectiveAmount: row.amount,
       }));
-      console.log('[Finance] Loaded', rows.length, 'transactions from Supabase');
+      console.log('[Finance] ✅ Loaded', rows.length, 'transactions from Supabase');
     } else {
-      console.log('[Finance] No Supabase data, error:', error?.message);
+      console.log('[Finance] ❌ No Supabase data, error:', error?.message);
     }
   } catch (err) {
-    console.warn('[Finance] Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
+    console.warn('[Finance] ⚠️  Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
   }
 
   // Fallback para SQLite se Supabase falhou
