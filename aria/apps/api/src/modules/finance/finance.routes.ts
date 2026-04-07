@@ -498,10 +498,23 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   // POST /api/finance/migrate-auto — Executar migração completa (auto-descobrindo dados)
   fastify.post('/migrate-auto', async (_req: FastifyRequest, reply: FastifyReply) => {
     try {
+      const path = require('path');
+      const fs = require('fs');
       const { db } = await import('../../config/db');
       const { getSupabase } = await import('../../config/supabase');
 
+      const dbPath = process.env.SQLITE_DB_PATH?.trim()
+        ? path.resolve(process.env.SQLITE_DB_PATH)
+        : path.resolve(process.cwd(), 'dev.native.db');
+
+      const fileExists = fs.existsSync(dbPath);
+      const fileSize = fileExists ? fs.statSync(dbPath).size : 0;
+
       console.log('[Finance] Starting full auto-migration from SQLite to Supabase...');
+      console.log(`[Finance] CWD: ${process.cwd()}`);
+      console.log(`[Finance] DB Path: ${dbPath}`);
+      console.log(`[Finance] File exists: ${fileExists}, size: ${fileSize} bytes`);
+
       const supabase = getSupabase();
       let totalMigrated = 0;
 
