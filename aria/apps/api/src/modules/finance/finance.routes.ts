@@ -15,6 +15,32 @@ import {
 } from './agents/entries';
 
 export async function registerFinanceRoutes(fastify: FastifyInstance) {
+  // GET /api/finance/debug — Debug endpoint
+  fastify.get('/debug', async (_req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { getSupabase } = await import('../../config/supabase');
+      const supabase = getSupabase();
+
+      const { data, error } = await supabase.from('transactions').select('count', { count: 'exact' });
+
+      return reply.send({
+        supabase: {
+          url: process.env.SUPABASE_URL,
+          hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          error: error?.message,
+          count: (data as any)?.count || data?.length || 0
+        },
+        cwd: process.cwd(),
+        env: {
+          FINANCE_USE_SHEETS: process.env.FINANCE_USE_SHEETS,
+          NODE_ENV: process.env.NODE_ENV
+        }
+      });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   // POST /api/finance/setup — Cria planilha no Google Drive
   fastify.post('/setup', async (_req: FastifyRequest, reply: FastifyReply) => {
     try {
