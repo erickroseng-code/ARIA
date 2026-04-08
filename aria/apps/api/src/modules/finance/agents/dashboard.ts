@@ -334,7 +334,8 @@ function mapSupabaseRowsToLocalRows(supabaseRows: any[]): any[] {
   return supabaseRows.map((row: any) => {
     const tagsString = Array.isArray(row.tags) ? row.tags.join(',') : String(row.tags ?? '');
     const hasEffectiveTag = tagsString.includes('efetivado');
-    const isEffective = hasEffectiveTag ? true : row.type === 'expense';
+    const hasRecurringTag = tagsString.includes('recorrente');
+    const isEffective = hasEffectiveTag ? true : (row.type === 'expense' ? !hasRecurringTag : false);
     let effectiveAmount: number | null = null;
     if (isEffective && tagsString.includes('efetivado:')) {
       const match = tagsString.match(/efetivado:([0-9.]+)/);
