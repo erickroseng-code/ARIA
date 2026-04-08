@@ -859,11 +859,21 @@ async function tryHandleQuickTransaction(chatId: number, text: string): Promise<
 
 async function handleBalanceQuery(chatId: number): Promise<void> {
   const data = await getDashboardData();
+  const expenseRows = (data.transactions ?? []).filter((tx) => tx.type === 'despesa' && tx.isEffective);
+  const recurringExpenses = expenseRows
+    .filter((tx) => tx.isRecurring)
+    .reduce((acc, tx) => acc + Number(tx.amount ?? 0), 0);
+  const variableExpenses = expenseRows
+    .filter((tx) => !tx.isRecurring)
+    .reduce((acc, tx) => acc + Number(tx.amount ?? 0), 0);
+
   await send(
     chatId,
     `📊 <b>Resumo do mês</b>\n\n` +
     `💰 Receitas: <b>${fmtCurrency(data.totalIncome)}</b>\n` +
-    `💸 Despesas: <b>${fmtCurrency(data.totalExpenses)}</b>\n` +
+    `💸 Despesas: <b>${fmtCurrency(variableExpenses)}</b>\n` +
+    `🔁 Fixas/recorrentes: <b>${fmtCurrency(recurringExpenses)}</b>\n` +
+    `🧾 Despesas totais: <b>${fmtCurrency(data.totalExpenses)}</b>\n` +
     `📌 Saldo: <b>${fmtCurrency(data.netBalance)}</b>`,
   );
 }
