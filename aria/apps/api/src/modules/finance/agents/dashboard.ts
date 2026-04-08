@@ -413,7 +413,9 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
   const targetMonth = normalizeMonth(month);
   ensureTransactionsCacheSchema();
-  await applyRecurringExpensesForMonth(targetMonth);
+  if (!USE_SUPABASE) {
+    await applyRecurringExpensesForMonth(targetMonth);
+  }
 
   let rows: any[] = [];
 
@@ -426,6 +428,10 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     `).all(`${targetMonth}%`) as Array<any>;
 
     rows = dedupeLocalRowsWhenSupabaseExists(rows);
+    const supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
+    if (supabaseRows.length > 0) {
+      rows = supabaseRows;
+    }
 
     if (rows.length > 0) {
       const lastRefresh = lastCacheRefreshByMonth.get(targetMonth) ?? 0;
@@ -459,6 +465,12 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
     rows = dedupeLocalRowsWhenSupabaseExists(rows);
+    if (USE_SUPABASE) {
+      const supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
+      if (supabaseRows.length > 0) {
+        rows = supabaseRows;
+      }
+    }
   }
 
   if (!useSheets || !spreadsheetId) {
