@@ -38,7 +38,7 @@ import { PortfolioPerformance } from './graham/PortfolioPerformance';
 import { GoalsSession } from './graham/GoalsSession';
 
 type TxType = 'receita' | 'despesa';
-type SourceType = 'local' | 'sheets';
+type SourceType = 'local' | 'sheets' | 'supabase';
 type AddMode = 'receita' | 'despesa' | 'divida' | 'atrasada' | 'cartao';
 type ActiveTab = 'transacoes' | 'fixas' | 'receitas' | 'dividas' | 'atrasadas' | 'cartoes' | 'planejamento';
 type SidebarView = 'home' | 'receitas' | 'cartoes' | 'dividas' | 'planejamento';
@@ -155,6 +155,12 @@ function fmtDate(date: string): string {
   const [y, m, d] = date.split('-');
   if (!y || !m || !d) return date;
   return `${d}/${m}/${y}`;
+}
+
+function safeKeyPart(value: unknown): string {
+  if (value === null || value === undefined) return 'na';
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : 'empty';
 }
 
 function parseYmdLocal(value: string | null | undefined): Date | null {
@@ -310,7 +316,9 @@ function OverdueBadge({ days }: { days: number }) {
 }
 
 export function FinanceSession({ onClose }: FinanceSessionProps) {
+  const DASHBOARD_AUTO_REFRESH_MS = 10_000;
   const sessionScrollRef = useRef<HTMLDivElement | null>(null);
+  const dashboardRefreshInFlightRef = useRef(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
@@ -513,9 +521,58 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     }
   }, [loadAll]);
 
+  const refreshDashboardInline = useCallback(async () => {
+    const el = sessionScrollRef.current;
+    const prevTop = el?.scrollTop ?? 0;
+    const month = monthParam(selectedMonth);
+    const res = await fetch(`/api/finance/dashboard?month=${month}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error ?? 'Falha ao atualizar dashboard.');
+    }
+    const dData = await res.json();
+    setDashboard(dData);
+    setPlannedExpensesInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedExpenses ?? 0)));
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = prevTop;
+      });
+    }
+  }, [selectedMonth]);
+
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const refreshSafely = async () => {
+      if (document.hidden || dashboardRefreshInFlightRef.current) return;
+      dashboardRefreshInFlightRef.current = true;
+      try {
+        await refreshDashboardInline();
+      } catch {
+        // Ignore transient network errors; next tick retries.
+      } finally {
+        dashboardRefreshInFlightRef.current = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshSafely();
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshSafely();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [refreshDashboardInline]);
 
   useEffect(() => {
     return () => {
@@ -884,7 +941,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   };
 
   const undoOverduePay = async (item: OverdueRecord) => {
-    await fetch(`/api/finance/overdue/${item.index}/undo-pay`, { method: 'POST' });
+    await fetch(`/api/finance/overdue/${item.index}/undo-pay?source=${item.source}`, { method: 'POST' });
     await loadAll();
   };
 
@@ -1029,7 +1086,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             throw new Error(err?.error ?? 'Falha ao remover pagamento da despesa fixa.');
           }
         }
-        await refreshInline();
+        await refreshDashboardInline();
         return;
       }
 
@@ -1056,7 +1113,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         throw new Error(err?.error ?? 'Falha ao registrar pagamento da despesa fixa.');
       }
 
-      await refreshInline();
+      await refreshDashboardInline();
     } catch (err: any) {
       window.alert(err?.message ?? 'Falha ao atualizar pagamento da despesa fixa.');
     }
@@ -1127,20 +1184,44 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     if (tx.isEffective === isEffective) return;
 
     if (!isEffective) {
-      try {
-        const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isEffective: false }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
+      setDashboard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          transactions: prev.transactions.map((item) =>
+            item.index === tx.index && item.source === tx.source
+              ? { ...item, isEffective: false, effectiveAmount: null }
+              : item
+          ),
+        };
+      });
+      void (async () => {
+        try {
+          const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isEffective: false }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err?.error ?? 'Falha ao atualizar efetivacao da receita.');
+          }
+          void refreshDashboardInline();
+        } catch (err: any) {
+          setDashboard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              transactions: prev.transactions.map((item) =>
+                item.index === tx.index && item.source === tx.source
+                  ? { ...item, isEffective: tx.isEffective, effectiveAmount: tx.effectiveAmount ?? null }
+                  : item
+              ),
+            };
+          });
+          window.alert(err?.message ?? 'Falha ao atualizar efetivacao da receita.');
         }
-        await refreshInline();
-      } catch (err: any) {
-        window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
-      }
+      })();
       return;
     }
 
@@ -1148,27 +1229,51 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     setEffectiveUseCustomValue(false);
     setEffectiveCustomValue(formatCurrencyInputFromNumber(tx.amount));
   };
-
-  const setExpenseEffective = async (tx: DashboardData['transactions'][number], isEffective: boolean) => {
+const setExpenseEffective = async (tx: DashboardData['transactions'][number], isEffective: boolean) => {
     if (tx.type !== 'despesa') return;
     if (tx.isEffective === isEffective) return;
-    try {
-      const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isEffective }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error ?? 'Falha ao atualizar efetivação da despesa.');
-      }
-      await refreshInline();
-    } catch (err: any) {
-      window.alert(err?.message ?? 'Falha ao atualizar efetivação da despesa.');
-    }
-  };
 
-  void setExpenseEffective;
+    setDashboard((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        transactions: prev.transactions.map((item) =>
+          item.index === tx.index && item.source === tx.source
+            ? { ...item, isEffective, effectiveAmount: isEffective ? item.effectiveAmount ?? null : null }
+            : item
+        ),
+      };
+    });
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/finance/transaction/${tx.index}/effective?source=${tx.source}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isEffective }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error ?? 'Falha ao atualizar efetivacao da despesa.');
+        }
+        void refreshDashboardInline();
+      } catch (err: any) {
+        setDashboard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            transactions: prev.transactions.map((item) =>
+              item.index === tx.index && item.source === tx.source
+                ? { ...item, isEffective: tx.isEffective, effectiveAmount: tx.effectiveAmount ?? null }
+                : item
+            ),
+          };
+        });
+        window.alert(err?.message ?? 'Falha ao atualizar efetivacao da despesa.');
+      }
+    })();
+  };
+void setExpenseEffective;
 
   const closeEffectiveModal = () => {
     if (effectiveSaving) return;
@@ -1185,31 +1290,59 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       if (effectiveUseCustomValue) {
         const parsed = parseCurrencyInput(effectiveCustomValue);
         if (!Number.isFinite(parsed) || parsed <= 0) {
-          window.alert('Valor efetivado inválido.');
+          window.alert('Valor efetivado invalido.');
           return;
         }
         actualAmount = parsed;
       }
 
-      const res = await fetch(`/api/finance/transaction/${effectiveTx.index}/effective?source=${effectiveTx.source}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isEffective: true, actualAmount }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error ?? 'Falha ao atualizar efetivação da receita.');
-      }
       closeEffectiveModal();
-      await refreshInline();
+      setDashboard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          transactions: prev.transactions.map((item) =>
+            item.index === effectiveTx.index && item.source === effectiveTx.source
+              ? { ...item, isEffective: true, effectiveAmount: actualAmount ?? null }
+              : item
+          ),
+        };
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch(`/api/finance/transaction/${effectiveTx.index}/effective?source=${effectiveTx.source}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isEffective: true, actualAmount }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err?.error ?? 'Falha ao atualizar efetivacao da receita.');
+          }
+          void refreshDashboardInline();
+        } catch (err: any) {
+          setDashboard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              transactions: prev.transactions.map((item) =>
+                item.index === effectiveTx.index && item.source === effectiveTx.source
+                  ? { ...item, isEffective: effectiveTx.isEffective, effectiveAmount: effectiveTx.effectiveAmount ?? null }
+                  : item
+              ),
+            };
+          });
+          window.alert(err?.message ?? 'Falha ao atualizar efetivacao da receita.');
+        }
+      })();
     } catch (err: any) {
-      window.alert(err?.message ?? 'Falha ao atualizar efetivação da receita.');
+      window.alert(err?.message ?? 'Falha ao atualizar efetivacao da receita.');
     } finally {
       setEffectiveSaving(false);
     }
   };
-
-  const incomeTransactions = useMemo(
+const incomeTransactions = useMemo(
     () => (dashboard?.transactions ?? []).filter((tx) => tx.type === 'receita'),
     [dashboard?.transactions],
   );
@@ -1683,8 +1816,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {pagedTransactionRows.map((tx) => (
-                          <tr key={`${tx.source}-${tx.index}`} className="border-t border-border hover:bg-muted/30 transition-colors group">
+                        {pagedTransactionRows.map((tx, rowIndex) => (
+                          <tr
+                            key={tx.index != null
+                              ? `${tx.source}-${tx.index}`
+                              : `${safeKeyPart(tx.source)}-${safeKeyPart(tx.date)}-${safeKeyPart(tx.type)}-${safeKeyPart(tx.category)}-${safeKeyPart(tx.description)}-${rowIndex}`}
+                            className="border-t border-border hover:bg-muted/30 transition-colors group"
+                          >
                             <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{fmtDate(tx.date)}</td>
                             <td className="px-4 py-2.5 text-muted-foreground">{tx.category}</td>
                             <td className="px-4 py-2.5 text-card-foreground">{tx.description}</td>
@@ -1818,8 +1956,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {incomeTransactions.map((tx) => (
-                          <tr key={`${tx.source}-${tx.index}`} className="border-t border-border hover:bg-muted/30 transition-colors group">
+                        {incomeTransactions.map((tx, rowIndex) => (
+                          <tr
+                            key={tx.index != null
+                              ? `${tx.source}-${tx.index}`
+                              : `${safeKeyPart(tx.source)}-${safeKeyPart(tx.date)}-${safeKeyPart(tx.type)}-${safeKeyPart(tx.category)}-${safeKeyPart(tx.description)}-${rowIndex}`}
+                            className="border-t border-border hover:bg-muted/30 transition-colors group"
+                          >
                             <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{fmtDate(tx.date)}</td>
                             <td className="px-4 py-2.5 text-muted-foreground">{tx.category}</td>
                             <td className="px-4 py-2.5 text-card-foreground">{tx.description}</td>
@@ -1907,8 +2050,13 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {debts.map((d) => (
-                          <tr key={`${d.source}-${d.index}`} className="border-t border-border hover:bg-muted/30 transition-colors group">
+                        {debts.map((d, rowIndex) => (
+                          <tr
+                            key={d.index != null
+                              ? `${d.source}-${d.index}`
+                              : `${safeKeyPart(d.source)}-${safeKeyPart(d.creditor)}-${safeKeyPart(d.dueDate)}-${rowIndex}`}
+                            className="border-t border-border hover:bg-muted/30 transition-colors group"
+                          >
                             <td className="px-4 py-2.5 text-card-foreground font-medium">{d.creditor}</td>
                             <td className="px-4 py-2.5 text-right text-amber-600 font-semibold tabular-nums">{fmtCurrency(d.totalAmount)}</td>
                             <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{d.remainingInstallments || '-'}</td>
@@ -1952,10 +2100,15 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {overdue.map((o) => {
+                        {overdue.map((o, rowIndex) => {
                           const isPaid = o.status === 'Pago';
                           return (
-                            <tr key={`${o.source}-${o.index}`} className={`border-t border-border transition-colors group ${isPaid ? 'opacity-60' : 'hover:bg-muted/30'}`}>
+                            <tr
+                              key={o.index != null
+                                ? `${o.source}-${o.index}`
+                                : `${safeKeyPart(o.source)}-${safeKeyPart(o.account)}-${safeKeyPart(o.dueDate)}-${rowIndex}`}
+                              className={`border-t border-border transition-colors group ${isPaid ? 'opacity-60' : 'hover:bg-muted/30'}`}
+                            >
                               <td className="px-4 py-2.5">
                                 <div className="flex items-center gap-2">
                                   {isPaid && (
@@ -2687,3 +2840,4 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
     </div>
   );
 }
+

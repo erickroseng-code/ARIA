@@ -7,7 +7,7 @@ import { getSupabase } from '../../../config/supabase';
 import { applyRecurringExpensesForMonth } from './entries';
 const USE_SUPABASE = process.env.FINANCE_USE_SUPABASE === 'true';
 const USE_LOCAL_CACHE = process.env.FINANCE_LOCAL_READ_CACHE !== 'false';
-const CACHE_REFRESH_MS = Number(process.env.FINANCE_CACHE_REFRESH_MS ?? 60000);
+const CACHE_REFRESH_MS = Number(process.env.FINANCE_CACHE_REFRESH_MS ?? 300000);
 const lastCacheRefreshByMonth = new Map<string, number>();
 
 db.exec(`
