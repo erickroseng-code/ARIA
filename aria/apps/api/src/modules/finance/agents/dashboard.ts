@@ -172,9 +172,12 @@ function buildDashboardFromRows(rows: any[], targetMonth: string): DashboardData
     const type = String(row.type ?? 'despesa');
     const category = String(row.category ?? 'Outros');
     const tags = String(row.tags ?? '');
-    const isEffective = Number(row.isEffective ?? 1) === 1;
-    const effectiveAmount = Number(row.effectiveAmount ?? 0);
+    const hasEffectiveTag = tags.includes('efetivado');
     const isRecurring = tags === 'recorrente' || tags.startsWith('recorrente:');
+    const storedEffective = Number(row.isEffective ?? 1) === 1;
+    // Regra defensiva: recorrente só conta no realizado quando estiver explicitamente efetivado.
+    const isEffective = hasEffectiveTag ? true : (type === 'despesa' && isRecurring ? false : storedEffective);
+    const effectiveAmount = Number(row.effectiveAmount ?? 0);
     if (type === 'receita') {
       plannedIncome += amount;
       if (isEffective) actualIncome += (effectiveAmount > 0 ? effectiveAmount : amount);
