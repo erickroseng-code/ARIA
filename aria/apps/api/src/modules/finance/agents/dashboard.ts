@@ -213,6 +213,34 @@ function buildDashboardFromRows(rows: any[], targetMonth: string): DashboardData
   };
 }
 
+function buildTransactionSignature(row: any): string {
+  const date = String(row.date ?? '').trim();
+  const type = String(row.type ?? '').trim();
+  const category = String(row.category ?? '').trim().toLowerCase();
+  const description = String(row.description ?? '').trim().toLowerCase();
+  const amount = Number(row.amount ?? 0).toFixed(2);
+  return `${date}|${type}|${category}|${description}|${amount}`;
+}
+
+function dedupeLocalRowsWhenSupabaseExists(rows: any[]): any[] {
+  const hasSupabaseRows = rows.some((row) => String(row.source ?? '') === 'supabase');
+  if (!hasSupabaseRows) return rows;
+
+  const supabaseSignatures = new Set(
+    rows
+      .filter((row) => String(row.source ?? '') === 'supabase')
+      .map(buildTransactionSignature),
+  );
+
+  if (supabaseSignatures.size === 0) return rows;
+
+  return rows.filter((row) => {
+    const source = String(row.source ?? '');
+    if (source === 'supabase') return true;
+    return !supabaseSignatures.has(buildTransactionSignature(row));
+  });
+}
+
 async function buildDashboardFromSheets(rowsSheets: string[][], budgetData: { values: string[][] }, targetMonth: string): Promise<DashboardData> {
   const spreadsheetId = await getSpreadsheetId()!;
   const budgetMap: Record<string, number> = {};
@@ -393,6 +421,8 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
 
+    rows = dedupeLocalRowsWhenSupabaseExists(rows);
+
     if (rows.length > 0) {
       const lastRefresh = lastCacheRefreshByMonth.get(targetMonth) ?? 0;
       if (Date.now() - lastRefresh > CACHE_REFRESH_MS) {
@@ -411,6 +441,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     try {
       const mappedRows = await refreshSupabaseMonthCache(targetMonth);
       rows = mappedRows;
+      rows = dedupeLocalRowsWhenSupabaseExists(rows);
     } catch (err) {
       console.warn('[Finance] Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
     }
@@ -423,6 +454,7 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC
     `).all(`${targetMonth}%`) as Array<any>;
+    rows = dedupeLocalRowsWhenSupabaseExists(rows);
   }
 
   if (!useSheets || !spreadsheetId) {
