@@ -9,7 +9,9 @@
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "migrate": "tsx migrate.ts"
+    "migrate": "tsx migrate.ts",
+    "sync:supabase": "node sync-local-to-supabase.js",
+    "backfill:overdue-payments": "node backfill-overdue-payments-to-supabase.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

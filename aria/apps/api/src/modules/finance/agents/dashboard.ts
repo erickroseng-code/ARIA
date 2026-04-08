@@ -5,16 +5,24 @@ import { checkBudgetAlerts } from './budget-planner';
 import { db } from '../../../config/db';
 import { getSupabase } from '../../../config/supabase';
 import { applyRecurringExpensesForMonth } from './entries';
+const USE_SUPABASE = process.env.FINANCE_USE_SUPABASE === 'true';
+const USE_LOCAL_CACHE = process.env.FINANCE_LOCAL_READ_CACHE !== 'false';
+const CACHE_REFRESH_MS = Number(process.env.FINANCE_CACHE_REFRESH_MS ?? 60000);
+const lastCacheRefreshByMonth = new Map<string, number>();
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS finance_transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    remoteId TEXT,
+    source TEXT DEFAULT 'local',
     date TEXT NOT NULL,
     type TEXT NOT NULL,
     category TEXT NOT NULL,
     description TEXT NOT NULL,
     amount REAL NOT NULL,
-    tags TEXT DEFAULT ''
+    tags TEXT DEFAULT '',
+    isEffective INTEGER DEFAULT 1,
+    effectiveAmount REAL DEFAULT NULL
   );
 
   CREATE TABLE IF NOT EXISTS finance_monthly_plan (
@@ -44,7 +52,7 @@ export interface DashboardData {
   totalExpenses: number;
   netBalance: number;
   byCategory: Array<{ category: string; spent: number; budgeted: number; percentage: number }>;
-  transactions: Array<{ index: number; source: 'local' | 'sheets'; date: string; type: string; category: string; description: string; amount: number; isEffective: boolean; effectiveAmount?: number | null; isRecurring?: boolean }>;
+  transactions: Array<{ index: number | string; source: 'local' | 'sheets' | 'supabase'; date: string; type: string; category: string; description: string; amount: number; isEffective: boolean; effectiveAmount?: number | null; isRecurring?: boolean }>;
   alerts: Array<{ category: string; percentage: number; level: string; message: string }>;
   comparison: MonthlyPlanComparison;
 }
@@ -57,6 +65,26 @@ export interface MonthlyPlanInput {
 
 function normalizeMonth(month?: string): string {
   return month && /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().substring(0, 7);
+}
+
+function hasColumn(tableName: string, columnName: string): boolean {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  return columns.some(c => c.name === columnName);
+}
+
+function ensureTransactionsCacheSchema(): void {
+  if (!hasColumn('finance_transactions', 'remoteId')) {
+    db.exec(`ALTER TABLE finance_transactions ADD COLUMN remoteId TEXT DEFAULT NULL`);
+  }
+  if (!hasColumn('finance_transactions', 'source')) {
+    db.exec(`ALTER TABLE finance_transactions ADD COLUMN source TEXT DEFAULT 'local'`);
+  }
+  if (!hasColumn('finance_transactions', 'isEffective')) {
+    db.exec(`ALTER TABLE finance_transactions ADD COLUMN isEffective INTEGER DEFAULT 1`);
+  }
+  if (!hasColumn('finance_transactions', 'effectiveAmount')) {
+    db.exec(`ALTER TABLE finance_transactions ADD COLUMN effectiveAmount REAL DEFAULT NULL`);
+  }
 }
 
 function ensureMonthlyPlanTable(): void {
@@ -157,8 +185,8 @@ function buildDashboardFromRows(rows: any[], targetMonth: string): DashboardData
       }
     }
     return {
-      index: Number(row.id ?? 0),
-      source: 'local' as const,
+      index: row.source === 'supabase' ? String(row.remoteId ?? row.id ?? '') : Number(row.id ?? 0),
+      source: (row.source ?? 'local') as 'local' | 'sheets' | 'supabase',
       date: String(row.date ?? ''),
       type,
       category,
@@ -254,80 +282,143 @@ async function buildDashboardFromSheets(rowsSheets: string[][], budgetData: { va
   };
 }
 
+function getMonthDateRange(targetMonth: string): { start: string; end: string } {
+  const [year, month] = targetMonth.split('-');
+  const monthNum = parseInt(month, 10);
+
+  let nextMonth: string;
+  let nextYear: string;
+  if (monthNum === 12) {
+    nextMonth = '01';
+    nextYear = String(parseInt(year, 10) + 1);
+  } else {
+    nextMonth = String(monthNum + 1).padStart(2, '0');
+    nextYear = year;
+  }
+
+  return {
+    start: `${targetMonth}-01`,
+    end: `${nextYear}-${nextMonth}-01`,
+  };
+}
+
+function mapSupabaseRowsToLocalRows(supabaseRows: any[]): any[] {
+  return supabaseRows.map((row: any) => {
+    const tagsString = Array.isArray(row.tags) ? row.tags.join(',') : String(row.tags ?? '');
+    const hasEffectiveTag = tagsString.includes('efetivado');
+    const isEffective = hasEffectiveTag ? true : row.type === 'expense';
+    let effectiveAmount: number | null = null;
+    if (isEffective && tagsString.includes('efetivado:')) {
+      const match = tagsString.match(/efetivado:([0-9.]+)/);
+      if (match && match[1]) {
+        effectiveAmount = parseFloat(match[1]);
+      }
+    }
+
+    return {
+      remoteId: String(row.id ?? ''),
+      source: 'supabase',
+      date: String(row.date ?? ''),
+      type: row.type === 'income' ? 'receita' : 'despesa',
+      category: String(row.category ?? ''),
+      description: String(row.description ?? ''),
+      amount: Number(row.amount ?? 0),
+      tags: tagsString,
+      isEffective: isEffective ? 1 : 0,
+      effectiveAmount,
+    };
+  });
+}
+
+function replaceSupabaseMonthCache(targetMonth: string, mappedRows: any[]): void {
+  db.prepare(`
+    DELETE FROM finance_transactions
+    WHERE source = 'supabase'
+      AND date LIKE ?
+  `).run(`${targetMonth}%`);
+
+  const insert = db.prepare(`
+    INSERT INTO finance_transactions (remoteId, source, date, type, category, description, amount, tags, isEffective, effectiveAmount)
+    VALUES (?, 'supabase', ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const row of mappedRows) {
+    insert.run(
+      row.remoteId,
+      row.date,
+      row.type,
+      row.category,
+      row.description,
+      row.amount,
+      row.tags,
+      row.isEffective,
+      row.effectiveAmount ?? null,
+    );
+  }
+}
+
+async function refreshSupabaseMonthCache(targetMonth: string): Promise<any[]> {
+  const supabase = getSupabase();
+  const { start, end } = getMonthDateRange(targetMonth);
+  const { data: supabaseRows, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .gte('date', start)
+    .lt('date', end);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const mappedRows = mapSupabaseRowsToLocalRows(supabaseRows ?? []);
+  replaceSupabaseMonthCache(targetMonth, mappedRows);
+  lastCacheRefreshByMonth.set(targetMonth, Date.now());
+  return mappedRows;
+}
+
 export async function getDashboardData(month?: string): Promise<DashboardData> {
   const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
   const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
   const targetMonth = normalizeMonth(month);
+  ensureTransactionsCacheSchema();
   await applyRecurringExpensesForMonth(targetMonth);
 
-  // Tentar ler do Supabase primeiro
   let rows: any[] = [];
-  try {
-    const supabase = getSupabase();
-    const [year, month] = targetMonth.split('-');
-    const monthNum = parseInt(month);
 
-    let nextMonth: string;
-    let nextYear: string;
-    if (monthNum === 12) {
-      nextMonth = '01';
-      nextYear = String(parseInt(year) + 1);
-    } else {
-      nextMonth = String(monthNum + 1).padStart(2, '0');
-      nextYear = year;
+  if (USE_SUPABASE && USE_LOCAL_CACHE) {
+    rows = db.prepare(`
+      SELECT id, remoteId, source, date, type, category, description, amount, tags, isEffective, effectiveAmount
+      FROM finance_transactions
+      WHERE date LIKE ?
+      ORDER BY date DESC, id DESC
+    `).all(`${targetMonth}%`) as Array<any>;
+
+    if (rows.length > 0) {
+      const lastRefresh = lastCacheRefreshByMonth.get(targetMonth) ?? 0;
+      if (Date.now() - lastRefresh > CACHE_REFRESH_MS) {
+        void refreshSupabaseMonthCache(targetMonth).catch((err) => {
+          console.warn('[Finance] background cache refresh error:', (err as any)?.message ?? err);
+        });
+      }
+
+      if (!useSheets || !spreadsheetId) {
+        return buildDashboardFromRows(rows, targetMonth);
+      }
     }
-    const dateFilter = `${nextYear}-${nextMonth}-01`;
-
-    console.log('[Finance] Querying Supabase for month:', targetMonth, 'start:', `${targetMonth}-01`, 'end:', dateFilter);
-
-    const { data: supabaseRows, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .gte('date', `${targetMonth}-01`)
-      .lt('date', dateFilter);
-
-    console.log('[Finance] Supabase query error:', error?.message);
-    console.log('[Finance] Supabase rows count:', supabaseRows?.length ?? 0);
-
-    if (!error && supabaseRows && supabaseRows.length > 0) {
-      // Mapear dados do Supabase para o formato esperado
-      rows = supabaseRows.map((row: any) => {
-        const tagsString = Array.isArray(row.tags) ? row.tags.join(',') : row.tags || '';
-        const isEffective = tagsString.includes('efetivado');
-        let effectiveAmount: number | null = null;
-
-        // Extrair effectiveAmount dos tags (ex: "efetivado:1577.27")
-        if (isEffective && tagsString.includes('efetivado:')) {
-          const match = tagsString.match(/efetivado:([0-9.]+)/);
-          if (match && match[1]) {
-            effectiveAmount = parseFloat(match[1]);
-          }
-        }
-
-        return {
-          id: row.id,
-          date: row.date,
-          type: row.type === 'income' ? 'receita' : 'despesa',
-          category: row.category,
-          description: row.description,
-          amount: row.amount,
-          tags: tagsString,
-          isEffective: isEffective ? 1 : 0,
-          effectiveAmount: effectiveAmount,
-        };
-      });
-      console.log('[Finance] ✅ Loaded', rows.length, 'transactions from Supabase');
-    } else {
-      console.log('[Finance] ❌ No Supabase data, error:', error?.message);
-    }
-  } catch (err) {
-    console.warn('[Finance] ⚠️  Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
   }
 
-  // Fallback para SQLite se Supabase falhou
+  if (rows.length === 0 && USE_SUPABASE) {
+    try {
+      const mappedRows = await refreshSupabaseMonthCache(targetMonth);
+      rows = mappedRows;
+    } catch (err) {
+      console.warn('[Finance] Supabase read error, falling back to SQLite:', (err as any)?.message ?? err);
+    }
+  }
+
   if (rows.length === 0) {
     rows = db.prepare(`
-      SELECT id, date, type, category, description, amount, tags, isEffective, effectiveAmount
+      SELECT id, remoteId, source, date, type, category, description, amount, tags, isEffective, effectiveAmount
       FROM finance_transactions
       WHERE date LIKE ?
       ORDER BY date DESC, id DESC

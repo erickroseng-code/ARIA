@@ -18,7 +18,7 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   // GET /api/finance/debug — Debug endpoint
   fastify.get('/debug', async (_req: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { getSupabase } = await import('../../config/supabase');
+      const { getSupabase } = await import('../../config/supabase.js');
       const supabase = getSupabase();
 
       const { data, error } = await supabase.from('transactions').select('count', { count: 'exact' });
@@ -164,15 +164,17 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   fastify.put('/transaction/:index', async (
     req: FastifyRequest<{
       Params: { index: string };
-      Querystring: { source?: 'local' | 'sheets' };
+      Querystring: { source?: 'local' | 'sheets' | 'supabase' };
       Body: { type: string; category: string; description: string; amount: number; isEffective?: boolean; date?: string };
     }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
       const { type, category, description, amount, isEffective, date } = req.body;
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       if (!type || !category || !description || !amount) {
         return reply.status(400).send({ error: 'Campos obrigatórios: type, category, description, amount' });
       }
@@ -183,7 +185,7 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
         amount,
         isEffective,
         date,
-      }, req.query.source ?? 'local');
+      }, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -194,20 +196,22 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   fastify.patch('/transaction/:index/effective', async (
     req: FastifyRequest<{
       Params: { index: string };
-      Querystring: { source?: 'local' | 'sheets' };
+      Querystring: { source?: 'local' | 'sheets' | 'supabase' };
       Body: { isEffective: boolean; actualAmount?: number };
     }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
       const { isEffective, actualAmount } = req.body ?? {};
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       if (typeof isEffective !== 'boolean') return reply.status(400).send({ error: 'isEffective obrigatório (boolean)' });
       if (actualAmount !== undefined && (!Number.isFinite(Number(actualAmount)) || Number(actualAmount) <= 0)) {
         return reply.status(400).send({ error: 'actualAmount inválido' });
       }
-      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, req.query.source ?? 'local');
+      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -218,20 +222,22 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   fastify.put('/transaction/:index/effective', async (
     req: FastifyRequest<{
       Params: { index: string };
-      Querystring: { source?: 'local' | 'sheets' };
+      Querystring: { source?: 'local' | 'sheets' | 'supabase' };
       Body: { isEffective: boolean; actualAmount?: number };
     }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
       const { isEffective, actualAmount } = req.body ?? {};
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       if (typeof isEffective !== 'boolean') return reply.status(400).send({ error: 'isEffective obrigatório (boolean)' });
       if (actualAmount !== undefined && (!Number.isFinite(Number(actualAmount)) || Number(actualAmount) <= 0)) {
         return reply.status(400).send({ error: 'actualAmount inválido' });
       }
-      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, req.query.source ?? 'local');
+      await updateTransactionEffectiveDirect(index, isEffective, actualAmount !== undefined ? Number(actualAmount) : undefined, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -240,13 +246,15 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/finance/transaction/:index — Remover receita/despesa
   fastify.delete('/transaction/:index', async (
-    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' } }>,
+    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' | 'supabase' } }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
-      await deleteTransactionDirect(index, req.query.source ?? 'local');
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      await deleteTransactionDirect(index, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -346,11 +354,15 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/finance/overdue/:index — Remover conta atrasada
   fastify.delete('/overdue/:index', async (
-    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' } }>,
+    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' | 'supabase' } }>,
     reply: FastifyReply,
   ) => {
     try {
-      await deleteOverdueAccount(parseInt(req.params.index), req.query.source ?? 'local');
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      await deleteOverdueAccount(index, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -361,16 +373,18 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   fastify.post('/overdue/:index/pay', async (
     req: FastifyRequest<{
       Params: { index: string };
-      Querystring: { source?: 'local' | 'sheets' };
+      Querystring: { source?: 'local' | 'sheets' | 'supabase' };
       Body: { amount: number };
     }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       if (!req.body?.amount || req.body.amount <= 0) return reply.status(400).send({ error: 'amount inválido' });
-      await payOverdue(index, req.query.source ?? 'local', 'partial', req.body.amount);
+      await payOverdue(index, source, 'partial', req.body.amount);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -378,13 +392,15 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/overdue/:index/pay-full', async (
-    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' } }>,
+    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' | 'supabase' } }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
-      await payOverdue(index, req.query.source ?? 'local', 'full');
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      await payOverdue(index, source, 'full');
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -393,13 +409,15 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
 
   // POST /api/finance/overdue/:index/undo-pay — Desfazer pagamento de conta atrasada
   fastify.post('/overdue/:index/undo-pay', async (
-    req: FastifyRequest<{ Params: { index: string } }>,
+    req: FastifyRequest<{ Params: { index: string }; Querystring: { source?: 'local' | 'sheets' | 'supabase' } }>,
     reply: FastifyReply,
   ) => {
     try {
-      const index = parseInt(req.params.index);
-      if (isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
-      await undoPayOverdue(index);
+      const rawIndex = req.params.index;
+      const source = req.query.source ?? (rawIndex.includes('-') ? 'supabase' : 'local');
+      const index = source === 'supabase' ? rawIndex : parseInt(rawIndex, 10);
+      if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      await undoPayOverdue(index, source);
       return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -526,8 +544,8 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     try {
       const path = require('path');
       const fs = require('fs');
-      const { db } = await import('../../config/db');
-      const { getSupabase } = await import('../../config/supabase');
+      const { db } = await import('../../config/db.js');
+      const { getSupabase } = await import('../../config/supabase.js');
 
       const dbPath = process.env.SQLITE_DB_PATH?.trim()
         ? path.resolve(process.env.SQLITE_DB_PATH)
@@ -638,7 +656,7 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     reply: FastifyReply
   ) => {
     try {
-      const { getSupabase } = await import('../../config/supabase');
+      const { getSupabase } = await import('../../config/supabase.js');
       const supabase = getSupabase();
       let migratedCount = 0;
 
@@ -660,7 +678,7 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
       } else {
         // Senão, tentar ler do SQLite local (que pode não estar disponível no Render)
         try {
-          const { db } = await import('../../config/db');
+          const { db } = await import('../../config/db.js');
           console.log('[Finance] Starting migration from SQLite to Supabase...');
 
           const transactions = (db.prepare(`

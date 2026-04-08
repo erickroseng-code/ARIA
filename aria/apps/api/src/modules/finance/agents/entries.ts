@@ -3,6 +3,8 @@ import { getSpreadsheetId } from '../finance.service';
 import { SHEET_NAMES } from '../sheets-schema';
 import { db } from '../../../config/db';
 import { getSupabase } from '../../../config/supabase';
+const USE_SUPABASE = process.env.FINANCE_USE_SUPABASE === 'true';
+const USE_LOCAL_CACHE = process.env.FINANCE_LOCAL_READ_CACHE !== 'false';
 
 export interface TransactionInput {
   type: 'receita' | 'despesa';
@@ -35,7 +37,7 @@ export interface OverdueInput {
 }
 
 export interface DebtRecord {
-  index: number;
+  index: number | string;
   source: TransactionSource;
   creditor: string;
   totalAmount: number;
@@ -48,7 +50,7 @@ export interface DebtRecord {
 }
 
 export interface OverdueRecord {
-  index: number;
+  index: number | string;
   source: TransactionSource;
   account: string;
   overdueAmount: number;
@@ -83,6 +85,8 @@ export interface RecurringExpenseRecord {
 db.exec(`
   CREATE TABLE IF NOT EXISTS finance_transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    remoteId TEXT,
+    source TEXT DEFAULT 'local',
     date TEXT NOT NULL,
     type TEXT NOT NULL,
     category TEXT NOT NULL,
@@ -161,6 +165,12 @@ if (!hasColumn('finance_overdue_accounts', 'paidTransactionId')) {
 if (!hasColumn('finance_transactions', 'paymentMethod')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN paymentMethod TEXT DEFAULT 'outros'`);
 }
+if (!hasColumn('finance_transactions', 'remoteId')) {
+  db.exec(`ALTER TABLE finance_transactions ADD COLUMN remoteId TEXT DEFAULT NULL`);
+}
+if (!hasColumn('finance_transactions', 'source')) {
+  db.exec(`ALTER TABLE finance_transactions ADD COLUMN source TEXT DEFAULT 'local'`);
+}
 if (!hasColumn('finance_transactions', 'creditCardId')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN creditCardId INTEGER DEFAULT NULL`);
 }
@@ -171,6 +181,7 @@ if (!hasColumn('finance_transactions', 'effectiveAmount')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN effectiveAmount REAL DEFAULT NULL`);
 }
 db.exec(`UPDATE finance_transactions SET isEffective = 1 WHERE isEffective IS NULL`);
+db.exec(`UPDATE finance_transactions SET source = 'local' WHERE source IS NULL OR source = ''`);
 
 function normalizeMonth(month?: string): string {
   return (month && /^\d{4}-\d{2}$/.test(month))
@@ -216,6 +227,32 @@ function addLocalExpenseTransaction(description: string, amount: number, categor
   return Number(result.lastInsertRowid);
 }
 
+async function addSupabaseExpenseTransaction(
+  description: string,
+  amount: number,
+  tags: string[] = ['efetivado'],
+): Promise<void> {
+  if (!USE_SUPABASE) return;
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('transactions')
+      .insert({
+        date: todayISO(),
+        type: 'expense',
+        category: 'Outros',
+        description,
+        amount,
+        tags,
+      });
+    if (error) {
+      throw new Error(error.message);
+    }
+  } catch (err: any) {
+    console.warn('[Finance] Failed to mirror expense to Supabase:', err?.message ?? err);
+  }
+}
+
 export async function addTransactionDirect(input: TransactionInput): Promise<void> {
   const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
   const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
@@ -234,9 +271,49 @@ export async function addTransactionDirect(input: TransactionInput): Promise<voi
     }
   }
 
+  if (USE_SUPABASE) {
+    const supabase = getSupabase();
+    const tags = statusTag.split(',').map((x: string) => x.trim()).filter(Boolean);
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        date,
+        type: input.type === 'receita' ? 'income' : 'expense',
+        category: input.category,
+        description: input.description,
+        amount: input.amount,
+        tags,
+      })
+      .select('id')
+      .single();
+    if (error) {
+      throw new Error(`Falha ao inserir transação no Supabase: ${error.message}`);
+    }
+
+    if (USE_LOCAL_CACHE) {
+      db.prepare(`
+        INSERT INTO finance_transactions (remoteId, source, date, type, category, description, amount, tags, paymentMethod, creditCardId, isEffective, effectiveAmount)
+        VALUES (?, 'supabase', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        String(data?.id ?? ''),
+        date,
+        input.type,
+        input.category,
+        input.description,
+        input.amount,
+        statusTag,
+        input.paymentMethod ?? 'outros',
+        input.creditCardId ?? null,
+        isEffective ? 1 : 0,
+        null,
+      );
+    }
+    return;
+  }
+
   db.prepare(`
-    INSERT INTO finance_transactions (date, type, category, description, amount, tags, paymentMethod, creditCardId, isEffective, effectiveAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO finance_transactions (source, date, type, category, description, amount, tags, paymentMethod, creditCardId, isEffective, effectiveAmount)
+    VALUES ('local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     date,
     input.type,
@@ -252,7 +329,7 @@ export async function addTransactionDirect(input: TransactionInput): Promise<voi
 }
 
 export async function updateTransactionDirect(
-  index: number,
+  index: number | string,
   input: TransactionInput,
   source: TransactionSource = 'local',
 ): Promise<void> {
@@ -262,7 +339,7 @@ export async function updateTransactionDirect(
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
-      const rowNum = index + 2; // A2 is index 0
+      const rowNum = Number(index) + 2; // A2 is index 0
       await service.writeRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A${rowNum}:F${rowNum}`, [[
         date,
         input.type,
@@ -275,6 +352,43 @@ export async function updateTransactionDirect(
     } catch (err) {
       console.warn('[Finance] updateTransactionDirect sheets fallback -> sqlite:', (err as any)?.message ?? err);
     }
+  }
+
+  if (USE_SUPABASE && (source === 'supabase' || (typeof index === 'string' && index.includes('-')))) {
+    const supabase = getSupabase();
+    const isEffective = Boolean(input.isEffective ?? (input.type === 'despesa'));
+    const tags = [isEffective ? 'efetivado' : 'previsto'];
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        date,
+        type: input.type === 'receita' ? 'income' : 'expense',
+        category: input.category,
+        description: input.description,
+        amount: input.amount,
+        tags,
+      })
+      .eq('id', String(index));
+    if (error) {
+      throw new Error(`Falha ao atualizar transação no Supabase: ${error.message}`);
+    }
+    if (USE_LOCAL_CACHE) {
+      db.prepare(`
+        UPDATE finance_transactions
+        SET date = ?, type = ?, category = ?, description = ?, amount = ?, tags = ?, isEffective = COALESCE(?, isEffective)
+        WHERE remoteId = ?
+      `).run(
+        date,
+        input.type,
+        input.category,
+        input.description,
+        input.amount,
+        tags.join(','),
+        typeof input.isEffective === 'boolean' ? (input.isEffective ? 1 : 0) : null,
+        String(index),
+      );
+    }
+    return;
   }
 
   db.prepare(`
@@ -301,13 +415,16 @@ export async function updateTransactionEffectiveDirect(
   actualAmount?: number,
   source: TransactionSource = 'local',
 ): Promise<void> {
-  const spreadsheetId = await getSpreadsheetId();
   const hasCustomAmount = Number.isFinite(actualAmount) && Number(actualAmount) > 0;
   const statusTag = !isEffective
     ? 'previsto'
     : (hasCustomAmount ? `efetivado:${Number(actualAmount).toFixed(2)}` : 'efetivado');
 
-  if (source === 'sheets' && spreadsheetId) {
+  if (source === 'sheets') {
+    const spreadsheetId = await getSpreadsheetId();
+    if (!spreadsheetId) {
+      throw new Error('Planilha não configurada para source=sheets');
+    }
     try {
       const service = new SheetsService();
       const rowNum = Number(index) + 2; // A2 is index 0
@@ -323,17 +440,32 @@ export async function updateTransactionEffectiveDirect(
   }
 
   // Se for UUID (string com hífen), é do Supabase
-  if (source === 'supabase' || (typeof index === 'string' && index.includes('-'))) {
+  if (USE_SUPABASE && (source === 'supabase' || (typeof index === 'string' && index.includes('-')))) {
     try {
       const supabase = getSupabase();
       const tags = statusTag.split(',').map((x: string) => x.trim()).filter(Boolean);
-
-      await supabase
+      const { error } = await supabase
         .from('transactions')
         .update({ tags })
-        .eq('id', index);
+        .eq('id', String(index));
+
+      if (error) throw error;
 
       console.log('[Finance] Updated Supabase transaction:', index);
+      if (USE_LOCAL_CACHE) {
+        db.prepare(`
+          UPDATE finance_transactions
+          SET isEffective = ?, tags = ?, effectiveAmount = ?
+          WHERE remoteId = ?
+        `).run(
+          isEffective ? 1 : 0,
+          statusTag,
+          isEffective
+            ? (hasCustomAmount ? Number(actualAmount) : null)
+            : null,
+          String(index),
+        );
+      }
       return;
     } catch (err: any) {
       console.warn('[Finance] Failed to update Supabase:', err.message);
@@ -344,11 +476,11 @@ export async function updateTransactionEffectiveDirect(
   // Fallback pra SQLite
   const numIndex = Number(index);
   const current = db.prepare(`
-    SELECT type, tags
+    SELECT type, tags, date
     FROM finance_transactions
     WHERE id = ?
     LIMIT 1
-  `).get(numIndex) as { type?: string; tags?: string } | undefined;
+  `).get(numIndex) as { type?: string; tags?: string; date?: string } | undefined;
 
   const currentType = String(current?.type ?? '');
   const currentTags = String(current?.tags ?? '');
@@ -367,36 +499,10 @@ export async function updateTransactionEffectiveDirect(
       : null,
     numIndex,
   );
-
-  // Tentar também atualizar Supabase se temos um UUID
-  try {
-    const supabase = getSupabase();
-    const tags = nextTags.split(',').map((x: string) => x.trim()).filter(Boolean);
-
-    // Procurar por UUID com description + date que bate
-    if (current) {
-      const { data } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('date', current.date)
-        .limit(1);
-
-      if (data && data.length > 0) {
-        await supabase
-          .from('transactions')
-          .update({ tags })
-          .eq('id', data[0].id);
-
-        console.log('[Finance] Also updated Supabase for sync');
-      }
-    }
-  } catch (err: any) {
-    console.warn('[Finance] Failed to sync with Supabase:', err.message);
-  }
 }
 
 export async function deleteTransactionDirect(
-  index: number,
+  index: number | string,
   source: TransactionSource = 'local',
 ): Promise<void> {
   const spreadsheetId = await getSpreadsheetId();
@@ -404,12 +510,27 @@ export async function deleteTransactionDirect(
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
-      const rowNum = index + 2; // A2 is index 0
+      const rowNum = Number(index) + 2; // A2 is index 0
       await service.clearRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A${rowNum}:F${rowNum}`);
       return;
     } catch (err) {
       console.warn('[Finance] deleteTransactionDirect sheets fallback -> sqlite:', (err as any)?.message ?? err);
     }
+  }
+
+  if (USE_SUPABASE && (source === 'supabase' || (typeof index === 'string' && index.includes('-')))) {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', String(index));
+    if (error) {
+      throw new Error(`Falha ao remover transação do Supabase: ${error.message}`);
+    }
+    if (USE_LOCAL_CACHE) {
+      db.prepare('DELETE FROM finance_transactions WHERE remoteId = ?').run(String(index));
+    }
+    return;
   }
 
   db.prepare('DELETE FROM finance_transactions WHERE id = ?').run(index);
@@ -505,7 +626,7 @@ export async function deleteDebt(
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
-      const sheetRow = rowIndex + 2;
+      const sheetRow = Number(rowIndex) + 2;
       await service.clearRange(spreadsheetId, `${SHEET_NAMES.DEBTS}!A${sheetRow}:G${sheetRow}`);
       return;
     } catch (err) {
@@ -517,8 +638,10 @@ export async function deleteDebt(
 }
 
 export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
+  const supabaseRecords: OverdueRecord[] = [];
   // Tentar Supabase primeiro
   try {
+    if (!USE_SUPABASE) throw new Error('Supabase disabled for local-first mode');
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('overdue_accounts')
@@ -528,18 +651,39 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
 
     if (!error && data && data.length > 0) {
       console.log('[Finance] Loaded', data.length, 'overdue accounts from Supabase');
-      return data.map((r: any, idx: number) => ({
-        index: idx,
-        source: 'supabase' as const,
-        account: String(r.account_name ?? ''),
-        overdueAmount: Number(r.overdue_amount ?? 0),
-        daysOverdue: Number(r.days_overdue ?? 0),
-        dueDate: normalizeDate(String(r.registration_date ?? '')),
-        registeredAt: String(r.registration_date ?? ''),
-        status: String(r.status ?? 'pendente'),
-        paidAmount: r.paid_amount ? Number(r.paid_amount) : null,
-        paidAt: r.paid_at ?? null,
-        paidTransactionId: r.paid_transaction_id ?? null,
+      const deriveDueDate = (r: any): string => {
+        const explicitDue = normalizeDate(String(r.due_date ?? ''));
+        if (explicitDue) return explicitDue;
+        const registrationDate = normalizeDate(String(r.registration_date ?? ''));
+        const daysOverdue = Number(r.days_overdue ?? 0);
+        if (!registrationDate || !Number.isFinite(daysOverdue) || daysOverdue <= 0) return '';
+        const reg = new Date(`${registrationDate}T00:00:00`);
+        if (Number.isNaN(reg.getTime())) return '';
+        reg.setDate(reg.getDate() - daysOverdue);
+        return reg.toISOString().slice(0, 10);
+      };
+
+      const normalizeStatus = (status: string): string => {
+        const s = String(status ?? '').toLowerCase().trim();
+        if (s === 'pago' || s === 'resolved') return 'Pago';
+        return 'Pendente';
+      };
+
+      supabaseRecords.push(...data.map((r: any) => {
+        const dueDate = deriveDueDate(r);
+        return {
+          index: String(r.id ?? ''),
+          source: 'supabase' as const,
+          account: String(r.account_name ?? ''),
+          overdueAmount: Number(r.overdue_amount ?? 0),
+          daysOverdue: calculateDaysOverdue(dueDate) || Number(r.days_overdue ?? 0),
+          dueDate,
+          registeredAt: String(r.registration_date ?? ''),
+          status: normalizeStatus(String(r.status ?? 'pendente')),
+          paidAmount: r.paid_amount ? Number(r.paid_amount) : null,
+          paidAt: r.paid_at ?? null,
+          paidTransactionId: r.paid_transaction_id ?? null,
+        };
       }));
     }
   } catch (err: any) {
@@ -547,8 +691,10 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
   }
 
   // Fallback para Sheets
-  const spreadsheetId = await getSpreadsheetId();
-  if (spreadsheetId) {
+  const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
+  if (useSheets) {
+    const spreadsheetId = await getSpreadsheetId();
+    if (spreadsheetId) {
     try {
       const service = new SheetsService();
       const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A2:F200`);
@@ -567,9 +713,10 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
           paidTransactionId: null,
         }))
         .filter(d => d.account.trim() !== '');
-      if (fromSheets.length > 0) return fromSheets;
+      if (fromSheets.length > 0 && supabaseRecords.length === 0) return fromSheets;
     } catch (err) {
       console.warn('[Finance] getOverdueAccounts fallback -> sqlite:', (err as any)?.message ?? err);
+    }
     }
   }
 
@@ -579,7 +726,7 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
     ORDER BY status ASC, id DESC
   `).all() as Array<any>;
 
-  return rows.map(r => ({
+  const sqliteRecords = rows.map(r => ({
     index: Number(r.id),
     source: 'local' as const,
     account: String(r.account ?? ''),
@@ -592,6 +739,18 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
     paidAt: r.paidAt ? String(r.paidAt) : null,
     paidTransactionId: r.paidTransactionId != null ? Number(r.paidTransactionId) : null,
   }));
+
+  if (supabaseRecords.length === 0) return sqliteRecords;
+
+  const dedupe = new Set<string>();
+  const combined = [...supabaseRecords, ...sqliteRecords].filter((r) => {
+    const key = `${String(r.account).toLowerCase()}|${Number(r.overdueAmount).toFixed(2)}|${r.dueDate}|${r.status}`;
+    if (dedupe.has(key)) return false;
+    dedupe.add(key);
+    return true;
+  });
+
+  return combined;
 }
 
 export async function addOverdueAccount(input: OverdueInput): Promise<void> {
@@ -623,19 +782,31 @@ export async function addOverdueAccount(input: OverdueInput): Promise<void> {
 }
 
 export async function deleteOverdueAccount(
-  rowIndex: number,
+  rowIndex: number | string,
   source: TransactionSource = 'local',
 ): Promise<void> {
   const spreadsheetId = await getSpreadsheetId();
   if (source === 'sheets' && spreadsheetId) {
     try {
       const service = new SheetsService();
-      const sheetRow = rowIndex + 2;
+      const sheetRow = Number(rowIndex) + 2;
       await service.clearRange(spreadsheetId, `${SHEET_NAMES.OVERDUE_ACCOUNTS}!A${sheetRow}:F${sheetRow}`);
       return;
     } catch (err) {
       console.warn('[Finance] deleteOverdueAccount fallback -> sqlite:', (err as any)?.message ?? err);
     }
+  }
+
+  if (USE_SUPABASE && (source === 'supabase' || (typeof rowIndex === 'string' && rowIndex.includes('-')))) {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from('overdue_accounts')
+      .delete()
+      .eq('id', String(rowIndex));
+    if (error) {
+      throw new Error(`Falha ao remover conta atrasada no Supabase: ${error.message}`);
+    }
+    return;
   }
 
   db.prepare('DELETE FROM finance_overdue_accounts WHERE id = ?').run(rowIndex);
@@ -726,11 +897,77 @@ export async function payDebt(
 }
 
 export async function payOverdue(
-  index: number,
+  index: number | string,
   source: TransactionSource = 'local',
   _mode: 'partial' | 'full' = 'partial',
   amount?: number,
 ): Promise<void> {
+  if (USE_SUPABASE && (source === 'supabase' || (typeof index === 'string' && index.includes('-')))) {
+    const supabase = getSupabase();
+    const { data: current, error: currentError } = await supabase
+      .from('overdue_accounts')
+      .select('*')
+      .eq('id', String(index))
+      .single();
+
+    if (currentError || !current) throw new Error('Conta atrasada não encontrada');
+
+    const currentStatus = String(current.status ?? '').toLowerCase();
+    if (currentStatus === 'pago' || currentStatus === 'resolved') {
+      throw new Error('Conta já está paga. Use desfazer para revertê-la.');
+    }
+
+    const overdueAmount = Number(current.overdue_amount ?? 0);
+    const paymentAmount = amount && amount > 0 ? amount : overdueAmount;
+    if (paymentAmount <= 0) throw new Error('Valor de pagamento inválido');
+
+    const today = todayISO();
+    const accountName = String(current.account_name ?? 'Conta atrasada');
+
+    const { data: txRow, error: txError } = await supabase
+      .from('transactions')
+      .insert({
+        date: today,
+        type: 'expense',
+        category: 'Outros',
+        description: `Pagamento conta atrasada - ${accountName}`,
+        amount: paymentAmount,
+        tags: ['efetivado', 'pagamento-atrasada'],
+      })
+      .select('id')
+      .single();
+
+    if (txError) {
+      throw new Error(`Falha ao registrar pagamento no Supabase: ${txError.message}`);
+    }
+
+    const txId = txRow?.id ?? null;
+    const payloadWithPaidFields = {
+      status: 'Pago',
+      paid_amount: paymentAmount,
+      paid_at: today,
+      paid_transaction_id: txId,
+    };
+
+    let updateError: any = null;
+    const updateWithPaid = await supabase
+      .from('overdue_accounts')
+      .update(payloadWithPaidFields)
+      .eq('id', String(index));
+    updateError = updateWithPaid.error;
+
+    if (updateError) {
+      const updateStatusOnly = await supabase
+        .from('overdue_accounts')
+        .update({ status: 'Pago' })
+        .eq('id', String(index));
+      if (updateStatusOnly.error) {
+        throw new Error(`Falha ao atualizar conta atrasada no Supabase: ${updateStatusOnly.error.message}`);
+      }
+    }
+    return;
+  }
+
   const current = db.prepare(`
     SELECT id, account, overdueAmount, status
     FROM finance_overdue_accounts
@@ -748,6 +985,11 @@ export async function payOverdue(
     paymentAmount,
     'Outros',
   );
+  await addSupabaseExpenseTransaction(
+    `Pagamento conta atrasada - ${String(current.account ?? 'Conta atrasada')}`,
+    paymentAmount,
+    ['efetivado', 'pagamento-atrasada'],
+  );
 
   db.prepare(`
     UPDATE finance_overdue_accounts
@@ -757,8 +999,55 @@ export async function payOverdue(
 }
 
 export async function undoPayOverdue(
-  index: number,
+  index: number | string,
+  source: TransactionSource = 'local',
 ): Promise<void> {
+  if (USE_SUPABASE && (source === 'supabase' || (typeof index === 'string' && index.includes('-')))) {
+    const supabase = getSupabase();
+    const { data: current, error: currentError } = await supabase
+      .from('overdue_accounts')
+      .select('*')
+      .eq('id', String(index))
+      .single();
+
+    if (currentError || !current) throw new Error('Conta atrasada não encontrada');
+
+    const currentStatus = String(current.status ?? '').toLowerCase();
+    if (currentStatus !== 'pago' && currentStatus !== 'resolved') {
+      throw new Error('Conta não está marcada como paga.');
+    }
+
+    if (current.paid_transaction_id) {
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', String(current.paid_transaction_id));
+    }
+
+    const resetPayload = {
+      status: 'Pendente',
+      paid_amount: null,
+      paid_at: null,
+      paid_transaction_id: null,
+    };
+
+    const resetWithPaidFields = await supabase
+      .from('overdue_accounts')
+      .update(resetPayload)
+      .eq('id', String(index));
+
+    if (resetWithPaidFields.error) {
+      const resetStatusOnly = await supabase
+        .from('overdue_accounts')
+        .update({ status: 'Pendente' })
+        .eq('id', String(index));
+      if (resetStatusOnly.error) {
+        throw new Error(`Falha ao desfazer pagamento no Supabase: ${resetStatusOnly.error.message}`);
+      }
+    }
+    return;
+  }
+
   const current = db.prepare(`
     SELECT id, account, status, paidTransactionId
     FROM finance_overdue_accounts
@@ -781,6 +1070,7 @@ export async function undoPayOverdue(
 export async function getRecurringExpenses(): Promise<RecurringExpenseRecord[]> {
   // Tentar Supabase primeiro
   try {
+    if (!USE_SUPABASE) throw new Error('Supabase disabled for local-first mode');
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('recurring_expenses')
@@ -791,8 +1081,8 @@ export async function getRecurringExpenses(): Promise<RecurringExpenseRecord[]> 
 
     if (!error && data && data.length > 0) {
       console.log('[Finance] Loaded', data.length, 'recurring expenses from Supabase');
-      return data.map((r: any) => ({
-        id: crypto.randomUUID(),
+      return data.map((r: any, idx: number) => ({
+        id: idx + 1,
         description: String(r.description ?? ''),
         category: String(r.category ?? ''),
         amount: Number(r.amount ?? 0),

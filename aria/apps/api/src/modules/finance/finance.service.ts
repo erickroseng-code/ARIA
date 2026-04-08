@@ -6,6 +6,10 @@ import { getSetting, setSetting } from '../../config/supabase';
 
 const SPREADSHEET_ID_KEY = 'finance_spreadsheet_id';
 const ONBOARDING_STATE_KEY = 'finance_onboarding_state';
+const SPREADSHEET_ID_CACHE_TTL_MS = 60_000;
+const USE_SUPABASE_SETTINGS = process.env.FINANCE_USE_SUPABASE === 'true';
+
+let spreadsheetIdCache: { value: string | null; updatedAt: number } | null = null;
 
 function getSpreadsheetIdFromEnv(): string | null {
   const candidates = [
@@ -26,20 +30,44 @@ export interface OnboardingState {
   answers: Record<string, string>;
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('timeout')), timeoutMs);
+    }),
+  ]);
+}
+
 export async function getSpreadsheetId(): Promise<string | null> {
+  const envId = getSpreadsheetIdFromEnv();
+  if (envId) return envId;
+  if (!USE_SUPABASE_SETTINGS) return null;
+
+  const now = Date.now();
+  if (spreadsheetIdCache && (now - spreadsheetIdCache.updatedAt) < SPREADSHEET_ID_CACHE_TTL_MS) {
+    return spreadsheetIdCache.value;
+  }
+
   try {
-    const dbId = await getSetting(SPREADSHEET_ID_KEY);
-    return dbId?.trim() ?? getSpreadsheetIdFromEnv();
+    const dbId = await withTimeout(getSetting(SPREADSHEET_ID_KEY), 300);
+    const value = dbId?.trim() ?? null;
+    spreadsheetIdCache = { value, updatedAt: now };
+    return value;
   } catch {
-    return getSpreadsheetIdFromEnv();
+    if (spreadsheetIdCache) return spreadsheetIdCache.value;
+    return null;
   }
 }
 
 export async function saveSpreadsheetId(id: string): Promise<void> {
+  spreadsheetIdCache = { value: id?.trim() || null, updatedAt: Date.now() };
+  if (!USE_SUPABASE_SETTINGS) return;
   await setSetting(SPREADSHEET_ID_KEY, id);
 }
 
 export async function getOnboardingState(): Promise<OnboardingState> {
+  if (!USE_SUPABASE_SETTINGS) return { completed: false, step: 0, answers: {} };
   try {
     const value = await getSetting(ONBOARDING_STATE_KEY);
     if (value) return JSON.parse(value) as OnboardingState;
@@ -48,6 +76,7 @@ export async function getOnboardingState(): Promise<OnboardingState> {
 }
 
 export async function saveOnboardingState(state: OnboardingState): Promise<void> {
+  if (!USE_SUPABASE_SETTINGS) return;
   await setSetting(ONBOARDING_STATE_KEY, JSON.stringify(state));
 }
 
