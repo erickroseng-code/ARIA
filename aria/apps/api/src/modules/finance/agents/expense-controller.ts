@@ -88,69 +88,19 @@ JSON:
  * Consulta o saldo e resumo do mês atual.
  */
 export async function queryBalance(month?: string): Promise<string> {
-  const useSheets = process.env.FINANCE_USE_SHEETS === 'true';
-  const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
-
   const targetMonth = month ?? new Date().toISOString().substring(0, 7);
   const monthLabel = new Date(`${targetMonth}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-  if (!useSheets || !spreadsheetId) {
-    const data = await getDashboardData(targetMonth);
-    const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const topCategories = data.byCategory
-      .slice(0, 3)
-      .map((entry) => `  • ${entry.category}: ${fmt(entry.spent)}`)
-      .join('\n');
-
-    return `## Resumo — ${monthLabel}\n\n` +
-      `💰 **Receitas:** ${fmt(data.totalIncome)}\n` +
-      `💸 **Despesas:** ${fmt(data.totalExpenses)}\n` +
-      `📊 **Saldo:** ${fmt(data.netBalance)}\n\n` +
-      `**Top categorias de gasto:**\n${topCategories || '  Nenhuma despesa ainda'}`;
-  }
-
-  const service = new SheetsService();
-  const data = await service.readRange(spreadsheetId, `${SHEET_NAMES.TRANSACTIONS}!A2:F10000`);
-
-  if (data.values.length === 0) {
-    return `Nenhuma transação registrada para ${monthLabel}.`;
-  }
-
-  // Filtrar pelo mês
-  const rows = data.values.filter(r => r[0]?.startsWith(targetMonth));
-  if (rows.length === 0) {
-    return `Nenhuma transação encontrada para ${monthLabel}.`;
-  }
-
-  let totalReceita = 0;
-  let totalDespesa = 0;
-  const byCategory: Record<string, number> = {};
-
-  for (const row of rows) {
-    const type = row[1];
-    const category = row[2] ?? 'Outros';
-    const amount = parseFloat(row[4] ?? '0') || 0;
-    if (type === 'receita') {
-      totalReceita += amount;
-    } else {
-      totalDespesa += amount;
-      byCategory[category] = (byCategory[category] ?? 0) + amount;
-    }
-  }
-
-  const saldo = totalReceita - totalDespesa;
+  const data = await getDashboardData(targetMonth);
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  const topCategories = Object.entries(byCategory)
-    .sort(([, a], [, b]) => b - a)
+  const topCategories = data.byCategory
     .slice(0, 3)
-    .map(([cat, val]) => `  • ${cat}: ${fmt(val)}`)
+    .map((entry) => `  • ${entry.category}: ${fmt(entry.spent)}`)
     .join('\n');
 
   return `## Resumo — ${monthLabel}\n\n` +
-    `💰 **Receitas:** ${fmt(totalReceita)}\n` +
-    `💸 **Despesas:** ${fmt(totalDespesa)}\n` +
-    `📊 **Saldo:** ${fmt(saldo)}\n\n` +
+    `💰 **Receitas:** ${fmt(data.totalIncome)}\n` +
+    `💸 **Despesas:** ${fmt(data.totalExpenses)}\n` +
+    `📊 **Saldo:** ${fmt(data.netBalance)}\n\n` +
     `**Top categorias de gasto:**\n${topCategories || '  Nenhuma despesa ainda'}`;
 }
 
