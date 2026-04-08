@@ -1049,7 +1049,7 @@ export async function undoPayOverdue(
   }
 
   const current = db.prepare(`
-    SELECT id, account, status, paidTransactionId
+    SELECT id, account, status, paidTransactionId, paidAt
     FROM finance_overdue_accounts
     WHERE id = ?
   `).get(index) as any;
@@ -1058,6 +1058,22 @@ export async function undoPayOverdue(
 
   if (current.paidTransactionId) {
     db.prepare('DELETE FROM finance_transactions WHERE id = ?').run(Number(current.paidTransactionId));
+    // Se Supabase habilitado, tenta deletar transação espelhada
+    if (USE_SUPABASE) {
+      try {
+        const supabase = getSupabase();
+        const mirrorDesc = `Pagamento conta atrasada - ${String(current.account ?? '')}`;
+        // Busca pela descrição e pela data do pagamento original (paidAt)
+        const paidAtDate = current.paidAt ? String(current.paidAt).split('T')[0] : todayISO();
+        await supabase
+          .from('transactions')
+          .delete()
+          .like('description', `%${mirrorDesc.slice(0, 30)}%`)
+          .eq('date', paidAtDate);
+      } catch (err) {
+        console.warn('[Finance] Failed to delete mirrored transaction on undo:', err);
+      }
+    }
   }
 
   db.prepare(`

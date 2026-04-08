@@ -751,13 +751,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         creditCardId: mode === 'despesa' && txPaymentMethod === 'credito' ? txCreditCardId : undefined,
       };
 
-      if (editingTx) {
-        await fetch(`/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      } else if (mode === 'despesa' && txIsFixed) {
+      if (mode === 'despesa' && txIsFixed && !editingTx) {
         const dayOfMonth = Math.max(1, Math.min(31, Number(txFixedDueDay || '1')));
         await fetch(`/api/finance/recurring-expenses`, {
           method: 'POST',
@@ -787,6 +781,12 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
             });
           }
         }
+      } else if (editingTx) {
+        await fetch(`/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
       } else {
         await fetch(`/api/finance/transaction`, {
           method: 'POST',
