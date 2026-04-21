@@ -384,44 +384,98 @@ function formatNumber(value: number): string {
 }
 
 // ── Ticker estilo mercado financeiro ──────────────────────────────────────────
+// Sempre compara HOJE vs ONTEM, independente do filtro de período da página.
+
+type MetricDirection = 'higher-better' | 'lower-better' | 'neutral';
+
+function computeDelta(
+  curr: number,
+  prev: number,
+  direction: MetricDirection
+): { pct: number | null; tone: 'up' | 'down' | 'flat' | 'none' } {
+  if (!isFinite(curr) || !isFinite(prev)) return { pct: null, tone: 'none' };
+  if (prev === 0) return { pct: null, tone: 'none' };
+  const pct = ((curr - prev) / prev) * 100;
+  if (Math.abs(pct) < 0.01) return { pct: 0, tone: 'flat' };
+  const increased = pct > 0;
+  if (direction === 'neutral') return { pct, tone: 'flat' };
+  const good =
+    (direction === 'higher-better' && increased) ||
+    (direction === 'lower-better' && !increased);
+  return { pct, tone: good ? 'up' : 'down' };
+}
 
 function CampaignTicker({
-  insights,
+  today,
+  yesterday,
   currency,
 }: {
-  insights: AccountInsights | null;
+  today: AccountInsights | null;
+  yesterday: AccountInsights | null;
   currency: string;
 }) {
-  const campaigns = insights?.campaigns ?? [];
-
-  // Constrói itens do ticker: métricas da conta + campanhas
+  // Constrói itens do ticker: métricas agregadas da conta (hoje) + campanhas (hoje)
   const items: Array<{
     label: string;
     value: string;
-    delta?: number; // % opcional para seta ↑↓
+    delta?: { pct: number | null; tone: 'up' | 'down' | 'flat' | 'none' };
     tone?: 'orange' | 'neutral';
   }> = [];
 
-  if (insights) {
-    items.push({ label: 'GASTO', value: formatCurrency(insights.total_spend, currency), tone: 'orange' });
-    items.push({ label: 'IMPRESSÕES', value: formatNumber(insights.total_impressions) });
-    items.push({ label: 'CLIQUES', value: formatNumber(insights.total_clicks) });
-    items.push({ label: 'CTR MÉDIO', value: `${insights.avg_ctr.toFixed(2)}%` });
-    items.push({ label: 'CPC MÉDIO', value: formatCurrency(insights.avg_cpc, currency) });
-    items.push({ label: 'CPM MÉDIO', value: formatCurrency(insights.avg_cpm, currency) });
-    if (insights.avg_roas) {
-      items.push({ label: 'ROAS', value: `${insights.avg_roas.toFixed(2)}x`, tone: 'orange' });
+  if (today) {
+    items.push({
+      label: 'GASTO',
+      value: formatCurrency(today.total_spend, currency),
+      tone: 'orange',
+      delta: yesterday ? computeDelta(today.total_spend, yesterday.total_spend, 'neutral') : undefined,
+    });
+    items.push({
+      label: 'IMPRESSÕES',
+      value: formatNumber(today.total_impressions),
+      delta: yesterday ? computeDelta(today.total_impressions, yesterday.total_impressions, 'higher-better') : undefined,
+    });
+    items.push({
+      label: 'CLIQUES',
+      value: formatNumber(today.total_clicks),
+      delta: yesterday ? computeDelta(today.total_clicks, yesterday.total_clicks, 'higher-better') : undefined,
+    });
+    items.push({
+      label: 'CTR MÉDIO',
+      value: `${today.avg_ctr.toFixed(2)}%`,
+      delta: yesterday ? computeDelta(today.avg_ctr, yesterday.avg_ctr, 'higher-better') : undefined,
+    });
+    items.push({
+      label: 'CPC MÉDIO',
+      value: formatCurrency(today.avg_cpc, currency),
+      delta: yesterday ? computeDelta(today.avg_cpc, yesterday.avg_cpc, 'lower-better') : undefined,
+    });
+    items.push({
+      label: 'CPM MÉDIO',
+      value: formatCurrency(today.avg_cpm, currency),
+      delta: yesterday ? computeDelta(today.avg_cpm, yesterday.avg_cpm, 'lower-better') : undefined,
+    });
+    if (today.avg_roas) {
+      items.push({
+        label: 'ROAS',
+        value: `${today.avg_roas.toFixed(2)}x`,
+        tone: 'orange',
+        delta: yesterday ? computeDelta(today.avg_roas, yesterday.avg_roas ?? 0, 'higher-better') : undefined,
+      });
     }
   }
 
-  campaigns
+  // Campanhas: mostra as top 12 de hoje por spend, com delta de CTR vs ontem
+  const yesterdayMap = new Map<string, CampaignInsights>();
+  (yesterday?.campaigns ?? []).forEach((c) => yesterdayMap.set(c.campaign_id, c));
+
+  (today?.campaigns ?? [])
     .slice()
     .sort((a, b) => b.spend - a.spend)
     .slice(0, 12)
     .forEach((c) => {
       const short = c.campaign_name.length > 28 ? c.campaign_name.slice(0, 28) + '…' : c.campaign_name;
-      // Usa CTR como "delta" heurístico para sinalização (acima/abaixo de 1%)
-      const delta = c.ctr - 1;
+      const prev = yesterdayMap.get(c.campaign_id);
+      const delta = prev ? computeDelta(c.ctr, prev.ctr, 'higher-better') : undefined;
       items.push({
         label: short,
         value: `${formatCurrency(c.spend, currency)} · CTR ${c.ctr.toFixed(2)}%`,
@@ -439,6 +493,30 @@ function CampaignTicker({
     );
   }
 
+  const renderDelta = (d?: { pct: number | null; tone: 'up' | 'down' | 'flat' | 'none' }) => {
+    if (!d || d.tone === 'none' || d.pct === null) {
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-mono text-white/25">
+          —
+        </span>
+      );
+    }
+    const colorClass =
+      d.tone === 'up' ? 'text-emerald-400' : d.tone === 'down' ? 'text-rose-400' : 'text-white/40';
+    const sign = d.pct > 0 ? '+' : '';
+    return (
+      <span className={`inline-flex items-center gap-0.5 text-[10px] font-mono tabular-nums ${colorClass}`}>
+        {d.pct > 0 ? (
+          <ArrowUp className="w-2.5 h-2.5" />
+        ) : d.pct < 0 ? (
+          <ArrowDown className="w-2.5 h-2.5" />
+        ) : null}
+        {sign}
+        {d.pct.toFixed(2)}%
+      </span>
+    );
+  };
+
   // Duplica para loop contínuo
   const renderRow = (keyPrefix: string) =>
     items.map((it, i) => (
@@ -454,21 +532,7 @@ function CampaignTicker({
           {it.label}
         </span>
         <span className="text-xs font-mono text-white/85 tabular-nums">{it.value}</span>
-        {typeof it.delta === 'number' && (
-          <span
-            className={`inline-flex items-center gap-0.5 text-[10px] font-mono tabular-nums ${
-              it.delta > 0 ? 'text-emerald-400' : it.delta < 0 ? 'text-rose-400' : 'text-white/40'
-            }`}
-          >
-            {it.delta > 0 ? (
-              <ArrowUp className="w-2.5 h-2.5" />
-            ) : it.delta < 0 ? (
-              <ArrowDown className="w-2.5 h-2.5" />
-            ) : null}
-            {it.delta > 0 ? '+' : ''}
-            {it.delta.toFixed(2)}%
-          </span>
-        )}
+        {renderDelta(it.delta)}
       </span>
     ));
 
@@ -511,6 +575,10 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   const [insights, setInsights] = useState<AccountInsights | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [datePreset, setDatePreset] = useState('last_30d');
+
+  // Ticker "bolsa de valores": sempre hoje vs ontem, independente do datePreset
+  const [tickerToday, setTickerToday] = useState<AccountInsights | null>(null);
+  const [tickerYesterday, setTickerYesterday] = useState<AccountInsights | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -635,6 +703,35 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  // Ticker: carrega hoje e ontem independente do datePreset principal
+  useEffect(() => {
+    if (!selectedAccount || !selectedWorkspace) {
+      setTickerToday(null);
+      setTickerYesterday(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchTicker = async () => {
+      try {
+        const [tRes, yRes] = await Promise.all([
+          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=today`),
+          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=yesterday`),
+        ]);
+        const [t, y] = await Promise.all([tRes.json(), yRes.json()]);
+        if (cancelled) return;
+        setTickerToday(t?.error ? null : t);
+        setTickerYesterday(y?.error ? null : y);
+      } catch {
+        if (!cancelled) {
+          setTickerToday(null);
+          setTickerYesterday(null);
+        }
+      }
+    };
+    fetchTicker();
+    return () => { cancelled = true; };
+  }, [selectedAccount, selectedWorkspace]);
 
   const handlePause = async (campaignId: string) => {
     setLoadingAction(campaignId);
@@ -974,7 +1071,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
       </div>
 
       {/* ── Ticker (estilo mercado financeiro) ── */}
-      <CampaignTicker insights={insights} currency={currency} />
+      <CampaignTicker today={tickerToday} yesterday={tickerYesterday} currency={currency} />
 
       {/* ── Conteúdo principal + chat ── */}
       <div className="flex flex-1 overflow-hidden">
