@@ -8,7 +8,7 @@ import {
 import {
   Plus, X, Loader2, TrendingUp, TrendingDown, Minus,
   Info, GitCompare, Sparkles, ChevronDown, Check, Trophy,
-  Image as ImageIcon,
+  Image as ImageIcon, SlidersHorizontal,
 } from 'lucide-react';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -132,6 +132,22 @@ const METRICS = [
 ] as const;
 
 const LOWER_IS_BETTER = new Set(['avg_cpc', 'avg_cpm', 'cost_per_conversion']);
+
+const KPI_STORAGE_KEY = 'atlas_kpi_fields_v1';
+type KpiKey = typeof METRICS[number]['key'];
+const ALL_KPI_KEYS = METRICS.map((m) => m.key) as KpiKey[];
+
+function loadSavedKpis(): KpiKey[] {
+  try {
+    const raw = localStorage.getItem(KPI_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as KpiKey[];
+      const valid = parsed.filter((k) => ALL_KPI_KEYS.includes(k));
+      if (valid.length > 0) return valid;
+    }
+  } catch { /* noop */ }
+  return [...ALL_KPI_KEYS];
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -821,6 +837,30 @@ export function AtlasCompareTab({ selectedAccount, selectedWorkspace, currency, 
   const [periods, setPeriods] = useState<PeriodData[]>([]);
   const [activeMetric, setActiveMetric] = useState<typeof METRICS[number]>(METRICS[0]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [visibleKpis, setVisibleKpis] = useState<KpiKey[]>(ALL_KPI_KEYS);
+  const [kpiPickerOpen, setKpiPickerOpen] = useState(false);
+  const kpiPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setVisibleKpis(loadSavedKpis()); }, []);
+
+  useEffect(() => {
+    if (!kpiPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (kpiPickerRef.current && !kpiPickerRef.current.contains(e.target as Node)) {
+        setKpiPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [kpiPickerOpen]);
+
+  const toggleKpi = (key: KpiKey) => {
+    setVisibleKpis((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      try { localStorage.setItem(KPI_STORAGE_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  };
 
   const fetchPeriod = useCallback(
     async (preset: string, label: string) => {
@@ -1088,14 +1128,68 @@ export function AtlasCompareTab({ selectedAccount, selectedWorkspace, currency, 
                 <p className="text-[10px] text-white/45 font-semibold uppercase tracking-[0.18em]">
                   Indicadores principais
                 </p>
-                {periods.length > 1 && (
-                  <p className="text-[10px] text-white/30">
-                    <span className="text-white/55">▲▼</span> variação vs. {periods[1]?.label.toLowerCase()}
-                  </p>
-                )}
+                <div className="flex items-center gap-3">
+                  {periods.length > 1 && (
+                    <p className="text-[10px] text-white/30">
+                      <span className="text-white/55">▲▼</span> variação vs. {periods[1]?.label.toLowerCase()}
+                    </p>
+                  )}
+                  {/* Seletor de métricas visíveis */}
+                  <div ref={kpiPickerRef} className="relative">
+                    <button
+                      onClick={() => setKpiPickerOpen((v) => !v)}
+                      className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border transition-colors ${
+                        kpiPickerOpen
+                          ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                          : 'bg-white/[0.04] text-white/35 border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60'
+                      }`}
+                      title="Escolher métricas"
+                    >
+                      <SlidersHorizontal className="w-2.5 h-2.5" />
+                      <span className="uppercase tracking-wider">Métricas</span>
+                    </button>
+
+                    {kpiPickerOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-white/10 bg-[#141014]/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden">
+                        <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between">
+                          <p className="text-[10px] uppercase tracking-wider text-white/40">Indicadores</p>
+                          <button
+                            onClick={() => {
+                              const all = [...ALL_KPI_KEYS];
+                              setVisibleKpis(all);
+                              try { localStorage.setItem(KPI_STORAGE_KEY, JSON.stringify(all)); } catch { /* noop */ }
+                            }}
+                            className="text-[9px] text-white/30 hover:text-orange-400 transition-colors uppercase tracking-wider"
+                          >
+                            Todos
+                          </button>
+                        </div>
+                        <div className="py-1">
+                          {METRICS.map((m) => {
+                            const active = visibleKpis.includes(m.key as KpiKey);
+                            return (
+                              <button
+                                key={m.key}
+                                onClick={() => toggleKpi(m.key as KpiKey)}
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5 hover:text-white/90 transition-colors"
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  active ? 'bg-orange-500/30 border-orange-500/60' : 'border-white/15'
+                                }`}>
+                                  {active && <Check className="w-2 h-2 text-orange-400" />}
+                                </span>
+                                {m.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                {METRICS.map((m) => (
+                {METRICS.filter((m) => visibleKpis.includes(m.key as KpiKey)).map((m) => (
                   <GlassKpiCard
                     key={m.key}
                     metric={m}
