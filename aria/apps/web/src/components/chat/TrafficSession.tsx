@@ -813,7 +813,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
     loadDashboard();
   }, [loadDashboard]);
 
-  // Ticker: carrega hoje e ontem independente do datePreset principal
+  // Ticker: carrega hoje e ontem. Reutiliza insights do dashboard quando preset coincidir.
   useEffect(() => {
     if (!selectedAccount || !selectedWorkspace) {
       setTickerToday(null);
@@ -821,26 +821,46 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
       return;
     }
     let cancelled = false;
+
+    const needsToday = datePreset !== 'today';
+    const needsYesterday = datePreset !== 'yesterday';
+
+    // Reutiliza imediatamente o que o dashboard já carregou
+    if (!needsToday && insights) setTickerToday(insights);
+    if (!needsYesterday && insights) setTickerYesterday(insights);
+
+    const presetsToFetch = [
+      ...(needsToday ? ['today'] : []),
+      ...(needsYesterday ? ['yesterday'] : []),
+    ];
+
+    if (presetsToFetch.length === 0) return;
+
     const fetchTicker = async () => {
       try {
-        const [tRes, yRes] = await Promise.all([
-          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=today`),
-          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=yesterday`),
-        ]);
-        const [t, y] = await Promise.all([tRes.json(), yRes.json()]);
+        const responses = await Promise.all(
+          presetsToFetch.map((p) =>
+            fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=${p}`)
+              .then((r) => r.json())
+          )
+        );
         if (cancelled) return;
-        setTickerToday(t?.error ? null : t);
-        setTickerYesterday(y?.error ? null : y);
+        presetsToFetch.forEach((preset, i) => {
+          const data = responses[i];
+          if (preset === 'today') setTickerToday(data?.error ? null : data);
+          else setTickerYesterday(data?.error ? null : data);
+        });
       } catch {
         if (!cancelled) {
-          setTickerToday(null);
-          setTickerYesterday(null);
+          if (needsToday) setTickerToday(null);
+          if (needsYesterday) setTickerYesterday(null);
         }
       }
     };
+
     fetchTicker();
     return () => { cancelled = true; };
-  }, [selectedAccount, selectedWorkspace]);
+  }, [selectedAccount, selectedWorkspace, datePreset, insights]);
 
   const handlePause = async (campaignId: string) => {
     setLoadingAction(campaignId);

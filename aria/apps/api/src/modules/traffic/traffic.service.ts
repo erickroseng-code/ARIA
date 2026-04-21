@@ -119,7 +119,7 @@ export class TrafficService {
   // Cache em memória para mitigar rate limit da Meta Ads API.
   // Chave: `${workspace}|${accountId}|${datePreset}`
   private insightsCache: Map<string, { data: AccountInsights; expires: number }> = new Map();
-  private readonly INSIGHTS_TTL_MS = 60_000; // 60s
+  private readonly INSIGHTS_TTL_MS = 300_000; // 5 min
 
   constructor() {
     this.tokens = new Map();
