@@ -116,6 +116,10 @@ async function metaPost(path: string, params: Record<string, string>): Promise<v
 
 export class TrafficService {
   private tokens: Map<string, string>;
+  // Cache em memória para mitigar rate limit da Meta Ads API.
+  // Chave: `${workspace}|${accountId}|${datePreset}`
+  private insightsCache: Map<string, { data: AccountInsights; expires: number }> = new Map();
+  private readonly INSIGHTS_TTL_MS = 60_000; // 60s
 
   constructor() {
     this.tokens = new Map();
@@ -169,6 +173,12 @@ export class TrafficService {
     workspace: string,
     datePreset: string = 'last_30d'
   ): Promise<AccountInsights> {
+    const cacheKey = `${workspace}|${accountId}|${datePreset}`;
+    const cached = this.insightsCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+      return cached.data;
+    }
+
     const token = this.getToken(workspace);
     const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
       fields: [
@@ -267,7 +277,7 @@ export class TrafficService {
     const avg_roas =
       roasValues.length > 0 ? roasValues.reduce((a, b) => a + b, 0) / roasValues.length : 0;
 
-    return {
+    const result: AccountInsights = {
       ...totals,
       avg_ctr,
       avg_cpm,
@@ -275,6 +285,13 @@ export class TrafficService {
       avg_roas,
       campaigns,
     };
+
+    this.insightsCache.set(cacheKey, {
+      data: result,
+      expires: Date.now() + this.INSIGHTS_TTL_MS,
+    });
+
+    return result;
   }
 
   /**
