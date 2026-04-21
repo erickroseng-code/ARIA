@@ -49,10 +49,12 @@ export interface AccountInsights {
   total_spend: number;
   total_impressions: number;
   total_clicks: number;
+  total_conversions: number;           // soma de resultados (lead/compra/mensagem)
   avg_ctr: number;
   avg_cpm: number;
   avg_cpc: number;
   avg_roas: number;
+  avg_cost_per_conversion: number;     // custo por lead/resultado (blended: spend total / resultados totais)
   campaigns: CampaignInsights[];
 }
 
@@ -320,8 +322,9 @@ export class TrafficService {
         total_spend: acc.total_spend + c.spend,
         total_impressions: acc.total_impressions + c.impressions,
         total_clicks: acc.total_clicks + c.clicks,
+        total_conversions: acc.total_conversions + (c.conversions ?? 0),
       }),
-      { total_spend: 0, total_impressions: 0, total_clicks: 0 }
+      { total_spend: 0, total_impressions: 0, total_clicks: 0, total_conversions: 0 }
     );
 
     // CTR médio = soma dos cliques no link / soma das impressões * 100
@@ -335,12 +338,17 @@ export class TrafficService {
     const avg_roas =
       roasValues.length > 0 ? roasValues.reduce((a, b) => a + b, 0) / roasValues.length : 0;
 
+    // Custo por lead/resultado blended: spend total / resultados totais
+    const avg_cost_per_conversion =
+      totals.total_conversions > 0 ? totals.total_spend / totals.total_conversions : 0;
+
     const result: AccountInsights = {
       ...totals,
       avg_ctr,
       avg_cpm,
       avg_cpc,
       avg_roas,
+      avg_cost_per_conversion,
       campaigns,
     };
 
@@ -371,6 +379,7 @@ export class TrafficService {
     cpm: number;
     roas: number;
     conversions: number;
+    cost_per_conversion: number;
   }>> {
     const cacheKey = `${workspace}|${accountId}|${datePreset}`;
 
@@ -421,6 +430,7 @@ export class TrafficService {
             cpm: parseFloat(d.cpm || '0'),
             roas,
             conversions,
+            cost_per_conversion: conversions > 0 ? spend / conversions : 0,
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date));

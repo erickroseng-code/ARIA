@@ -32,10 +32,12 @@ interface AccountInsights {
   total_spend: number;
   total_impressions: number;
   total_clicks: number;
+  total_conversions: number;
   avg_ctr: number;
   avg_cpm: number;
   avg_cpc: number;
   avg_roas: number;
+  avg_cost_per_conversion: number;
   campaigns: CampaignInsights[];
 }
 
@@ -122,16 +124,18 @@ const PERIOD_COLORS = [
 ];
 
 const METRICS = [
-  { key: 'total_spend',       seriesKey: 'spend',       label: 'Gasto Total',      format: 'currency',   desc: 'Quanto foi investido no período' },
-  { key: 'avg_roas',          seriesKey: 'roas',        label: 'ROAS',             format: 'multiplier', desc: 'Retorno sobre investimento. >1x = lucro' },
-  { key: 'total_clicks',      seriesKey: 'clicks',      label: 'Cliques',          format: 'number',     desc: 'Cliques no link do anúncio' },
-  { key: 'avg_cpc',           seriesKey: 'cpc',         label: 'CPC',              format: 'currency',   desc: 'Custo por clique. Quanto menor, melhor' },
-  { key: 'avg_ctr',           seriesKey: 'ctr',         label: 'CTR',              format: 'percent',    desc: 'Taxa de cliques. Sinal de relevância' },
-  { key: 'avg_cpm',           seriesKey: 'cpm',         label: 'CPM',              format: 'currency',   desc: 'Custo por mil impressões' },
-  { key: 'total_impressions', seriesKey: 'impressions', label: 'Impressões',       format: 'number',     desc: 'Total de vezes que o anúncio foi exibido' },
+  { key: 'total_spend',             seriesKey: 'spend',               label: 'Gasto Total',      format: 'currency',   desc: 'Quanto foi investido no período' },
+  { key: 'avg_roas',                seriesKey: 'roas',                label: 'ROAS',             format: 'multiplier', desc: 'Retorno sobre investimento. >1x = lucro' },
+  { key: 'avg_cost_per_conversion', seriesKey: 'cost_per_conversion', label: 'Custo por Lead',   format: 'currency',   desc: 'Custo por resultado (lead/compra/mensagem). Menor é melhor' },
+  { key: 'total_conversions',       seriesKey: 'conversions',         label: 'Resultados',       format: 'number',     desc: 'Leads, compras ou mensagens geradas' },
+  { key: 'total_clicks',            seriesKey: 'clicks',              label: 'Cliques',          format: 'number',     desc: 'Cliques no link do anúncio' },
+  { key: 'avg_cpc',                 seriesKey: 'cpc',                 label: 'CPC',              format: 'currency',   desc: 'Custo por clique. Quanto menor, melhor' },
+  { key: 'avg_ctr',                 seriesKey: 'ctr',                 label: 'CTR',              format: 'percent',    desc: 'Taxa de cliques. Sinal de relevância' },
+  { key: 'avg_cpm',                 seriesKey: 'cpm',                 label: 'CPM',              format: 'currency',   desc: 'Custo por mil impressões' },
+  { key: 'total_impressions',       seriesKey: 'impressions',         label: 'Impressões',       format: 'number',     desc: 'Total de vezes que o anúncio foi exibido' },
 ] as const;
 
-const LOWER_IS_BETTER = new Set(['avg_cpc', 'avg_cpm', 'cost_per_conversion']);
+const LOWER_IS_BETTER = new Set(['avg_cpc', 'avg_cpm', 'avg_cost_per_conversion']);
 
 const KPI_STORAGE_KEY = 'atlas_kpi_fields_v1';
 type KpiKey = typeof METRICS[number]['key'];

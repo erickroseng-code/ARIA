@@ -63,10 +63,12 @@ interface AccountInsights {
   total_spend: number;
   total_impressions: number;
   total_clicks: number;
+  total_conversions: number;
   avg_ctr: number;
   avg_cpm: number;
   avg_cpc: number;
   avg_roas: number;
+  avg_cost_per_conversion: number;
   campaigns: CampaignInsights[];
 }
 
