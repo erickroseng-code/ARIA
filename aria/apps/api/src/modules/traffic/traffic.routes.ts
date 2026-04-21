@@ -66,6 +66,92 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // GET /api/traffic/insights/timeseries?accountId=...&workspace=...&datePreset=...
+  // Retorna série temporal diária (para sparklines e gráficos de linha)
+  fastify.get<{ Querystring: { accountId: string; workspace: string; datePreset?: string } }>(
+    '/insights/timeseries',
+    async (req, reply) => {
+      const { accountId, workspace, datePreset } = req.query;
+      if (!accountId || !workspace)
+        return reply.status(400).send({ error: 'accountId e workspace são obrigatórios' });
+      try {
+        const series = await trafficService.getAccountTimeseries(
+          accountId,
+          workspace,
+          datePreset || 'last_30d'
+        );
+        return reply.send(series);
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // GET /api/traffic/ads/insights?accountId=...&workspace=...&datePreset=...
+  // Retorna anúncios com métricas + criativo (thumbnail, título, copy), ordenado por CTR desc
+  fastify.get<{ Querystring: { accountId: string; workspace: string; datePreset?: string } }>(
+    '/ads/insights',
+    async (req, reply) => {
+      const { accountId, workspace, datePreset } = req.query;
+      if (!accountId || !workspace)
+        return reply.status(400).send({ error: 'accountId e workspace são obrigatórios' });
+      try {
+        const ads = await trafficService.getAdsWithCreatives(
+          accountId,
+          workspace,
+          datePreset || 'last_30d'
+        );
+        return reply.send(ads);
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // POST /api/traffic/insights/batch — buscar métricas de múltiplas contas
+  fastify.post<{
+    Body: {
+      accounts: Array<{ accountId: string; workspace: string; accountName?: string }>;
+      datePreset?: string;
+    };
+  }>('/insights/batch', async (req, reply) => {
+    const { accounts, datePreset } = req.body;
+    if (!accounts || !Array.isArray(accounts) || accounts.length === 0)
+      return reply.status(400).send({ error: 'accounts é obrigatório e deve ser um array não vazio' });
+
+    try {
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          try {
+            const insights = await trafficService.getAccountInsights(
+              acc.accountId,
+              acc.workspace,
+              datePreset || 'last_30d'
+            );
+            return {
+              accountId: acc.accountId,
+              accountName: acc.accountName || acc.accountId,
+              workspace: acc.workspace,
+              insights,
+              error: null,
+            };
+          } catch (err: any) {
+            return {
+              accountId: acc.accountId,
+              accountName: acc.accountName || acc.accountId,
+              workspace: acc.workspace,
+              insights: null,
+              error: err.message || 'Erro ao buscar insights',
+            };
+          }
+        })
+      );
+      return reply.send(results);
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
   // GET /api/traffic/adsets?campaignId=xxx&workspace=erick
   fastify.get<{ Querystring: { campaignId: string; workspace: string } }>(
     '/adsets',

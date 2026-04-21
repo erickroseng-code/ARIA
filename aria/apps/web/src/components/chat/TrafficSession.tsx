@@ -6,7 +6,9 @@ import {
   DollarSign, Activity, Pause, Play, BarChart2, Target, Zap, AlertCircle,
   MessageSquare, Send, BrainCircuit, X, ChevronRight, ChevronDown,
   Image as ImageIcon, Layers, FileText, Columns, GripVertical, Check, RotateCcw,
+  Calendar, ArrowUp, ArrowDown,
 } from 'lucide-react';
+import { AtlasCompareTab } from './AtlasCompareTab';
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -381,6 +383,126 @@ function formatNumber(value: number): string {
   return value.toLocaleString('pt-BR');
 }
 
+// ── Ticker estilo mercado financeiro ──────────────────────────────────────────
+
+function CampaignTicker({
+  insights,
+  currency,
+}: {
+  insights: AccountInsights | null;
+  currency: string;
+}) {
+  const campaigns = insights?.campaigns ?? [];
+
+  // Constrói itens do ticker: métricas da conta + campanhas
+  const items: Array<{
+    label: string;
+    value: string;
+    delta?: number; // % opcional para seta ↑↓
+    tone?: 'orange' | 'neutral';
+  }> = [];
+
+  if (insights) {
+    items.push({ label: 'GASTO', value: formatCurrency(insights.total_spend, currency), tone: 'orange' });
+    items.push({ label: 'IMPRESSÕES', value: formatNumber(insights.total_impressions) });
+    items.push({ label: 'CLIQUES', value: formatNumber(insights.total_clicks) });
+    items.push({ label: 'CTR MÉDIO', value: `${insights.avg_ctr.toFixed(2)}%` });
+    items.push({ label: 'CPC MÉDIO', value: formatCurrency(insights.avg_cpc, currency) });
+    items.push({ label: 'CPM MÉDIO', value: formatCurrency(insights.avg_cpm, currency) });
+    if (insights.avg_roas) {
+      items.push({ label: 'ROAS', value: `${insights.avg_roas.toFixed(2)}x`, tone: 'orange' });
+    }
+  }
+
+  campaigns
+    .slice()
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 12)
+    .forEach((c) => {
+      const short = c.campaign_name.length > 28 ? c.campaign_name.slice(0, 28) + '…' : c.campaign_name;
+      // Usa CTR como "delta" heurístico para sinalização (acima/abaixo de 1%)
+      const delta = c.ctr - 1;
+      items.push({
+        label: short,
+        value: `${formatCurrency(c.spend, currency)} · CTR ${c.ctr.toFixed(2)}%`,
+        delta,
+      });
+    });
+
+  if (items.length === 0) {
+    return (
+      <div className="px-4 py-2 border-b border-white/5 shrink-0">
+        <div className="h-6 flex items-center">
+          <span className="text-[10px] uppercase tracking-wider text-white/20">Aguardando dados…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Duplica para loop contínuo
+  const renderRow = (keyPrefix: string) =>
+    items.map((it, i) => (
+      <span
+        key={`${keyPrefix}-${i}`}
+        className="inline-flex items-center gap-2 px-4 border-r border-white/5 whitespace-nowrap"
+      >
+        <span
+          className={`text-[10px] uppercase tracking-wider ${
+            it.tone === 'orange' ? 'text-orange-400/80' : 'text-white/35'
+          }`}
+        >
+          {it.label}
+        </span>
+        <span className="text-xs font-mono text-white/85 tabular-nums">{it.value}</span>
+        {typeof it.delta === 'number' && (
+          <span
+            className={`inline-flex items-center gap-0.5 text-[10px] font-mono tabular-nums ${
+              it.delta > 0 ? 'text-emerald-400' : it.delta < 0 ? 'text-rose-400' : 'text-white/40'
+            }`}
+          >
+            {it.delta > 0 ? (
+              <ArrowUp className="w-2.5 h-2.5" />
+            ) : it.delta < 0 ? (
+              <ArrowDown className="w-2.5 h-2.5" />
+            ) : null}
+            {it.delta > 0 ? '+' : ''}
+            {it.delta.toFixed(2)}%
+          </span>
+        )}
+      </span>
+    ));
+
+  // Duração proporcional à quantidade de itens (velocidade "natural")
+  const durationSec = Math.max(30, items.length * 4);
+
+  return (
+    <div className="relative w-full border-y border-white/5 bg-gradient-to-r from-black/60 via-white/[0.02] to-black/60 shrink-0 overflow-hidden">
+      {/* fades laterais */}
+      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0d0a0f] to-transparent z-10" />
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0d0a0f] to-transparent z-10" />
+
+      <div
+        className="flex items-center py-2.5 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
+        style={{ ['--ticker-duration' as any]: `${durationSec}s`, width: 'max-content' }}
+      >
+        {renderRow('a')}
+        {renderRow('b')}
+      </div>
+
+      <style jsx>{`
+        @keyframes ticker-scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function TrafficSession({ onClose }: TrafficSessionProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
@@ -416,6 +538,20 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   // Column picker
   const [visibleColumns, setVisibleColumns] = useState<Array<keyof CampaignInsights>>(DEFAULT_COLUMNS);
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o picker ao clicar fora
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setDatePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [datePickerOpen]);
 
   // Load saved columns on mount
   useEffect(() => {
@@ -780,6 +916,51 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
             </button>
           )}
 
+          {/* Date filter dropdown (tabela de campanhas) */}
+          <div ref={datePickerRef} className="relative">
+            <button
+              onClick={() => setDatePickerOpen((v) => !v)}
+              title="Período da tabela"
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                datePickerOpen
+                  ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                  : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white/80'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Período'}
+              </span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${datePickerOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {datePickerOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-white/10 bg-[#141014]/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden">
+                <div className="px-3 py-2 border-b border-white/5">
+                  <p className="text-[10px] uppercase tracking-wider text-white/40">Período da tabela</p>
+                </div>
+                <div className="py-1">
+                  {DATE_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => {
+                        setDatePreset(p.value);
+                        setDatePickerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors ${
+                        datePreset === p.value
+                          ? 'bg-orange-500/15 text-orange-300'
+                          : 'text-white/70 hover:bg-white/5 hover:text-white/90'
+                      }`}
+                    >
+                      <span>{p.label}</span>
+                      {datePreset === p.value && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Botão de refresh */}
           <button
             onClick={loadDashboard}
@@ -792,26 +973,13 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
         </div>
       </div>
 
-      {/* ── Filtro de período ── */}
-      <div className="px-4 py-2 border-b border-white/5 flex gap-2 overflow-x-auto scrollbar-hide shrink-0">
-        {DATE_PRESETS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setDatePreset(p.value)}
-            className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-all ${datePreset === p.value
-              ? 'bg-orange-500/25 text-orange-300 border border-orange-500/40'
-              : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/80'
-              }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      {/* ── Ticker (estilo mercado financeiro) ── */}
+      <CampaignTicker insights={insights} currency={currency} />
 
       {/* ── Conteúdo principal + chat ── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Dashboard */}
+        {/* Conteúdo unificado: Comparação (cards) + Tabela de Campanhas */}
         <div className="flex-1 overflow-y-auto">
           {/* Loading inicial */}
           {loading && !initialized ? (
@@ -848,57 +1016,21 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
               </div>
             </div>
           ) : (
-            /* Dashboard */
-            <div className="p-4 space-y-4">
+            /* Dashboard unificado */
+            <div className="space-y-4">
 
-              {/* KPI Grid */}
-              {insights && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-                  <KpiCard
-                    label="Gasto Total"
-                    value={formatCurrency(insights.total_spend, currency)}
-                    icon={DollarSign}
-                    color="orange"
-                    loading={loading}
-                  />
-                  <KpiCard
-                    label="Impressões"
-                    value={formatNumber(insights.total_impressions)}
-                    icon={Eye}
-                    color="blue"
-                    loading={loading}
-                  />
-                  <KpiCard
-                    label="Cliques"
-                    value={formatNumber(insights.total_clicks)}
-                    icon={MousePointer}
-                    color="purple"
-                    loading={loading}
-                  />
-                  <KpiCard
-                    label="CTR Médio"
-                    value={`${insights.avg_ctr.toFixed(2)}%`}
-                    icon={TrendingUp}
-                    color="green"
-                    loading={loading}
-                  />
-                  <KpiCard
-                    label="CPM Médio"
-                    value={formatCurrency(insights.avg_cpm, currency)}
-                    icon={BarChart2}
-                    color="yellow"
-                    loading={loading}
-                  />
-                  <KpiCard
-                    label="CPC Médio"
-                    value={formatCurrency(insights.avg_cpc, currency)}
-                    icon={Target}
-                    color="pink"
-                    loading={loading}
-                  />
-                </div>
-              )}
+              {/* Seção de Comparação (liquid glass) */}
+              <AtlasCompareTab
+                selectedAccount={selectedAccount}
+                selectedWorkspace={selectedWorkspace}
+                currency={currency}
+                fallbackPreset={{
+                  value: datePreset,
+                  label: DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? datePreset,
+                }}
+              />
 
+              <div className="px-4 space-y-4">
               {/* Tabela de Campanhas */}
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
                 {/* Header + Filtros */}
@@ -1239,6 +1371,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
                   Dados do Meta ADS • Atualizado em {new Date().toLocaleTimeString('pt-BR')}
                 </p>
               )}
+              </div>{/* fim px-4 wrapper */}
             </div>
           )}
         </div>{/* fim dashboard scroll */}

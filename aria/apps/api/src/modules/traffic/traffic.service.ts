@@ -277,6 +277,71 @@ export class TrafficService {
     };
   }
 
+  /**
+   * Retorna insights agregados por dia (série temporal) para o período.
+   * Usa time_increment=1 para receber um ponto por dia.
+   * Ideal para sparklines e gráficos de linha.
+   */
+  async getAccountTimeseries(
+    accountId: string,
+    workspace: string,
+    datePreset: string = 'last_30d'
+  ): Promise<Array<{
+    date: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    cpc: number;
+    cpm: number;
+    roas: number;
+    conversions: number;
+  }>> {
+    const token = this.getToken(workspace);
+    const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
+      fields: [
+        'impressions', 'inline_link_clicks', 'spend',
+        'cpc', 'cpm', 'inline_link_click_ctr',
+        'actions', 'action_values',
+      ].join(','),
+      date_preset: datePreset,
+      time_increment: '1',
+      level: 'account',
+      access_token: token,
+      limit: '500',
+    });
+
+    const raw: any[] = data.data ?? [];
+    const getVal = (arr: any[] | undefined, type: string) =>
+      parseFloat(arr?.find((a: any) => a.action_type === type)?.value || '0');
+
+    return raw
+      .map((d) => {
+        const spend = parseFloat(d.spend || '0');
+        const purchases = getVal(d.actions, 'purchase');
+        const leads = getVal(d.actions, 'lead');
+        const msgStarted =
+          getVal(d.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
+          getVal(d.actions, 'onsite_conversion.total_messaging_connection');
+        const conversions = purchases || leads || msgStarted || 0;
+        const purchaseValue = getVal(d.action_values, 'purchase');
+        const roas = purchaseValue > 0 && spend > 0 ? purchaseValue / spend : 0;
+
+        return {
+          date: d.date_start as string,
+          spend,
+          impressions: parseInt(d.impressions || '0', 10),
+          clicks: parseInt(d.inline_link_clicks || '0', 10),
+          ctr: parseFloat(d.inline_link_click_ctr || '0'),
+          cpc: parseFloat(d.cpc || '0'),
+          cpm: parseFloat(d.cpm || '0'),
+          roas,
+          conversions,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   /** Fetch ad-level insights (CTR, CPC, spend) for a given account */
   async getAdInsights(
     accountId: string,
@@ -303,6 +368,112 @@ export class TrafficService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Busca todos os anúncios da conta com métricas (insights) + metadata do criativo
+   * (thumbnail, título, copy). Retorna ordenado por CTR decrescente.
+   */
+  async getAdsWithCreatives(
+    accountId: string,
+    workspace: string,
+    datePreset: string = 'last_30d'
+  ): Promise<Array<{
+    ad_id: string;
+    ad_name: string;
+    campaign_id: string;
+    campaign_name: string;
+    status: string;
+    effective_status: string;
+    ctr: number;
+    cpc: number;
+    cpm: number;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    creative: {
+      id?: string;
+      title?: string;
+      body?: string;
+      thumbnail_url?: string;
+      image_url?: string;
+      call_to_action_type?: string;
+    };
+  }>> {
+    const token = this.getToken(workspace);
+
+    // 1) Puxa insights por ad (já com datePreset)
+    let insightsRows: any[] = [];
+    try {
+      const insightsRes = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
+        fields: 'ad_id,ad_name,campaign_id,campaign_name,impressions,inline_link_clicks,inline_link_click_ctr,spend,cpc,cpm',
+        date_preset: datePreset,
+        level: 'ad',
+        access_token: token,
+        limit: '200',
+      });
+      insightsRows = insightsRes.data ?? [];
+    } catch (e) {
+      console.error('[getAdsWithCreatives] insights error:', e);
+      return [];
+    }
+
+    if (insightsRows.length === 0) return [];
+
+    // 2) Puxa metadata (creative + status) de TODOS os ads da conta em lote
+    const adMeta = new Map<string, any>();
+    try {
+      let after: string | undefined;
+      do {
+        const params: any = {
+          fields: 'id,name,status,effective_status,creative{id,title,body,image_url,thumbnail_url,call_to_action_type}',
+          access_token: token,
+          limit: '200',
+        };
+        if (after) params.after = after;
+        const adsRes = await metaGet<{ data: any[]; paging?: { cursors?: { after?: string }; next?: string } }>(
+          `/${accountId}/ads`,
+          params,
+        );
+        (adsRes.data ?? []).forEach((ad: any) => adMeta.set(ad.id, ad));
+        after = adsRes.paging?.next ? adsRes.paging?.cursors?.after : undefined;
+      } while (after);
+    } catch (e) {
+      console.error('[getAdsWithCreatives] ads metadata error:', e);
+      // Mesmo sem metadata, retorna só os insights
+    }
+
+    // 3) Junta + ordena por CTR desc (empate: por spend desc)
+    return insightsRows
+      .map((row: any) => {
+        const meta = adMeta.get(row.ad_id);
+        return {
+          ad_id: row.ad_id,
+          ad_name: row.ad_name ?? meta?.name ?? 'Sem nome',
+          campaign_id: row.campaign_id,
+          campaign_name: row.campaign_name,
+          status: meta?.status ?? 'UNKNOWN',
+          effective_status: meta?.effective_status ?? 'UNKNOWN',
+          ctr: parseFloat(row.inline_link_click_ctr || '0'),
+          cpc: parseFloat(row.cpc || '0'),
+          cpm: parseFloat(row.cpm || '0'),
+          spend: parseFloat(row.spend || '0'),
+          impressions: parseInt(row.impressions || '0', 10),
+          clicks: parseInt(row.inline_link_clicks || '0', 10),
+          creative: {
+            id: meta?.creative?.id,
+            title: meta?.creative?.title,
+            body: meta?.creative?.body,
+            image_url: meta?.creative?.image_url,
+            thumbnail_url: meta?.creative?.thumbnail_url,
+            call_to_action_type: meta?.creative?.call_to_action_type,
+          },
+        };
+      })
+      .sort((a, b) => {
+        if (b.ctr !== a.ctr) return b.ctr - a.ctr;
+        return b.spend - a.spend;
+      });
   }
 
   async getAdSets(campaignId: string, workspace: string): Promise<AdSet[]> {
