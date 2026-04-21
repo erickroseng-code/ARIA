@@ -646,7 +646,7 @@ function CampaignTicker({
         <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0d0a0f] to-transparent z-10" />
 
         <div
-          className="flex items-center py-2.5 pl-10 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
+          className="flex items-center py-2.5 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
           style={{ ['--ticker-duration' as any]: `${durationSec}s`, width: 'max-content' }}
         >
           {renderRow('a')}
