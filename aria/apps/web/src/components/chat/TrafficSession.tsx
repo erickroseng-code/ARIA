@@ -803,7 +803,12 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
       setCampaigns(campaignsData);
       setInitialized(true);
     } catch (e: any) {
-      setError(e.message || 'Erro ao carregar dados do Meta ADS');
+      const msg: string = e.message || '';
+      const isRateLimit = msg.includes('80004') || msg.toLowerCase().includes('too many calls');
+      setError(isRateLimit
+        ? 'rate_limit'
+        : msg || 'Erro ao carregar dados do Meta ADS'
+      );
     } finally {
       setLoading(false);
     }
@@ -813,7 +818,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
     loadDashboard();
   }, [loadDashboard]);
 
-  // Ticker: carrega hoje e ontem. Reutiliza insights do dashboard quando preset coincidir.
+  // Ticker: busca hoje e ontem uma vez por conta/workspace (sem dependência de insights)
   useEffect(() => {
     if (!selectedAccount || !selectedWorkspace) {
       setTickerToday(null);
@@ -821,46 +826,30 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
       return;
     }
     let cancelled = false;
-
-    const needsToday = datePreset !== 'today';
-    const needsYesterday = datePreset !== 'yesterday';
-
-    // Reutiliza imediatamente o que o dashboard já carregou
-    if (!needsToday && insights) setTickerToday(insights);
-    if (!needsYesterday && insights) setTickerYesterday(insights);
-
-    const presetsToFetch = [
-      ...(needsToday ? ['today'] : []),
-      ...(needsYesterday ? ['yesterday'] : []),
-    ];
-
-    if (presetsToFetch.length === 0) return;
-
     const fetchTicker = async () => {
       try {
-        const responses = await Promise.all(
-          presetsToFetch.map((p) =>
-            fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=${p}`)
-              .then((r) => r.json())
-          )
-        );
+        const [tRes, yRes] = await Promise.all([
+          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=today`),
+          fetch(`${API_URL}/api/traffic/insights?accountId=${selectedAccount}&workspace=${selectedWorkspace}&datePreset=yesterday`),
+        ]);
+        const [t, y] = await Promise.all([tRes.json(), yRes.json()]);
         if (cancelled) return;
-        presetsToFetch.forEach((preset, i) => {
-          const data = responses[i];
-          if (preset === 'today') setTickerToday(data?.error ? null : data);
-          else setTickerYesterday(data?.error ? null : data);
-        });
+        setTickerToday(t?.error ? null : t);
+        setTickerYesterday(y?.error ? null : y);
       } catch {
-        if (!cancelled) {
-          if (needsToday) setTickerToday(null);
-          if (needsYesterday) setTickerYesterday(null);
-        }
+        if (!cancelled) { setTickerToday(null); setTickerYesterday(null); }
       }
     };
-
     fetchTicker();
     return () => { cancelled = true; };
-  }, [selectedAccount, selectedWorkspace, datePreset, insights]);
+  }, [selectedAccount, selectedWorkspace]);
+
+  // Sync: quando o dashboard já carregou today/yesterday, propaga pro ticker sem fetch extra
+  useEffect(() => {
+    if (!insights) return;
+    if (datePreset === 'today') setTickerToday(insights);
+    else if (datePreset === 'yesterday') setTickerYesterday(insights);
+  }, [insights, datePreset]);
 
   const handlePause = async (campaignId: string) => {
     setLoadingAction(campaignId);
@@ -1213,6 +1202,16 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
 
         {/* Conteúdo unificado: Comparação (cards) + Tabela de Campanhas */}
         <div className="flex-1 overflow-y-auto">
+          {/* Banner discreto de rate limit quando há dados existentes */}
+          {error === 'rate_limit' && initialized && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400/80 text-[11px]">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>Limite da Meta atingido — exibindo dados anteriores. Atualização automática em breve.</span>
+              <button onClick={loadDashboard} className="ml-auto shrink-0 underline hover:text-yellow-300 transition-colors">
+                Tentar agora
+              </button>
+            </div>
+          )}
           {/* Loading inicial */}
           {loading && !initialized ? (
             <div className="flex items-center justify-center h-full">
@@ -1221,14 +1220,18 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
                 <p className="text-white/40 text-sm">Carregando dados do Meta ADS…</p>
               </div>
             </div>
-          ) : error ? (
-            /* Error state */
+          ) : error && (!initialized || error !== 'rate_limit') ? (
+            /* Error state — rate_limit com dados existentes não bloqueia */
             <div className="flex items-center justify-center h-full">
               <div className="flex flex-col items-center gap-3 text-center px-8 max-w-sm">
                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
                   <AlertCircle className="w-6 h-6 text-red-400" />
                 </div>
-                <p className="text-white/60 text-sm leading-relaxed">{error}</p>
+                <p className="text-white/60 text-sm leading-relaxed">
+                  {error === 'rate_limit'
+                    ? 'Limite de requisições da Meta atingido. Aguarde alguns minutos e tente novamente.'
+                    : error}
+                </p>
                 <button
                   onClick={loadDashboard}
                   className="text-xs px-4 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-colors"
