@@ -1,11 +1,18 @@
 import { FastifyPluginAsync } from 'fastify';
-import { TrafficService } from './traffic.service';
+import { TrafficService, RateLimitError } from './traffic.service';
 import { atlasChat, atlasAutoAnalyze, atlasSchedulerRun } from './agents/atlas-orchestrator';
 import { getAuditLogs } from './agents/atlas-audit';
 import { sendAtlasNotification, sendAtlasErrorAlert } from './agents/atlas-notifier';
 import { listCreativesFromDrive, generateCreativeCopy } from './agents/atlas-creative-service';
 
 const trafficService = new TrafficService();
+
+function sendError(reply: any, error: any) {
+  if (error instanceof RateLimitError) {
+    return reply.status(429).send({ error: error.message, rateLimit: true });
+  }
+  return reply.status(500).send({ error: error.message });
+}
 
 export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/traffic/workspaces — lista workspaces configurados (pety, erick)
@@ -14,7 +21,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       const workspaces = trafficService.getWorkspaces();
       return reply.send(workspaces);
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -26,7 +33,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       const accounts = await trafficService.getAccounts(workspace);
       return reply.send(accounts);
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -41,7 +48,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         const campaigns = await trafficService.getCampaigns(accountId, workspace);
         return reply.send(campaigns);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -61,7 +68,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.send(insights);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -82,7 +89,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.send(series);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -103,7 +110,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.send(ads);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -148,7 +155,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       );
       return reply.send(results);
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -163,7 +170,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         const adsets = await trafficService.getAdSets(campaignId, workspace);
         return reply.send(adsets);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -179,7 +186,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         const ads = await trafficService.getAds(adsetId, workspace);
         return reply.send(ads);
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -195,7 +202,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         await trafficService.pauseCampaign(id, workspace);
         return reply.send({ success: true });
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -211,7 +218,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         await trafficService.enableCampaign(id, workspace);
         return reply.send({ success: true });
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -227,7 +234,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
         await trafficService.updateCampaignBudget(id, dailyBudget, workspace);
         return reply.send({ success: true });
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+        return sendError(reply, error);
       }
     }
   );
@@ -279,7 +286,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send(result);
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -328,7 +335,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error: any) {
       // Alert on critical failure
       sendAtlasErrorAlert(error.message).catch(() => {});
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -379,7 +386,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({ analysis });
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -389,7 +396,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       const files = await listCreativesFromDrive();
       return reply.send({ files, folderId: process.env.ATLAS_CREATIVE_DRIVE_FOLDER_ID ?? null });
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 
@@ -467,7 +474,7 @@ export const registerTrafficRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      return sendError(reply, error);
     }
   });
 };

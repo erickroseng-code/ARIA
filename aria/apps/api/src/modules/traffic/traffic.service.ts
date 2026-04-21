@@ -1,4 +1,26 @@
+import { readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
 const META_API_BASE = 'https://graph.facebook.com/v20.0';
+const CACHE_FILE = join(process.cwd(), '.traffic-cache.json');
+
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
+function isRateLimitError(err: unknown): boolean {
+  const msg = String((err as Error)?.message || err);
+  return (
+    msg.includes('80004') ||
+    msg.includes('2446079') ||
+    msg.toLowerCase().includes('too many calls') ||
+    msg.toLowerCase().includes('user request limit') ||
+    msg.includes('rate limit')
+  );
+}
 
 export interface AdAccount {
   id: string;
@@ -119,18 +141,32 @@ async function metaPost(path: string, params: Record<string, string>): Promise<v
 export class TrafficService {
   private tokens: Map<string, string>;
 
-  // ── Cache inteligente + dedup in-flight para mitigar rate limit da Meta Ads API ──
-  // Dados históricos (yesterday, last_month) nunca mudam → cache 24h.
-  // Dados "hoje" → 5 min. Períodos rolling (last_7d, last_30d, etc.) → 30 min.
+  // ── Cache inteligente + dedup in-flight + circuit breaker + persistência em disco ──
   //
-  // Dedup: se 2 componentes pedem o mesmo recurso simultaneamente, só uma
-  // chamada vai ao Meta; ambos aguardam a mesma Promise.
+  // TTL por datePreset:
+  // - yesterday, last_month: 24h (períodos fechados, não mudam)
+  // - today: 5 min
+  // - rolling (last_7d, last_30d, etc.): 30 min
+  //
+  // Dedup in-flight: 2 componentes pedindo mesmo recurso simultaneamente → 1 chamada.
+  //
+  // Circuit breaker: ao detectar rate limit do Meta, bloqueia chamadas para a conta
+  // por 15 min. Durante esse tempo, retorna cache stale (mesmo expirado).
+  //
+  // Persistência em disco: cache sobrevive a restarts da API.
   private insightsCache: Map<string, { data: AccountInsights; expires: number }> = new Map();
   private insightsInflight: Map<string, Promise<AccountInsights>> = new Map();
   private timeseriesCache: Map<string, { data: any[]; expires: number }> = new Map();
   private timeseriesInflight: Map<string, Promise<any[]>> = new Map();
   private campaignsCache: Map<string, { data: Campaign[]; expires: number }> = new Map();
   private campaignsInflight: Map<string, Promise<Campaign[]>> = new Map();
+
+  // Circuit breaker por accountId: se openUntil > now, rejeita chamadas e serve stale
+  private circuitBreaker: Map<string, number> = new Map();
+  private readonly CIRCUIT_BREAKER_MS = 15 * 60 * 1000; // 15 min
+
+  // Debounce para persistir cache em disco
+  private persistTimer: NodeJS.Timeout | null = null;
 
   private getTtlMs(datePreset: string): number {
     // Períodos que terminaram — conteúdo nunca muda
@@ -152,6 +188,55 @@ export class TrafficService {
 
     if (petyToken) this.tokens.set('pety', petyToken);
     if (erickToken) this.tokens.set('erick', erickToken);
+
+    this.loadCacheFromDisk();
+  }
+
+  // ── Circuit breaker ────────────────────────────────────────────────────────
+  private isCircuitOpen(accountId: string): boolean {
+    const openUntil = this.circuitBreaker.get(accountId);
+    if (!openUntil) return false;
+    if (Date.now() > openUntil) {
+      this.circuitBreaker.delete(accountId);
+      return false;
+    }
+    return true;
+  }
+
+  private openCircuit(accountId: string) {
+    this.circuitBreaker.set(accountId, Date.now() + this.CIRCUIT_BREAKER_MS);
+    console.warn(`[traffic] Circuit breaker aberto para ${accountId} por 15 min (rate limit Meta).`);
+  }
+
+  // ── Persistência em disco ──────────────────────────────────────────────────
+  private loadCacheFromDisk() {
+    try {
+      const raw = readFileSync(CACHE_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.insights)) this.insightsCache = new Map(data.insights);
+      if (Array.isArray(data.timeseries)) this.timeseriesCache = new Map(data.timeseries);
+      if (Array.isArray(data.campaigns)) this.campaignsCache = new Map(data.campaigns);
+      console.log(`[traffic] Cache carregado do disco: ${this.insightsCache.size} insights, ${this.timeseriesCache.size} timeseries, ${this.campaignsCache.size} campaigns`);
+    } catch {
+      // sem cache em disco (primeira execução ou arquivo corrompido)
+    }
+  }
+
+  private schedulePersist() {
+    if (this.persistTimer) return; // já agendado
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      try {
+        const data = {
+          insights: [...this.insightsCache.entries()],
+          timeseries: [...this.timeseriesCache.entries()],
+          campaigns: [...this.campaignsCache.entries()],
+        };
+        writeFileSync(CACHE_FILE, JSON.stringify(data));
+      } catch (err) {
+        console.warn('[traffic] Falha ao persistir cache:', err);
+      }
+    }, 5000); // debounce 5s
   }
 
   private getToken(workspace: string): string {
@@ -186,6 +271,11 @@ export class TrafficService {
     const cached = this.campaignsCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) return cached.data;
 
+    if (this.isCircuitOpen(accountId)) {
+      if (cached) return cached.data;
+      throw new RateLimitError('Meta atingiu o limite de chamadas. Tente novamente em alguns minutos.');
+    }
+
     const pending = this.campaignsInflight.get(cacheKey);
     if (pending) return pending;
 
@@ -198,10 +288,18 @@ export class TrafficService {
       });
       this.campaignsCache.set(cacheKey, {
         data: data.data,
-        expires: Date.now() + 30 * 60 * 1000, // 30 min — lista de campanhas muda pouco
+        expires: Date.now() + 30 * 60 * 1000,
       });
+      this.schedulePersist();
       return data.data;
-    })();
+    })().catch((err) => {
+      if (isRateLimitError(err)) {
+        this.openCircuit(accountId);
+        if (cached) return cached.data;
+        throw new RateLimitError('Meta atingiu o limite de chamadas. Tente novamente em alguns minutos.');
+      }
+      throw err;
+    });
 
     this.campaignsInflight.set(cacheKey, promise);
     try {
@@ -217,14 +315,30 @@ export class TrafficService {
     datePreset: string = 'last_30d'
   ): Promise<AccountInsights> {
     const cacheKey = `${workspace}|${accountId}|${datePreset}`;
-
     const cached = this.insightsCache.get(cacheKey);
+
+    // Cache fresh → retorna imediatamente
     if (cached && cached.expires > Date.now()) return cached.data;
 
+    // Circuit breaker aberto → serve stale ou erro amigável
+    if (this.isCircuitOpen(accountId)) {
+      if (cached) return cached.data;
+      throw new RateLimitError('Meta atingiu o limite de chamadas. Os dados voltarão em alguns minutos.');
+    }
+
+    // Dedup: se já tem promise em andamento, aguarda a mesma
     const pending = this.insightsInflight.get(cacheKey);
     if (pending) return pending;
 
-    const promise = this.fetchAccountInsightsFromMeta(accountId, workspace, datePreset, cacheKey);
+    const promise = this.fetchAccountInsightsFromMeta(accountId, workspace, datePreset, cacheKey)
+      .catch((err) => {
+        if (isRateLimitError(err)) {
+          this.openCircuit(accountId);
+          if (cached) return cached.data; // stale é melhor que erro
+          throw new RateLimitError('Meta atingiu o limite de chamadas. Tente novamente em alguns minutos.');
+        }
+        throw err;
+      });
     this.insightsInflight.set(cacheKey, promise);
     try {
       return await promise;
@@ -356,6 +470,7 @@ export class TrafficService {
       data: result,
       expires: Date.now() + this.getTtlMs(datePreset),
     });
+    this.schedulePersist();
 
     return result;
   }
@@ -382,9 +497,14 @@ export class TrafficService {
     cost_per_conversion: number;
   }>> {
     const cacheKey = `${workspace}|${accountId}|${datePreset}`;
-
     const cached = this.timeseriesCache.get(cacheKey);
+
     if (cached && cached.expires > Date.now()) return cached.data as any;
+
+    if (this.isCircuitOpen(accountId)) {
+      if (cached) return cached.data as any;
+      throw new RateLimitError('Meta atingiu o limite de chamadas. Tente novamente em alguns minutos.');
+    }
 
     const pending = this.timeseriesInflight.get(cacheKey);
     if (pending) return pending as any;
@@ -439,8 +559,16 @@ export class TrafficService {
         data: result,
         expires: Date.now() + this.getTtlMs(datePreset),
       });
+      this.schedulePersist();
       return result;
-    })();
+    })().catch((err) => {
+      if (isRateLimitError(err)) {
+        this.openCircuit(accountId);
+        if (cached) return cached.data as any;
+        throw new RateLimitError('Meta atingiu o limite de chamadas. Tente novamente em alguns minutos.');
+      }
+      throw err;
+    });
 
     this.timeseriesInflight.set(cacheKey, promise as any);
     try {
