@@ -6,7 +6,7 @@ import {
   DollarSign, Activity, Pause, Play, BarChart2, Target, Zap, AlertCircle,
   MessageSquare, Send, BrainCircuit, X, ChevronRight, ChevronDown,
   Image as ImageIcon, Layers, FileText, Columns, GripVertical, Check, RotateCcw,
-  Calendar, ArrowUp, ArrowDown,
+  Calendar, ArrowUp, ArrowDown, SlidersHorizontal,
 } from 'lucide-react';
 import { AtlasCompareTab } from './AtlasCompareTab';
 
@@ -158,6 +158,37 @@ function loadSavedColumns(): Array<keyof CampaignInsights> {
     return valid.length > 0 ? valid : DEFAULT_COLUMNS;
   } catch {
     return DEFAULT_COLUMNS;
+  }
+}
+
+// ── Ticker field picker ──────────────────────────────────────────────────────
+
+type TickerFieldId =
+  | 'spend' | 'impressions' | 'clicks' | 'ctr' | 'cpc' | 'cpm' | 'roas' | 'campaigns';
+
+const TICKER_FIELDS: Array<{ id: TickerFieldId; label: string }> = [
+  { id: 'spend', label: 'Gasto' },
+  { id: 'impressions', label: 'Impressões' },
+  { id: 'clicks', label: 'Cliques' },
+  { id: 'ctr', label: 'CTR médio' },
+  { id: 'cpc', label: 'CPC médio' },
+  { id: 'cpm', label: 'CPM médio' },
+  { id: 'roas', label: 'ROAS' },
+  { id: 'campaigns', label: 'Campanhas' },
+];
+
+const DEFAULT_TICKER_FIELDS: TickerFieldId[] = TICKER_FIELDS.map((f) => f.id);
+const TICKER_STORAGE_KEY = 'atlas_ticker_fields_v1';
+
+function loadSavedTickerFields(): TickerFieldId[] {
+  try {
+    const raw = localStorage.getItem(TICKER_STORAGE_KEY);
+    if (!raw) return DEFAULT_TICKER_FIELDS;
+    const parsed = JSON.parse(raw) as string[];
+    const valid = parsed.filter((id) => TICKER_FIELDS.some((f) => f.id === id)) as TickerFieldId[];
+    return valid.length > 0 ? valid : DEFAULT_TICKER_FIELDS;
+  } catch {
+    return DEFAULT_TICKER_FIELDS;
   }
 }
 
@@ -409,11 +440,38 @@ function CampaignTicker({
   today,
   yesterday,
   currency,
+  enabledFields,
+  onFieldsChange,
 }: {
   today: AccountInsights | null;
   yesterday: AccountInsights | null;
   currency: string;
+  enabledFields: TickerFieldId[];
+  onFieldsChange: (fields: TickerFieldId[]) => void;
 }) {
+  const enabledSet = new Set(enabledFields);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o popover ao clicar fora
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [pickerOpen]);
+
+  const toggleField = (id: TickerFieldId) => {
+    const next = enabledSet.has(id)
+      ? enabledFields.filter((f) => f !== id)
+      : [...enabledFields, id];
+    onFieldsChange(next);
+  };
+
   // Constrói itens do ticker: métricas agregadas da conta (hoje) + campanhas (hoje)
   const items: Array<{
     label: string;
@@ -423,38 +481,38 @@ function CampaignTicker({
   }> = [];
 
   if (today) {
-    items.push({
+    if (enabledSet.has('spend')) items.push({
       label: 'GASTO',
       value: formatCurrency(today.total_spend, currency),
       tone: 'orange',
       delta: yesterday ? computeDelta(today.total_spend, yesterday.total_spend, 'neutral') : undefined,
     });
-    items.push({
+    if (enabledSet.has('impressions')) items.push({
       label: 'IMPRESSÕES',
       value: formatNumber(today.total_impressions),
       delta: yesterday ? computeDelta(today.total_impressions, yesterday.total_impressions, 'higher-better') : undefined,
     });
-    items.push({
+    if (enabledSet.has('clicks')) items.push({
       label: 'CLIQUES',
       value: formatNumber(today.total_clicks),
       delta: yesterday ? computeDelta(today.total_clicks, yesterday.total_clicks, 'higher-better') : undefined,
     });
-    items.push({
+    if (enabledSet.has('ctr')) items.push({
       label: 'CTR MÉDIO',
       value: `${today.avg_ctr.toFixed(2)}%`,
       delta: yesterday ? computeDelta(today.avg_ctr, yesterday.avg_ctr, 'higher-better') : undefined,
     });
-    items.push({
+    if (enabledSet.has('cpc')) items.push({
       label: 'CPC MÉDIO',
       value: formatCurrency(today.avg_cpc, currency),
       delta: yesterday ? computeDelta(today.avg_cpc, yesterday.avg_cpc, 'lower-better') : undefined,
     });
-    items.push({
+    if (enabledSet.has('cpm')) items.push({
       label: 'CPM MÉDIO',
       value: formatCurrency(today.avg_cpm, currency),
       delta: yesterday ? computeDelta(today.avg_cpm, yesterday.avg_cpm, 'lower-better') : undefined,
     });
-    if (today.avg_roas) {
+    if (enabledSet.has('roas') && today.avg_roas) {
       items.push({
         label: 'ROAS',
         value: `${today.avg_roas.toFixed(2)}x`,
@@ -464,30 +522,71 @@ function CampaignTicker({
     }
   }
 
-  // Campanhas: mostra as top 12 de hoje por spend, com delta de CTR vs ontem
-  const yesterdayMap = new Map<string, CampaignInsights>();
-  (yesterday?.campaigns ?? []).forEach((c) => yesterdayMap.set(c.campaign_id, c));
+  // Campanhas: top 12 de hoje por spend, com delta de CTR vs ontem
+  if (enabledSet.has('campaigns')) {
+    const yesterdayMap = new Map<string, CampaignInsights>();
+    (yesterday?.campaigns ?? []).forEach((c) => yesterdayMap.set(c.campaign_id, c));
 
-  (today?.campaigns ?? [])
-    .slice()
-    .sort((a, b) => b.spend - a.spend)
-    .slice(0, 12)
-    .forEach((c) => {
-      const short = c.campaign_name.length > 28 ? c.campaign_name.slice(0, 28) + '…' : c.campaign_name;
-      const prev = yesterdayMap.get(c.campaign_id);
-      const delta = prev ? computeDelta(c.ctr, prev.ctr, 'higher-better') : undefined;
-      items.push({
-        label: short,
-        value: `${formatCurrency(c.spend, currency)} · CTR ${c.ctr.toFixed(2)}%`,
-        delta,
+    (today?.campaigns ?? [])
+      .slice()
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 12)
+      .forEach((c) => {
+        const short = c.campaign_name.length > 28 ? c.campaign_name.slice(0, 28) + '…' : c.campaign_name;
+        const prev = yesterdayMap.get(c.campaign_id);
+        const delta = prev ? computeDelta(c.ctr, prev.ctr, 'higher-better') : undefined;
+        items.push({
+          label: short,
+          value: `${formatCurrency(c.spend, currency)} · CTR ${c.ctr.toFixed(2)}%`,
+          delta,
+        });
       });
-    });
+  }
+
+  const fieldPicker = (
+    <div ref={pickerRef} className="absolute left-2 top-1/2 -translate-y-1/2 z-20">
+      <button
+        onClick={() => setPickerOpen((v) => !v)}
+        title="Escolher campos"
+        className={`p-1.5 rounded-md transition-colors ${
+          pickerOpen ? 'bg-white/10 text-white/80' : 'text-white/25 hover:text-white/70 hover:bg-white/5'
+        }`}
+      >
+        <SlidersHorizontal className="w-3.5 h-3.5" />
+      </button>
+      {pickerOpen && (
+        <div className="absolute left-0 top-full mt-1 w-44 bg-[#0d0a0f] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+          <ul className="py-1">
+            {TICKER_FIELDS.map((f) => {
+              const active = enabledSet.has(f.id);
+              return (
+                <li key={f.id}>
+                  <button
+                    onClick={() => toggleField(f.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                  >
+                    <span className={`w-3 h-3 flex items-center justify-center ${active ? 'text-orange-400' : 'text-transparent'}`}>
+                      <Check className="w-3 h-3" />
+                    </span>
+                    <span className="flex-1 text-left">{f.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 
   if (items.length === 0) {
     return (
-      <div className="px-4 py-2 border-b border-white/5 shrink-0">
-        <div className="h-6 flex items-center">
-          <span className="text-[10px] uppercase tracking-wider text-white/20">Aguardando dados…</span>
+      <div className="relative px-4 py-2 border-b border-white/5 shrink-0">
+        {fieldPicker}
+        <div className="h-6 flex items-center justify-end">
+          <span className="text-[10px] uppercase tracking-wider text-white/20">
+            {today ? 'Nenhum campo selecionado' : 'Aguardando dados…'}
+          </span>
         </div>
       </div>
     );
@@ -540,18 +639,21 @@ function CampaignTicker({
   const durationSec = Math.max(30, items.length * 4);
 
   return (
-    <div className="relative w-full border-y border-white/5 bg-gradient-to-r from-black/60 via-white/[0.02] to-black/60 shrink-0 overflow-hidden">
-      {/* fades laterais */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0d0a0f] to-transparent z-10" />
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0d0a0f] to-transparent z-10" />
+    <div className="relative w-full border-y border-white/5 bg-gradient-to-r from-black/60 via-white/[0.02] to-black/60 shrink-0 overflow-visible">
+      <div className="relative overflow-hidden">
+        {/* fades laterais */}
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0d0a0f] to-transparent z-10" />
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0d0a0f] to-transparent z-10" />
 
-      <div
-        className="flex items-center py-2.5 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
-        style={{ ['--ticker-duration' as any]: `${durationSec}s`, width: 'max-content' }}
-      >
-        {renderRow('a')}
-        {renderRow('b')}
+        <div
+          className="flex items-center py-2.5 pl-10 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
+          style={{ ['--ticker-duration' as any]: `${durationSec}s`, width: 'max-content' }}
+        >
+          {renderRow('a')}
+          {renderRow('b')}
+        </div>
       </div>
+      {fieldPicker}
 
       <style jsx>{`
         @keyframes ticker-scroll {
@@ -579,6 +681,7 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   // Ticker "bolsa de valores": sempre hoje vs ontem, independente do datePreset
   const [tickerToday, setTickerToday] = useState<AccountInsights | null>(null);
   const [tickerYesterday, setTickerYesterday] = useState<AccountInsights | null>(null);
+  const [tickerFields, setTickerFields] = useState<TickerFieldId[]>(DEFAULT_TICKER_FIELDS);
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -624,7 +727,13 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   // Load saved columns on mount
   useEffect(() => {
     setVisibleColumns(loadSavedColumns());
+    setTickerFields(loadSavedTickerFields());
   }, []);
+
+  const handleTickerFieldsChange = (fields: TickerFieldId[]) => {
+    setTickerFields(fields);
+    try { localStorage.setItem(TICKER_STORAGE_KEY, JSON.stringify(fields)); } catch { /* noop */ }
+  };
 
   // Persist columns when they change
   const handleColumnsChange = (cols: Array<keyof CampaignInsights>) => {
@@ -1071,7 +1180,13 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
       </div>
 
       {/* ── Ticker (estilo mercado financeiro) ── */}
-      <CampaignTicker today={tickerToday} yesterday={tickerYesterday} currency={currency} />
+      <CampaignTicker
+        today={tickerToday}
+        yesterday={tickerYesterday}
+        currency={currency}
+        enabledFields={tickerFields}
+        onFieldsChange={handleTickerFieldsChange}
+      />
 
       {/* ── Conteúdo principal + chat ── */}
       <div className="flex flex-1 overflow-hidden">
