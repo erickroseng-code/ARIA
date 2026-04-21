@@ -6,7 +6,7 @@ import {
   DollarSign, Activity, Pause, Play, BarChart2, Target, Zap, AlertCircle,
   MessageSquare, Send, BrainCircuit, X, ChevronRight, ChevronDown,
   Image as ImageIcon, Layers, FileText, Columns, GripVertical, Check, RotateCcw,
-  Calendar, ArrowUp, ArrowDown, SlidersHorizontal,
+  Calendar, ArrowUp, ArrowDown, SlidersHorizontal, Building2,
 } from 'lucide-react';
 import { AtlasCompareTab } from './AtlasCompareTab';
 
@@ -714,7 +714,9 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
   const [visibleColumns, setVisibleColumns] = useState<Array<keyof CampaignInsights>>(DEFAULT_COLUMNS);
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [accountPickerOpen, setAccountPickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const accountPickerRef = useRef<HTMLDivElement>(null);
 
   // Fecha o picker ao clicar fora
   useEffect(() => {
@@ -727,6 +729,17 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [datePickerOpen]);
+
+  useEffect(() => {
+    if (!accountPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (accountPickerRef.current && !accountPickerRef.current.contains(e.target as Node)) {
+        setAccountPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [accountPickerOpen]);
 
   // Load saved columns on mount
   useEffect(() => {
@@ -1091,35 +1104,55 @@ export function TrafficSession({ onClose }: TrafficSessionProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-          {/* Seletor de workspace */}
-          {workspaces.length > 0 && (
-            <select
-              value={selectedWorkspace}
-              onChange={(e) => setSelectedWorkspace(e.target.value)}
-              className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/80 outline-none cursor-pointer hover:bg-white/10 transition-colors"
+          {/* Seletor de conta — popup */}
+          <div ref={accountPickerRef} className="relative">
+            <button
+              onClick={() => setAccountPickerOpen((v) => !v)}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors max-w-[200px] ${
+                accountPickerOpen
+                  ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                  : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:border-orange-500/20 hover:text-white/90'
+              }`}
             >
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id} className="bg-[#1a0f0a]">
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          )}
+              <Building2 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+              <span className="truncate max-w-[160px]">
+                {accountName ?? (accounts.length === 0 ? 'Carregando...' : 'Selecionar conta')}
+              </span>
+              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${accountPickerOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Seletor de conta */}
-          {accounts.length > 0 && (
-            <select
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white/80 outline-none cursor-pointer hover:bg-white/10 transition-colors max-w-[180px] truncate"
-            >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id} className="bg-[#1a0f0a]">
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          )}
+            {accountPickerOpen && accounts.length > 0 && (
+              <div className="absolute right-0 top-full mt-1.5 w-72 rounded-xl border border-white/10 bg-[#141014]/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden">
+                <div className="px-3 py-2 border-b border-white/5">
+                  <p className="text-[10px] uppercase tracking-wider text-white/40">Contas de anúncio</p>
+                </div>
+                <div className="py-1 max-h-64 overflow-y-auto">
+                  {accounts.map((a) => {
+                    const isActive = a.account_status === 1;
+                    const isSelected = a.id === selectedAccount;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => { setSelectedAccount(a.id); setAccountPickerOpen(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                          isSelected
+                            ? 'bg-orange-500/15 text-orange-300'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white/90'
+                        }`}
+                      >
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-green-400' : 'bg-white/20'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs truncate font-medium">{a.name}</p>
+                          <p className="text-[10px] text-white/35">{a.currency}</p>
+                        </div>
+                        {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Botão Atlas AI */}
           {initialized && (
