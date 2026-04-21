@@ -638,6 +638,11 @@ function CampaignTicker({
   // Duração proporcional à quantidade de itens (velocidade "natural")
   const durationSec = Math.max(30, items.length * 4);
 
+  // Duplica N vezes para preencher telas largas mesmo com poucos itens.
+  // translateX avança exatamente 1/N para emendar seamless ao reiniciar.
+  const COPIES = 8;
+  const copies = Array.from({ length: COPIES }, (_, i) => i);
+
   return (
     <div className="relative w-full border-y border-white/5 bg-gradient-to-r from-black/60 via-white/[0.02] to-black/60 shrink-0 overflow-visible">
       <div className="relative overflow-hidden">
@@ -649,8 +654,7 @@ function CampaignTicker({
           className="flex items-center py-2.5 animate-[ticker-scroll_var(--ticker-duration)_linear_infinite] hover:[animation-play-state:paused]"
           style={{ ['--ticker-duration' as any]: `${durationSec}s`, width: 'max-content' }}
         >
-          {renderRow('a')}
-          {renderRow('b')}
+          {copies.map((i) => renderRow(String(i)))}
         </div>
       </div>
       {fieldPicker}
@@ -661,7 +665,7 @@ function CampaignTicker({
             transform: translateX(0);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(calc(-100% / ${COPIES}));
           }
         }
       `}</style>
