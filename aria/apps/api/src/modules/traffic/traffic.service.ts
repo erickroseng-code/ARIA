@@ -116,10 +116,31 @@ async function metaPost(path: string, params: Record<string, string>): Promise<v
 
 export class TrafficService {
   private tokens: Map<string, string>;
-  // Cache em memória para mitigar rate limit da Meta Ads API.
-  // Chave: `${workspace}|${accountId}|${datePreset}`
+
+  // ── Cache inteligente + dedup in-flight para mitigar rate limit da Meta Ads API ──
+  // Dados históricos (yesterday, last_month) nunca mudam → cache 24h.
+  // Dados "hoje" → 5 min. Períodos rolling (last_7d, last_30d, etc.) → 30 min.
+  //
+  // Dedup: se 2 componentes pedem o mesmo recurso simultaneamente, só uma
+  // chamada vai ao Meta; ambos aguardam a mesma Promise.
   private insightsCache: Map<string, { data: AccountInsights; expires: number }> = new Map();
-  private readonly INSIGHTS_TTL_MS = 300_000; // 5 min
+  private insightsInflight: Map<string, Promise<AccountInsights>> = new Map();
+  private timeseriesCache: Map<string, { data: any[]; expires: number }> = new Map();
+  private timeseriesInflight: Map<string, Promise<any[]>> = new Map();
+  private campaignsCache: Map<string, { data: Campaign[]; expires: number }> = new Map();
+  private campaignsInflight: Map<string, Promise<Campaign[]>> = new Map();
+
+  private getTtlMs(datePreset: string): number {
+    // Períodos que terminaram — conteúdo nunca muda
+    const HISTORICAL = new Set(['yesterday', 'last_month']);
+    if (HISTORICAL.has(datePreset)) return 24 * 60 * 60 * 1000; // 24h
+
+    // Dados de hoje — mudam continuamente, mas curto o suficiente
+    if (datePreset === 'today') return 5 * 60 * 1000; // 5 min
+
+    // Rolling windows (last_7d, last_14d, last_30d, this_month, maximum)
+    return 30 * 60 * 1000; // 30 min
+  }
 
   constructor() {
     this.tokens = new Map();
@@ -159,13 +180,33 @@ export class TrafficService {
   }
 
   async getCampaigns(accountId: string, workspace: string): Promise<Campaign[]> {
-    const token = this.getToken(workspace);
-    const data = await metaGet<{ data: Campaign[] }>(`/${accountId}/campaigns`, {
-      fields: 'id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time',
-      access_token: token,
-      limit: '50',
-    });
-    return data.data;
+    const cacheKey = `${workspace}|${accountId}`;
+    const cached = this.campaignsCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.data;
+
+    const pending = this.campaignsInflight.get(cacheKey);
+    if (pending) return pending;
+
+    const promise = (async () => {
+      const token = this.getToken(workspace);
+      const data = await metaGet<{ data: Campaign[] }>(`/${accountId}/campaigns`, {
+        fields: 'id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time',
+        access_token: token,
+        limit: '50',
+      });
+      this.campaignsCache.set(cacheKey, {
+        data: data.data,
+        expires: Date.now() + 30 * 60 * 1000, // 30 min — lista de campanhas muda pouco
+      });
+      return data.data;
+    })();
+
+    this.campaignsInflight.set(cacheKey, promise);
+    try {
+      return await promise;
+    } finally {
+      this.campaignsInflight.delete(cacheKey);
+    }
   }
 
   async getAccountInsights(
@@ -174,11 +215,28 @@ export class TrafficService {
     datePreset: string = 'last_30d'
   ): Promise<AccountInsights> {
     const cacheKey = `${workspace}|${accountId}|${datePreset}`;
-    const cached = this.insightsCache.get(cacheKey);
-    if (cached && cached.expires > Date.now()) {
-      return cached.data;
-    }
 
+    const cached = this.insightsCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.data;
+
+    const pending = this.insightsInflight.get(cacheKey);
+    if (pending) return pending;
+
+    const promise = this.fetchAccountInsightsFromMeta(accountId, workspace, datePreset, cacheKey);
+    this.insightsInflight.set(cacheKey, promise);
+    try {
+      return await promise;
+    } finally {
+      this.insightsInflight.delete(cacheKey);
+    }
+  }
+
+  private async fetchAccountInsightsFromMeta(
+    accountId: string,
+    workspace: string,
+    datePreset: string,
+    cacheKey: string
+  ): Promise<AccountInsights> {
     const token = this.getToken(workspace);
     const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
       fields: [
@@ -288,7 +346,7 @@ export class TrafficService {
 
     this.insightsCache.set(cacheKey, {
       data: result,
-      expires: Date.now() + this.INSIGHTS_TTL_MS,
+      expires: Date.now() + this.getTtlMs(datePreset),
     });
 
     return result;
@@ -314,49 +372,72 @@ export class TrafficService {
     roas: number;
     conversions: number;
   }>> {
-    const token = this.getToken(workspace);
-    const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
-      fields: [
-        'impressions', 'inline_link_clicks', 'spend',
-        'cpc', 'cpm', 'inline_link_click_ctr',
-        'actions', 'action_values',
-      ].join(','),
-      date_preset: datePreset,
-      time_increment: '1',
-      level: 'account',
-      access_token: token,
-      limit: '500',
-    });
+    const cacheKey = `${workspace}|${accountId}|${datePreset}`;
 
-    const raw: any[] = data.data ?? [];
-    const getVal = (arr: any[] | undefined, type: string) =>
-      parseFloat(arr?.find((a: any) => a.action_type === type)?.value || '0');
+    const cached = this.timeseriesCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.data as any;
 
-    return raw
-      .map((d) => {
-        const spend = parseFloat(d.spend || '0');
-        const purchases = getVal(d.actions, 'purchase');
-        const leads = getVal(d.actions, 'lead');
-        const msgStarted =
-          getVal(d.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
-          getVal(d.actions, 'onsite_conversion.total_messaging_connection');
-        const conversions = purchases || leads || msgStarted || 0;
-        const purchaseValue = getVal(d.action_values, 'purchase');
-        const roas = purchaseValue > 0 && spend > 0 ? purchaseValue / spend : 0;
+    const pending = this.timeseriesInflight.get(cacheKey);
+    if (pending) return pending as any;
 
-        return {
-          date: d.date_start as string,
-          spend,
-          impressions: parseInt(d.impressions || '0', 10),
-          clicks: parseInt(d.inline_link_clicks || '0', 10),
-          ctr: parseFloat(d.inline_link_click_ctr || '0'),
-          cpc: parseFloat(d.cpc || '0'),
-          cpm: parseFloat(d.cpm || '0'),
-          roas,
-          conversions,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
+    const promise = (async () => {
+      const token = this.getToken(workspace);
+      const data = await metaGet<{ data: any[] }>(`/${accountId}/insights`, {
+        fields: [
+          'impressions', 'inline_link_clicks', 'spend',
+          'cpc', 'cpm', 'inline_link_click_ctr',
+          'actions', 'action_values',
+        ].join(','),
+        date_preset: datePreset,
+        time_increment: '1',
+        level: 'account',
+        access_token: token,
+        limit: '500',
+      });
+
+      const raw: any[] = data.data ?? [];
+      const getVal = (arr: any[] | undefined, type: string) =>
+        parseFloat(arr?.find((a: any) => a.action_type === type)?.value || '0');
+
+      const result = raw
+        .map((d) => {
+          const spend = parseFloat(d.spend || '0');
+          const purchases = getVal(d.actions, 'purchase');
+          const leads = getVal(d.actions, 'lead');
+          const msgStarted =
+            getVal(d.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
+            getVal(d.actions, 'onsite_conversion.total_messaging_connection');
+          const conversions = purchases || leads || msgStarted || 0;
+          const purchaseValue = getVal(d.action_values, 'purchase');
+          const roas = purchaseValue > 0 && spend > 0 ? purchaseValue / spend : 0;
+
+          return {
+            date: d.date_start as string,
+            spend,
+            impressions: parseInt(d.impressions || '0', 10),
+            clicks: parseInt(d.inline_link_clicks || '0', 10),
+            ctr: parseFloat(d.inline_link_click_ctr || '0'),
+            cpc: parseFloat(d.cpc || '0'),
+            cpm: parseFloat(d.cpm || '0'),
+            roas,
+            conversions,
+          };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      this.timeseriesCache.set(cacheKey, {
+        data: result,
+        expires: Date.now() + this.getTtlMs(datePreset),
+      });
+      return result;
+    })();
+
+    this.timeseriesInflight.set(cacheKey, promise as any);
+    try {
+      return await promise;
+    } finally {
+      this.timeseriesInflight.delete(cacheKey);
+    }
   }
 
   /** Fetch ad-level insights (CTR, CPC, spend) for a given account */
