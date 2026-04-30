@@ -49,6 +49,8 @@ interface CampaignInsights {
   conversions?: number;
   conversion_value?: number;
   cost_per_conversion?: number;
+  leads?: number;
+  cost_per_lead?: number;
   engagement?: number;
   video_views_25?: number;
   video_views_50?: number;
@@ -69,6 +71,8 @@ interface AccountInsights {
   avg_cpc: number;
   avg_roas: number;
   avg_cost_per_conversion: number;
+  total_leads: number;
+  avg_cost_per_lead: number;
   campaigns: CampaignInsights[];
 }
 
@@ -141,6 +145,8 @@ const COLUMN_CATALOG: ColDef[] = [
   { id: 'conversions', label: 'Resultados (Conv.)', description: 'Número de resultados/compras registradas', type: 'number', aggregate: 'sum' },
   { id: 'conversion_value', label: 'Valor Conv.', description: 'Receita total das compras (R$)', type: 'currency', aggregate: 'sum' },
   { id: 'cost_per_conversion', label: 'Custo/Resultado', description: 'Custo médio por resultado', type: 'currency', aggregate: 'avg' },
+  { id: 'leads', label: 'Leads', description: 'Leads do evento personalizado "diagnostico-result"', type: 'number', aggregate: 'sum' },
+  { id: 'cost_per_lead', label: 'Custo/Lead', description: 'Custo por lead (evento "diagnostico-result"). Menor é melhor', type: 'currency', aggregate: 'avg' },
   { id: 'engagement', label: 'Engajamento', description: 'Total de engajamentos no post', type: 'number', aggregate: 'sum' },
   { id: 'video_views_25', label: 'Vídeo 25%', description: 'Reproduzões até 25% do vídeo', type: 'number', aggregate: 'sum' },
   { id: 'video_views_50', label: 'Vídeo 50%', description: 'Reproduzões até 50% do vídeo', type: 'number', aggregate: 'sum' },
@@ -196,7 +202,7 @@ function loadSavedTickerFields(): TickerFieldId[] {
 
 function formatColValue(col: ColDef, ci: CampaignInsights, currency: string): string {
   const raw = ci[col.id];
-  if (raw === undefined || raw === null || raw === 0 && ['roas', 'frequency', 'conversions', 'conversion_value', 'cost_per_conversion', 'engagement', 'video_views_25', 'video_views_50', 'video_views_75', 'video_views_100', 'unique_clicks'].includes(col.id)) return '—';
+  if (raw === undefined || raw === null || raw === 0 && ['roas', 'frequency', 'conversions', 'conversion_value', 'cost_per_conversion', 'leads', 'cost_per_lead', 'engagement', 'video_views_25', 'video_views_50', 'video_views_75', 'video_views_100', 'unique_clicks'].includes(col.id)) return '—';
   const n = Number(raw);
   if (isNaN(n)) return '—';
   switch (col.type) {

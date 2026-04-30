@@ -190,6 +190,7 @@ const EXPENSE_CATEGORIES = [
   'Assinaturas',
   'Viagem',
   'Pets',
+  'Despesa Fixa',
   'Dívida',
   'Outros',
 ];
@@ -325,6 +326,8 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const [saving, setSaving] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [aprilDashboard, setAprilDashboard] = useState<DashboardData | null>(null);
+  // Cache de dashboards de todos os meses do ano (para gráfico de evolução)
+  const [yearlyDashboards, setYearlyDashboards] = useState<Record<string, DashboardData | null>>({});
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [overdue, setOverdue] = useState<OverdueRecord[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpenseRecord[]>([]);
@@ -417,7 +420,7 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
         fetch(`/api/finance/dashboard?month=${month}`),
         fetch(`/api/finance/dashboard?month=${aprilMonth}`),
         fetch(`/api/finance/debts`),
-        fetch(`/api/finance/overdue`),
+        fetch(`/api/finance/overdue?month=${month}`),
         fetch(`/api/finance/recurring-expenses`),
         fetch(`/api/finance/spreadsheet`),
         fetch(`/api/finance/credit-cards`),
@@ -431,34 +434,27 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       const monthIndex = selectedMonth.getMonth();
       const monthMaxDay = new Date(monthYear, monthIndex + 1, 0).getDate();
 
+      // Auto-copy de receitas: SOMENTE quando o mês está completamente vazio.
+      // Lógica antiga usava buildKey + normalizeToCurrentMonthDate que falhava
+      // por timezone, gerando duplicatas a cada carregamento (até 7x). Versão
+      // antiga mantida no histórico do git (commit anterior). Esta versão evita
+      // duplicação ao adotar uma única condição: só copia 1x quando vazio.
       if (isAfterApril) {
         const existingIncome = (dData?.transactions ?? []).filter((tx: DashboardData['transactions'][number]) => tx.type === 'receita');
         const aprilIncome = (aprilData?.transactions ?? []).filter((tx: DashboardData['transactions'][number]) => tx.type === 'receita');
 
-        const normalizeText = (value: string) => String(value ?? '').trim().toLowerCase();
-        const buildKey = (tx: DashboardData['transactions'][number], normalizedDate: string) =>
-          `${normalizeText(tx.category)}|${normalizeText(tx.description)}|${parseAmount(tx.amount).toFixed(2)}|${normalizedDate}`;
+        const shouldSeed = existingIncome.length === 0 && aprilIncome.length > 0;
 
-        const normalizeToCurrentMonthDate = (rawDate: string) => {
-          const parsedDate = parseYmdLocal(rawDate) ?? new Date(monthYear, monthIndex, 1);
-          const sourceDay = parsedDate.getDate();
-          const clampedDay = Math.max(1, Math.min(sourceDay, monthMaxDay));
-          return format(new Date(monthYear, monthIndex, clampedDay), 'yyyy-MM-dd');
-        };
+        if (shouldSeed) {
+          const normalizeToCurrentMonthDate = (rawDate: string) => {
+            const parsedDate = parseYmdLocal(rawDate) ?? new Date(monthYear, monthIndex, 1);
+            const sourceDay = parsedDate.getDate();
+            const clampedDay = Math.max(1, Math.min(sourceDay, monthMaxDay));
+            return format(new Date(monthYear, monthIndex, clampedDay), 'yyyy-MM-dd');
+          };
 
-        const existingKeys = new Set(
-          existingIncome.map((tx: DashboardData['transactions'][number]) => buildKey(tx, normalizeToCurrentMonthDate(tx.date)))
-        );
-
-        const missingIncome = aprilIncome.filter((tx: DashboardData['transactions'][number]) => {
-          const normalizedDate = normalizeToCurrentMonthDate(tx.date);
-          const key = buildKey(tx, normalizedDate);
-          return !existingKeys.has(key);
-        });
-
-        if (missingIncome.length > 0) {
           await Promise.all(
-            missingIncome.map((tx: DashboardData['transactions'][number]) => {
+            aprilIncome.map((tx: DashboardData['transactions'][number]) => {
               const targetDate = normalizeToCurrentMonthDate(tx.date);
               return fetch(`/api/finance/transaction`, {
                 method: 'POST',
@@ -483,6 +479,28 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
       setDashboard(dData);
       setAprilDashboard(aprilData);
       setPlannedExpensesInput(formatCurrencyInputFromNumber(Number(dData?.comparison?.plannedExpenses ?? 0)));
+
+      // Buscar dashboards de todos os meses do ano em paralelo (para gráfico de evolução)
+      const year = selectedMonth.getFullYear();
+      const monthsList = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+      void Promise.all(
+        monthsList.map(async (monthKey) => {
+          // Reusa dados já carregados quando possível
+          if (monthKey === month) return [monthKey, dData] as const;
+          if (monthKey === '2026-04' && aprilData) return [monthKey, aprilData] as const;
+          try {
+            const r = await fetch(`/api/finance/dashboard?month=${monthKey}`);
+            if (!r.ok) return [monthKey, null] as const;
+            return [monthKey, await r.json()] as const;
+          } catch {
+            return [monthKey, null] as const;
+          }
+        })
+      ).then((results) => {
+        const map: Record<string, DashboardData | null> = {};
+        for (const [k, v] of results) map[k] = v;
+        setYearlyDashboards(map);
+      });
 
       const debtData = await debtRes.json();
       setDebts(debtData.debts ?? []);
@@ -619,26 +637,41 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
   const performancePoints = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const aprilIndex = 3;
-    const aprilIncome = projectedMonthlyBase.projectedIncome;
-    const aprilExpenses = parseAmount(aprilDashboard?.comparison?.actualExpenses) || parseAmount(totalsByType.pagar);
-    const carriedExpenses = projectedMonthlyBase.projectedExpense;
+    const year = selectedMonth.getFullYear();
+    const fallbackIncome = projectedMonthlyBase.projectedIncome;
+    const fallbackExpense = projectedMonthlyBase.projectedExpense;
 
     return months.map((month, index) => {
+      // Antes de abril: sem dados (não exibe linha)
       if (index < aprilIndex) {
         return { month, income: null, expense: null };
       }
 
-      if (index === aprilIndex) {
-        return { month, income: aprilIncome, expense: aprilExpenses };
-      }
+      const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
+      const monthDashboard = yearlyDashboards[monthKey];
+      const txs = monthDashboard?.transactions ?? [];
+      const cmp = monthDashboard?.comparison;
 
-      return {
-        month,
-        income: aprilIncome,
-        expense: carriedExpenses,
-      };
+      // RECEITAS: soma efetivadas (com effectiveAmount quando customizado) +
+      // previstas (amount). plannedIncome do backend já faz isso.
+      const planned = parseAmount(cmp?.plannedIncome ?? 0);
+      const incomeSumFromTx = txs
+        .filter((t) => t.type === 'receita')
+        .reduce((acc, t) => acc + (t.effectiveAmount && t.effectiveAmount > 0 ? t.effectiveAmount : parseAmount(t.amount)), 0);
+
+      // DESPESAS: soma TODAS (previstas + efetivadas) das transações.
+      // Não usa actualExpenses do backend porque ele só conta efetivadas.
+      const expenseSumFromTx = txs
+        .filter((t) => t.type === 'despesa')
+        .reduce((acc, t) => acc + (t.effectiveAmount && t.effectiveAmount > 0 ? t.effectiveAmount : parseAmount(t.amount)), 0);
+
+      const hasRealData = planned > 0 || incomeSumFromTx > 0 || expenseSumFromTx > 0;
+      const income = hasRealData ? Math.max(planned, incomeSumFromTx) : fallbackIncome;
+      const expense = hasRealData ? expenseSumFromTx : fallbackExpense;
+
+      return { month, income, expense };
     });
-  }, [aprilDashboard?.comparison?.actualExpenses, projectedMonthlyBase.projectedIncome, projectedMonthlyBase.projectedExpense, totalsByType.pagar]);
+  }, [yearlyDashboards, selectedMonth, projectedMonthlyBase.projectedIncome, projectedMonthlyBase.projectedExpense]);
 
   const performanceChange = useMemo(() => {
     const currentIndex = selectedMonth.getMonth();
@@ -1394,7 +1427,12 @@ const incomeTransactions = useMemo(
   }, [transactionTotalPages, transactionsPage]);
 
   const displayTotals = useMemo(() => {
-    if (!isFutureOfApril) {
+    // Sempre prioriza dados REAIS do mês selecionado.
+    // Só cai para projeção de abril se o mês está completamente vazio.
+    const hasRealIncome = totalsByType.receber > 0;
+    const hasRealExpense = totalsByType.pagar > 0;
+
+    if (!isFutureOfApril || hasRealIncome || hasRealExpense) {
       return { receber: totalsByType.receber, pagar: totalsByType.pagar };
     }
     return {
@@ -1403,9 +1441,12 @@ const incomeTransactions = useMemo(
     };
   }, [isFutureOfApril, projectedMonthlyBase.projectedExpense, projectedMonthlyBase.projectedIncome, totalsByType.pagar, totalsByType.receber]);
 
-  const actualBalance = isFutureOfApril
-    ? (displayTotals.receber - displayTotals.pagar)
-    : Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo);
+  // Saldo: usa dados reais quando disponíveis, fallback para projeção.
+  const actualBalance = (totalsByType.receber > 0 || totalsByType.pagar > 0)
+    ? Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo)
+    : (isFutureOfApril
+      ? (displayTotals.receber - displayTotals.pagar)
+      : Number(dashboard?.comparison?.actualBalance ?? totalsByType.saldo));
 
   const healthScore = useMemo(() => {
     if (!displayTotals.receber || displayTotals.receber <= 0) return 0;
@@ -1420,52 +1461,20 @@ const incomeTransactions = useMemo(
     return 26 + (positiveNormalized * 74);
   }, [displayTotals.pagar, displayTotals.receber]);
 
-  const categoryData = useMemo(() => {
+  const displayCategoryData = useMemo(() => {
     const categories = new Map<string, number>();
-    expenseTransactions.forEach(t => {
-      categories.set(t.category, (categories.get(t.category) || 0) + t.amount);
+    transactionRows.forEach((tx) => {
+      categories.set(tx.category, (categories.get(tx.category) || 0) + tx.amount);
     });
-    const total = Array.from(categories.values()).reduce((a, b) => a + b, 0);
+
     return Array.from(categories.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([label, amount], i) => ({
         label,
         amount,
-        pct: total > 0 ? Math.round((amount / total) * 100) : 0,
         color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
       }));
-  }, [expenseTransactions]);
-
-  const projectedCategoryData = useMemo(() => {
-    const categories = new Map<string, number>();
-    recurring
-      .filter((item) => item.active)
-      .forEach((item) => {
-        categories.set(item.category, (categories.get(item.category) || 0) + parseAmount(item.amount));
-      });
-
-    if (categories.size === 0) {
-      (aprilDashboard?.transactions ?? [])
-        .filter((item) => item.type === 'despesa' && item.isRecurring)
-        .forEach((item) => {
-          categories.set(item.category, (categories.get(item.category) || 0) + parseAmount(item.amount));
-        });
-    }
-
-    const total = Array.from(categories.values()).reduce((a, b) => a + b, 0);
-    return Array.from(categories.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, amount], i) => ({
-        label,
-        amount,
-        pct: total > 0 ? Math.round((amount / total) * 100) : 0,
-        color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-      }));
-  }, [aprilDashboard?.transactions, recurring]);
-
-  const displayCategoryData = isFutureOfApril && projectedCategoryData.length > 0
-    ? projectedCategoryData
-    : categoryData;
+  }, [transactionRows]);
 
   const incomeDelta = dashboard?.comparison?.incomeDelta ?? 0;
   const expensesDelta = dashboard?.comparison?.expensesDelta ?? 0;
@@ -1673,9 +1682,9 @@ const incomeTransactions = useMemo(
               <BalanceDistribution
                 totalBalance={fmtCurrency(displayTotals.pagar)}
                 totalBalanceLabel="Total de despesas no mês"
-                barData={displayCategoryData.map(item => ({
+                categoryTotals={displayCategoryData.map(item => ({
                   label: item.label,
-                  value: item.pct,
+                  value: fmtCurrency(item.amount),
                   color: item.color,
                 }))}
                 legend={displayCategoryData.slice(0, 2).map(item => ({
@@ -2652,6 +2661,7 @@ const incomeTransactions = useMemo(
                         onChange={e => {
                           const checked = e.target.checked;
                           setTxIsFixed(checked);
+                          if (checked) setTxCategory('Despesa Fixa');
                           if (!checked) { setTxFixedDueDay(''); setTxHasOverdueFixed(false); setTxFixedOverdueEntries([]); }
                         }}
                         className="sr-only"
@@ -2840,4 +2850,5 @@ const incomeTransactions = useMemo(
     </div>
   );
 }
+
 

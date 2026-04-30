@@ -4,7 +4,7 @@ import { SHEET_NAMES } from '../sheets-schema';
 import { checkBudgetAlerts } from './budget-planner';
 import { db } from '../../../config/db';
 import { getSupabase } from '../../../config/supabase';
-import { applyRecurringExpensesForMonth } from './entries';
+import { applyRecurringExpensesForMonth, carryoverOverdueAccountsForMonth, migrateOverdueRecurringExpensesForMonth } from './entries';
 const USE_SUPABASE = process.env.FINANCE_USE_SUPABASE === 'true';
 const USE_LOCAL_CACHE = process.env.FINANCE_LOCAL_READ_CACHE !== 'false';
 const CACHE_REFRESH_MS = Number(process.env.FINANCE_CACHE_REFRESH_MS ?? 300000);
@@ -413,9 +413,13 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
   const spreadsheetId = useSheets ? await getSpreadsheetId() : null;
   const targetMonth = normalizeMonth(month);
   ensureTransactionsCacheSchema();
-  if (!USE_SUPABASE) {
-    await applyRecurringExpensesForMonth(targetMonth);
-  }
+  // 1. Materializa despesas recorrentes (idempotente por tag 'recorrente:%')
+  await applyRecurringExpensesForMonth(targetMonth);
+  // 2. Migra despesas fixas vencidas e não efetivadas para "Atrasadas".
+  //    Idempotente: usa par (description, dueDate) para evitar duplicatas.
+  await migrateOverdueRecurringExpensesForMonth(targetMonth);
+  // NOTA: carryoverOverdueAccountsForMonth foi REMOVIDO daqui porque estava
+  // criando duplicatas a cada acesso a um mês.
 
   let rows: any[] = [];
 
@@ -428,9 +432,42 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     `).all(`${targetMonth}%`) as Array<any>;
 
     rows = dedupeLocalRowsWhenSupabaseExists(rows);
-    const supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
+    let supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
+
+    // Se cache Supabase está vazio, força refresh sincrono.
+    if (supabaseRows.length === 0) {
+      try {
+        const refreshed = await refreshSupabaseMonthCache(targetMonth);
+        if (refreshed.length > 0) {
+          rows = db.prepare(`
+            SELECT id, remoteId, source, date, type, category, description, amount, tags, isEffective, effectiveAmount
+            FROM finance_transactions
+            WHERE date LIKE ?
+            ORDER BY date DESC, id DESC
+          `).all(`${targetMonth}%`) as Array<any>;
+          rows = dedupeLocalRowsWhenSupabaseExists(rows);
+          supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
+        }
+      } catch (err) {
+        console.warn('[Finance] sync refresh error:', (err as any)?.message ?? err);
+      }
+    }
+
+    // Quando há rows do Supabase, prioriza-os MAS preserva rows locais que
+    // são despesas recorrentes materializadas (tag começa com 'recorrente:').
+    // Isso porque despesas recorrentes só existem localmente e precisam aparecer.
     if (supabaseRows.length > 0) {
-      rows = supabaseRows;
+      const localRecurring = rows.filter((row) => {
+        if (String(row.source ?? '') === 'supabase') return false;
+        const tags = String(row.tags ?? '');
+        return tags === 'recorrente' || tags.startsWith('recorrente:');
+      });
+      // Dedup recorrentes contra supabase (mesma assinatura date|type|category|description|amount)
+      const supabaseSigs = new Set(supabaseRows.map(buildTransactionSignature));
+      const recurringNotInSupabase = localRecurring.filter(
+        (r) => !supabaseSigs.has(buildTransactionSignature(r)),
+      );
+      rows = [...supabaseRows, ...recurringNotInSupabase];
     }
 
     if (rows.length > 0) {
@@ -468,7 +505,17 @@ export async function getDashboardData(month?: string): Promise<DashboardData> {
     if (USE_SUPABASE) {
       const supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
       if (supabaseRows.length > 0) {
-        rows = supabaseRows;
+        // Prioriza supabase + preserva recorrentes locais (despesas fixas)
+        const localRecurring = rows.filter((row) => {
+          if (String(row.source ?? '') === 'supabase') return false;
+          const tags = String(row.tags ?? '');
+          return tags === 'recorrente' || tags.startsWith('recorrente:');
+        });
+        const supabaseSigs = new Set(supabaseRows.map(buildTransactionSignature));
+        const recurringNotInSupabase = localRecurring.filter(
+          (r) => !supabaseSigs.has(buildTransactionSignature(r)),
+        );
+        rows = [...supabaseRows, ...recurringNotInSupabase];
       }
     }
   }

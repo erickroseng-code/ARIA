@@ -10,7 +10,7 @@ import {
   addOverdueAccount, deleteOverdueAccount, getOverdueAccounts,
   addRecurringExpense, deleteRecurringExpense, getRecurringExpenses, updateRecurringExpense,
   applyRecurringExpensesForMonth, undoPayOverdue,
-  payDebt, payOverdue,
+  payDebt, payOverdue, payOverdueAccountPartially,
   getCreditCards, addCreditCard, deleteCreditCard,
 } from './agents/entries';
 
@@ -330,9 +330,13 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/overdue', async (_req: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/overdue', async (
+    req: FastifyRequest<{ Querystring: { month?: string } }>,
+    reply: FastifyReply,
+  ) => {
     try {
-      const accounts = await getOverdueAccounts();
+      const month = req.query?.month;
+      const accounts = await getOverdueAccounts(month);
       return reply.send({ accounts });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
@@ -419,6 +423,26 @@ export async function registerFinanceRoutes(fastify: FastifyInstance) {
       if (source !== 'supabase' && Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
       await undoPayOverdue(index, source);
       return reply.send({ success: true });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // POST /api/finance/overdue/:index/pay-partial-tracked — Pagar parcial com saldo rastreado
+  fastify.post('/overdue/:index/pay-partial-tracked', async (
+    req: FastifyRequest<{
+      Params: { index: string };
+      Body: { amount: number; paymentDate?: string };
+    }>,
+    reply: FastifyReply,
+  ) => {
+    try {
+      const index = parseInt(req.params.index, 10);
+      if (Number.isNaN(index)) return reply.status(400).send({ error: 'index inválido' });
+      if (!req.body?.amount || req.body.amount <= 0) return reply.status(400).send({ error: 'amount inválido' });
+
+      const result = await payOverdueAccountPartially(index, req.body.amount, req.body.paymentDate);
+      return reply.send(result);
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
     }

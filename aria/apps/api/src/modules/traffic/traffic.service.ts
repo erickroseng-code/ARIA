@@ -2,7 +2,13 @@ import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const META_API_BASE = 'https://graph.facebook.com/v20.0';
-const CACHE_FILE = join(process.cwd(), '.traffic-cache.json');
+const CACHE_FILE = join(process.cwd(), '.traffic-cache.v2.json');
+
+// Custom conversion "diagnostico-result" no Meta Pixel.
+// Aparece em actions como offsite_conversion.custom.{ID}.
+const LEAD_CUSTOM_CONVERSION_ID =
+  process.env.ATLAS_LEAD_CUSTOM_CONVERSION_ID?.trim() || '1004861885229051';
+const LEAD_ACTION_TYPE = `offsite_conversion.custom.${LEAD_CUSTOM_CONVERSION_ID}`;
 
 export class RateLimitError extends Error {
   constructor(message: string) {
@@ -58,6 +64,8 @@ export interface CampaignInsights {
   conversions?: number;        // ações de compra
   conversion_value?: number;   // receita de compras (R$)
   cost_per_conversion?: number;// custo por compra
+  leads?: number;              // custom conversion "diagnostico-result"
+  cost_per_lead?: number;      // custo por lead do custom conversion
   engagement?: number;         // engajamentos totais no post
   video_views_25?: number;     // vídeo assistido 25%
   video_views_50?: number;     // vídeo assistido 50%
@@ -77,6 +85,8 @@ export interface AccountInsights {
   avg_cpc: number;
   avg_roas: number;
   avg_cost_per_conversion: number;     // custo por lead/resultado (blended: spend total / resultados totais)
+  total_leads: number;                 // custom conversion "diagnostico-result" — soma
+  avg_cost_per_lead: number;           // blended: spend total / total de leads (custom)
   campaigns: CampaignInsights[];
 }
 
@@ -401,7 +411,11 @@ export class TrafficService {
       const spend = parseFloat(c.spend || '0');
       const roas = resultValue > 0 && spend > 0 ? resultValue / spend : undefined;
       const costPerResult = resultCount > 0 ? spend / resultCount : 0;
-      
+
+      // Custom conversion "diagnostico-result"
+      const leads = getVal(c.actions, LEAD_ACTION_TYPE);
+      const costPerLead = leads > 0 ? spend / leads : 0;
+
       const linkClicks = parseInt(c.inline_link_clicks || '0', 10);
       const linkCtr = parseFloat(c.inline_link_click_ctr || '0');
 
@@ -421,6 +435,8 @@ export class TrafficService {
         conversions: resultCount,
         conversion_value: resultValue,
         cost_per_conversion: costPerResult,
+        leads,
+        cost_per_lead: costPerLead,
         engagement: postEngagement ? parseInt(postEngagement, 10) : 0,
         video_views_25: parseInt(c.video_p25_watched_actions?.[0]?.value || '0', 10),
         video_views_50: parseInt(c.video_p50_watched_actions?.[0]?.value || '0', 10),
@@ -437,8 +453,9 @@ export class TrafficService {
         total_impressions: acc.total_impressions + c.impressions,
         total_clicks: acc.total_clicks + c.clicks,
         total_conversions: acc.total_conversions + (c.conversions ?? 0),
+        total_leads: acc.total_leads + (c.leads ?? 0),
       }),
-      { total_spend: 0, total_impressions: 0, total_clicks: 0, total_conversions: 0 }
+      { total_spend: 0, total_impressions: 0, total_clicks: 0, total_conversions: 0, total_leads: 0 }
     );
 
     // CTR médio = soma dos cliques no link / soma das impressões * 100
@@ -456,6 +473,10 @@ export class TrafficService {
     const avg_cost_per_conversion =
       totals.total_conversions > 0 ? totals.total_spend / totals.total_conversions : 0;
 
+    // CPL do custom conversion "diagnostico-result" blended
+    const avg_cost_per_lead =
+      totals.total_leads > 0 ? totals.total_spend / totals.total_leads : 0;
+
     const result: AccountInsights = {
       ...totals,
       avg_ctr,
@@ -463,6 +484,7 @@ export class TrafficService {
       avg_cpc,
       avg_roas,
       avg_cost_per_conversion,
+      avg_cost_per_lead,
       campaigns,
     };
 
@@ -495,6 +517,8 @@ export class TrafficService {
     roas: number;
     conversions: number;
     cost_per_conversion: number;
+    leads: number;
+    cost_per_lead: number;
   }>> {
     const cacheKey = `${workspace}|${accountId}|${datePreset}`;
     const cached = this.timeseriesCache.get(cacheKey);
@@ -540,6 +564,9 @@ export class TrafficService {
           const purchaseValue = getVal(d.action_values, 'purchase');
           const roas = purchaseValue > 0 && spend > 0 ? purchaseValue / spend : 0;
 
+          // Custom conversion "diagnostico-result"
+          const customLeads = getVal(d.actions, LEAD_ACTION_TYPE);
+
           return {
             date: d.date_start as string,
             spend,
@@ -551,6 +578,8 @@ export class TrafficService {
             roas,
             conversions,
             cost_per_conversion: conversions > 0 ? spend / conversions : 0,
+            leads: customLeads,
+            cost_per_lead: customLeads > 0 ? spend / customLeads : 0,
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date));

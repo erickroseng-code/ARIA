@@ -38,6 +38,8 @@ interface AccountInsights {
   avg_cpc: number;
   avg_roas: number;
   avg_cost_per_conversion: number;
+  total_leads: number;
+  avg_cost_per_lead: number;
   campaigns: CampaignInsights[];
 }
 
@@ -51,6 +53,9 @@ interface TimeseriesPoint {
   cpm: number;
   roas: number;
   conversions: number;
+  cost_per_conversion?: number;
+  leads?: number;
+  cost_per_lead?: number;
 }
 
 interface PeriodData {
@@ -128,6 +133,8 @@ const METRICS = [
   { key: 'avg_roas',                seriesKey: 'roas',                label: 'ROAS',             format: 'multiplier', desc: 'Retorno sobre investimento. >1x = lucro' },
   { key: 'avg_cost_per_conversion', seriesKey: 'cost_per_conversion', label: 'Custo por Lead',   format: 'currency',   desc: 'Custo por resultado (lead/compra/mensagem). Menor é melhor' },
   { key: 'total_conversions',       seriesKey: 'conversions',         label: 'Resultados',       format: 'number',     desc: 'Leads, compras ou mensagens geradas' },
+  { key: 'avg_cost_per_lead',       seriesKey: 'cost_per_lead',       label: 'CPL (Diagnóstico)', format: 'currency',   desc: 'Custo por lead do evento "diagnostico-result". Menor é melhor' },
+  { key: 'total_leads',             seriesKey: 'leads',               label: 'Leads (Diagnóstico)', format: 'number',  desc: 'Leads capturados pelo evento personalizado "diagnostico-result"' },
   { key: 'total_clicks',            seriesKey: 'clicks',              label: 'Cliques',          format: 'number',     desc: 'Cliques no link do anúncio' },
   { key: 'avg_cpc',                 seriesKey: 'cpc',                 label: 'CPC',              format: 'currency',   desc: 'Custo por clique. Quanto menor, melhor' },
   { key: 'avg_ctr',                 seriesKey: 'ctr',                 label: 'CTR',              format: 'percent',    desc: 'Taxa de cliques. Sinal de relevância' },
@@ -135,7 +142,7 @@ const METRICS = [
   { key: 'total_impressions',       seriesKey: 'impressions',         label: 'Impressões',       format: 'number',     desc: 'Total de vezes que o anúncio foi exibido' },
 ] as const;
 
-const LOWER_IS_BETTER = new Set(['avg_cpc', 'avg_cpm', 'avg_cost_per_conversion']);
+const LOWER_IS_BETTER = new Set(['avg_cpc', 'avg_cpm', 'avg_cost_per_conversion', 'avg_cost_per_lead']);
 
 const KPI_STORAGE_KEY = 'atlas_kpi_fields_v1';
 type KpiKey = typeof METRICS[number]['key'];

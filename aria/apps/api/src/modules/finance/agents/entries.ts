@@ -162,6 +162,12 @@ if (!hasColumn('finance_overdue_accounts', 'paidAt')) {
 if (!hasColumn('finance_overdue_accounts', 'paidTransactionId')) {
   db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN paidTransactionId INTEGER DEFAULT NULL`);
 }
+if (!hasColumn('finance_overdue_accounts', 'originMonth')) {
+  db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN originMonth TEXT DEFAULT NULL`);
+}
+if (!hasColumn('finance_overdue_accounts', 'carriedFromId')) {
+  db.exec(`ALTER TABLE finance_overdue_accounts ADD COLUMN carriedFromId INTEGER DEFAULT NULL`);
+}
 if (!hasColumn('finance_transactions', 'paymentMethod')) {
   db.exec(`ALTER TABLE finance_transactions ADD COLUMN paymentMethod TEXT DEFAULT 'outros'`);
 }
@@ -637,7 +643,19 @@ export async function deleteDebt(
   db.prepare('DELETE FROM finance_debts WHERE id = ?').run(rowIndex);
 }
 
-export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
+/**
+ * Lista contas atrasadas com filtro opcional por mês.
+ *
+ * Regras quando `month` é fornecido (ex: '2026-05'):
+ * - Contas TOTALMENTE PAGAS (status 'Pago'/'Paga'): aparecem SOMENTE no mês
+ *   em que foram pagas (paidAt dentro do mês selecionado).
+ * - Contas com SALDO PENDENTE (status 'Atrasada'/'Pendente'/'Parcialmente Paga'
+ *   com paidAmount < overdueAmount): aparecem em todos os meses a partir do
+ *   vencimento, com `overdueAmount` ajustado para o saldo restante.
+ *
+ * Sem `month`: retorna todas as contas (comportamento legado).
+ */
+export async function getOverdueAccounts(month?: string): Promise<OverdueRecord[]> {
   const supabaseRecords: OverdueRecord[] = [];
   // Tentar Supabase primeiro
   try {
@@ -740,17 +758,68 @@ export async function getOverdueAccounts(): Promise<OverdueRecord[]> {
     paidTransactionId: r.paidTransactionId != null ? Number(r.paidTransactionId) : null,
   }));
 
-  if (supabaseRecords.length === 0) return sqliteRecords;
+  // Combina supabase + local (dedup por account|amount|dueDate, sem status).
+  let combined: OverdueRecord[];
+  if (supabaseRecords.length === 0) {
+    combined = sqliteRecords;
+  } else {
+    const supabaseKeys = new Set<string>();
+    const buildKey = (r: OverdueRecord) =>
+      `${String(r.account).toLowerCase().trim()}|${Number(r.overdueAmount).toFixed(2)}|${r.dueDate}`;
+    for (const r of supabaseRecords) supabaseKeys.add(buildKey(r));
+    const sqliteUnique = sqliteRecords.filter((r) => !supabaseKeys.has(buildKey(r)));
+    const seen = new Set<string>();
+    const supabaseUnique = supabaseRecords.filter((r) => {
+      const key = buildKey(r);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    combined = [...supabaseUnique, ...sqliteUnique];
+  }
 
-  const dedupe = new Set<string>();
-  const combined = [...supabaseRecords, ...sqliteRecords].filter((r) => {
-    const key = `${String(r.account).toLowerCase()}|${Number(r.overdueAmount).toFixed(2)}|${r.dueDate}|${r.status}`;
-    if (dedupe.has(key)) return false;
-    dedupe.add(key);
-    return true;
-  });
+  // Filtro mensal: contas pagas só aparecem no mês de pagamento;
+  // contas com saldo aparecem em todos os meses a partir do vencimento,
+  // com overdueAmount ajustado para o saldo remanescente.
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return combined;
 
-  return combined;
+  const isPaid = (status: string): boolean => {
+    const s = String(status ?? '').toLowerCase().trim();
+    return s === 'pago' || s === 'paga' || s === 'resolved';
+  };
+
+  const filtered: OverdueRecord[] = [];
+  for (const r of combined) {
+    const totalDue = Number(r.overdueAmount ?? 0);
+    const paid = Number(r.paidAmount ?? 0);
+    const remaining = totalDue - paid;
+
+    if (isPaid(r.status)) {
+      // Aparece apenas no mês em que foi paga.
+      // Prioridade: paidAt > registeredAt (fallback para contas legadas sem paidAt).
+      const paidMonth = r.paidAt && /^\d{4}-\d{2}/.test(r.paidAt)
+        ? r.paidAt.slice(0, 7)
+        : (r.registeredAt && /^\d{4}-\d{2}/.test(r.registeredAt) ? r.registeredAt.slice(0, 7) : null);
+      if (paidMonth === month) {
+        filtered.push(r);
+      }
+      continue;
+    }
+
+    // Tem saldo pendente: aparece se vencimento <= último dia do mês selecionado
+    const dueMonth = r.dueDate && /^\d{4}-\d{2}/.test(r.dueDate) ? r.dueDate.slice(0, 7) : null;
+    if (dueMonth && dueMonth > month) continue; // vencimento futuro, não mostra ainda
+
+    if (remaining <= 0.01) continue; // sem saldo, mas status não-pago: skip
+
+    // Ajusta o valor exibido para o saldo remanescente (sem alterar o registro)
+    filtered.push({
+      ...r,
+      overdueAmount: Number(remaining.toFixed(2)),
+    });
+  }
+
+  return filtered;
 }
 
 export async function addOverdueAccount(input: OverdueInput): Promise<void> {
@@ -918,8 +987,14 @@ export async function payOverdue(
     }
 
     const overdueAmount = Number(current.overdue_amount ?? 0);
-    const paymentAmount = amount && amount > 0 ? amount : overdueAmount;
+    const currentPaid = Number(current.paid_amount ?? 0);
+    const paymentAmount = amount && amount > 0 ? amount : (overdueAmount - currentPaid);
     if (paymentAmount <= 0) throw new Error('Valor de pagamento inválido');
+
+    // Calcula novo total acumulado e decide status (Pago vs Parcialmente Paga)
+    const newPaidTotal = currentPaid + paymentAmount;
+    const isFullyPaid = newPaidTotal >= overdueAmount - 0.01;
+    const newStatus = isFullyPaid ? 'Pago' : 'Parcialmente Paga';
 
     const today = todayISO();
     const accountName = String(current.account_name ?? 'Conta atrasada');
@@ -943,8 +1018,8 @@ export async function payOverdue(
 
     const txId = txRow?.id ?? null;
     const payloadWithPaidFields = {
-      status: 'Pago',
-      paid_amount: paymentAmount,
+      status: newStatus,
+      paid_amount: newPaidTotal,
       paid_at: today,
       paid_transaction_id: txId,
     };
@@ -959,7 +1034,7 @@ export async function payOverdue(
     if (updateError) {
       const updateStatusOnly = await supabase
         .from('overdue_accounts')
-        .update({ status: 'Pago' })
+        .update({ status: newStatus })
         .eq('id', String(index));
       if (updateStatusOnly.error) {
         throw new Error(`Falha ao atualizar conta atrasada no Supabase: ${updateStatusOnly.error.message}`);
@@ -969,16 +1044,23 @@ export async function payOverdue(
   }
 
   const current = db.prepare(`
-    SELECT id, account, overdueAmount, status
+    SELECT id, account, overdueAmount, status, paidAmount
     FROM finance_overdue_accounts
     WHERE id = ?
   `).get(index) as any;
   if (!current) throw new Error('Conta atrasada não encontrada');
-  if (String(current.status ?? '') === 'Pago') throw new Error('Conta já está paga. Use desfazer para revertê-la.');
+  if (String(current.status ?? '') === 'Pago' || String(current.status ?? '') === 'Paga') {
+    throw new Error('Conta já está paga. Use desfazer para revertê-la.');
+  }
 
   const overdueAmount = Number(current.overdueAmount ?? 0);
-  const paymentAmount = amount && amount > 0 ? amount : overdueAmount;
+  const currentPaid = Number(current.paidAmount ?? 0);
+  const paymentAmount = amount && amount > 0 ? amount : (overdueAmount - currentPaid);
   if (paymentAmount <= 0) throw new Error('Valor de pagamento inválido');
+
+  const newPaidTotal = currentPaid + paymentAmount;
+  const isFullyPaid = newPaidTotal >= overdueAmount - 0.01;
+  const newStatus = isFullyPaid ? 'Pago' : 'Parcialmente Paga';
 
   const txId = addLocalExpenseTransaction(
     `Pagamento conta atrasada - ${String(current.account ?? 'Conta atrasada')}`,
@@ -993,9 +1075,9 @@ export async function payOverdue(
 
   db.prepare(`
     UPDATE finance_overdue_accounts
-    SET status = 'Pago', paidAmount = ?, paidAt = ?, paidTransactionId = ?
+    SET status = ?, paidAmount = ?, paidAt = ?, paidTransactionId = ?
     WHERE id = ?
-  `).run(paymentAmount, todayISO(), txId, index);
+  `).run(newStatus, newPaidTotal, todayISO(), txId, index);
 }
 
 export async function undoPayOverdue(
@@ -1332,4 +1414,269 @@ export async function applyRecurringExpensesForMonth(month?: string): Promise<vo
       WHERE id = ?
     `).run(targetMonth, recurringId);
   }
+}
+
+/**
+ * Migra despesas fixas vencidas E não efetivadas para a aba "Atrasadas".
+ *
+ * Para cada despesa recorrente ativa cuja data de vencimento já passou:
+ * - Verifica se a transação correspondente está efetivada (isEffective=1 ou tag 'efetivado')
+ * - Se NÃO foi efetivada, cria entrada em finance_overdue_accounts (idempotente)
+ *
+ * Idempotência: usa par (description, dueDate) para evitar duplicatas.
+ */
+export async function migrateOverdueRecurringExpensesForMonth(month?: string): Promise<void> {
+  const targetMonth = normalizeMonth(month);
+  const today = todayISO();
+
+  const recurring = db.prepare(`
+    SELECT id, description, category, amount, dayOfMonth, startMonth
+    FROM finance_recurring_expenses
+    WHERE active = 1
+  `).all() as Array<any>;
+
+  for (const rec of recurring) {
+    const recId = Number(rec.id);
+    const startMonth = String(rec.startMonth ?? targetMonth);
+    if (startMonth > targetMonth) continue; // ainda não começou
+
+    const dueDate = getMonthDate(targetMonth, Number(rec.dayOfMonth ?? 1));
+    if (dueDate >= today) continue; // ainda não venceu
+
+    const description = String(rec.description ?? '');
+    const amount = Number(rec.amount ?? 0);
+    if (!description || amount <= 0) continue;
+
+    // 1. Procura transação correspondente local (tag recorrente:{id}:{mes})
+    const recurringTag = `recorrente:${recId}:${targetMonth}`;
+    const localTx = db.prepare(`
+      SELECT isEffective, tags FROM finance_transactions WHERE tags = ? LIMIT 1
+    `).get(recurringTag) as { isEffective: number; tags: string } | undefined;
+
+    let isEffectivelyPaid = false;
+    if (localTx) {
+      const tags = String(localTx.tags ?? '').toLowerCase();
+      isEffectivelyPaid = Number(localTx.isEffective) === 1 || tags.includes('efetivado');
+    }
+
+    // 2. Se não temos info local de efetivação, consulta Supabase também
+    if (!isEffectivelyPaid && USE_SUPABASE) {
+      try {
+        const supabase = getSupabase();
+        const [yyyy, mm] = targetMonth.split('-').map(Number);
+        const startDate = `${targetMonth}-01`;
+        const nextY = mm === 12 ? yyyy + 1 : yyyy;
+        const nextM = mm === 12 ? 1 : mm + 1;
+        const endDate = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+
+        const { data } = await supabase
+          .from('transactions')
+          .select('id, tags, amount, description')
+          .eq('description', description)
+          .gte('date', startDate)
+          .lt('date', endDate);
+
+        if (data && data.length > 0) {
+          for (const tx of data) {
+            if (Math.abs(Number(tx.amount) - amount) > 0.01) continue;
+            const tagsStr = Array.isArray(tx.tags)
+              ? tx.tags.join(',').toLowerCase()
+              : String(tx.tags || '').toLowerCase();
+            if (tagsStr.includes('efetivado')) {
+              isEffectivelyPaid = true;
+              break;
+            }
+          }
+        }
+      } catch {
+        /* ignora erros de leitura — assume não efetivada */
+      }
+    }
+
+    if (isEffectivelyPaid) continue;
+
+    // 3. Idempotência: verifica se já existe conta atrasada para essa despesa nesse vencimento
+    const existing = db.prepare(`
+      SELECT id FROM finance_overdue_accounts
+      WHERE account = ? AND dueDate = ?
+      LIMIT 1
+    `).get(description, dueDate);
+
+    if (existing) continue;
+
+    // 4. Cria conta atrasada
+    const daysOverdue = calculateDaysOverdue(dueDate);
+    db.prepare(`
+      INSERT INTO finance_overdue_accounts (
+        account, overdueAmount, daysOverdue, dueDate, registeredAt, status, originMonth
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      description,
+      amount,
+      daysOverdue,
+      dueDate,
+      today,
+      'Atrasada',
+      targetMonth,
+    );
+  }
+}
+
+/**
+ * Helper: retorna mês anterior no formato YYYY-MM
+ */
+function getPreviousMonth(month: string): string {
+  const [year, monthNum] = month.split('-').map(Number);
+  if (monthNum === 1) return `${year - 1}-12`;
+  return `${year}-${String(monthNum - 1).padStart(2, '0')}`;
+}
+
+/**
+ * Carrega contas atrasadas não pagas (ou parcialmente pagas) do mês anterior
+ * para o mês atual. Idempotente: usa carriedFromId para evitar duplicação.
+ *
+ * Comportamento:
+ * - paidAmount IS NULL ou < overdueAmount → tem saldo pendente
+ * - Cria novo registro no mês atual com saldo restante
+ * - Marca o registro original com originMonth (rastreável)
+ * - Usa carriedFromId no novo registro para idempotência
+ */
+export async function carryoverOverdueAccountsForMonth(month?: string): Promise<void> {
+  const targetMonth = normalizeMonth(month);
+  const prevMonth = getPreviousMonth(targetMonth);
+
+  // Pega contas atrasadas do mês anterior que ainda têm saldo pendente
+  const unpaidAccounts = db.prepare(`
+    SELECT id, account, overdueAmount, daysOverdue, dueDate, registeredAt, status, paidAmount, originMonth
+    FROM finance_overdue_accounts
+    WHERE (
+      (originMonth = ? OR (originMonth IS NULL AND registeredAt LIKE ?))
+    )
+    AND (paidAmount IS NULL OR paidAmount < overdueAmount)
+    AND status != 'Pago'
+    AND status != 'Paga'
+  `).all(prevMonth, `${prevMonth}%`) as Array<any>;
+
+  for (const account of unpaidAccounts) {
+    const sourceId = Number(account.id ?? 0);
+    const totalDue = Number(account.overdueAmount ?? 0);
+    const alreadyPaid = Number(account.paidAmount ?? 0);
+    const remainingAmount = totalDue - alreadyPaid;
+
+    if (remainingAmount <= 0.01) continue;
+
+    // Idempotência: já existe um carregamento desta conta para o mês alvo?
+    const alreadyCarried = db.prepare(`
+      SELECT id FROM finance_overdue_accounts
+      WHERE carriedFromId = ? AND originMonth = ?
+      LIMIT 1
+    `).get(sourceId, targetMonth) as { id: number } | undefined;
+
+    if (alreadyCarried) continue;
+
+    const newDaysOverdue = calculateDaysOverdue(account.dueDate)
+      || (Number(account.daysOverdue ?? 0) + 30);
+
+    // Cria novo registro no mês atual com saldo remanescente
+    db.prepare(`
+      INSERT INTO finance_overdue_accounts (
+        account, overdueAmount, daysOverdue, dueDate,
+        registeredAt, status, originMonth, carriedFromId, paidAmount
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    `).run(
+      `${account.account} (ref: ${prevMonth})`,
+      remainingAmount,
+      newDaysOverdue,
+      String(account.dueDate ?? ''),
+      todayISO(),
+      'Atrasada',
+      targetMonth,
+      sourceId,
+    );
+
+    // Marca a conta original com originMonth se ainda não tinha
+    if (!account.originMonth) {
+      db.prepare(`
+        UPDATE finance_overdue_accounts
+        SET originMonth = ?
+        WHERE id = ?
+      `).run(prevMonth, sourceId);
+    }
+  }
+}
+
+/**
+ * Pagamento parcial rastreado: registra valor pago e mantém saldo pendente.
+ *
+ * Comportamento:
+ * - Cria transação de despesa com o valor pago
+ * - Atualiza paidAmount, paidAt, paidTransactionId no registro
+ * - Status: 'Parcialmente Paga' se sobrou saldo, 'Paga' se quitou
+ * - Próximo mês: carryoverOverdueAccountsForMonth criará novo registro com saldo restante
+ */
+export async function payOverdueAccountPartially(
+  accountId: number,
+  paidAmount: number,
+  paymentDate?: string,
+): Promise<{ success: boolean; message: string; remainingBalance: number }> {
+  const account = db.prepare(`
+    SELECT id, account, overdueAmount, status, paidAmount
+    FROM finance_overdue_accounts
+    WHERE id = ?
+  `).get(accountId) as any;
+
+  if (!account) {
+    return { success: false, message: 'Conta atrasada não encontrada', remainingBalance: 0 };
+  }
+
+  const totalDue = Number(account.overdueAmount ?? 0);
+  const alreadyPaid = Number(account.paidAmount ?? 0);
+  const currentBalance = totalDue - alreadyPaid;
+
+  if (paidAmount <= 0) {
+    return { success: false, message: 'Valor de pagamento deve ser positivo', remainingBalance: currentBalance };
+  }
+
+  if (paidAmount > currentBalance + 0.01) {
+    return {
+      success: false,
+      message: `Valor excede saldo devedor (R$ ${currentBalance.toFixed(2)})`,
+      remainingBalance: currentBalance,
+    };
+  }
+
+  const newTotalPaid = alreadyPaid + paidAmount;
+  const remainingBalance = Math.max(0, totalDue - newTotalPaid);
+  const txDate = paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate) ? paymentDate : todayISO();
+
+  // Cria transação de pagamento
+  const txId = db.prepare(`
+    INSERT INTO finance_transactions (date, type, category, description, amount, tags, isEffective)
+    VALUES (?, 'despesa', 'Contas em Atraso', ?, ?, 'efetivado,pagamento-atrasada', 1)
+  `).run(
+    txDate,
+    `Pagamento: ${account.account}`,
+    paidAmount,
+  ).lastInsertRowid;
+
+  const newStatus = remainingBalance <= 0.01 ? 'Paga' : 'Parcialmente Paga';
+
+  db.prepare(`
+    UPDATE finance_overdue_accounts
+    SET paidAmount = ?, paidAt = ?, paidTransactionId = ?, status = ?
+    WHERE id = ?
+  `).run(
+    newTotalPaid,
+    txDate,
+    Number(txId),
+    newStatus,
+    accountId,
+  );
+
+  return {
+    success: true,
+    message: `Pagamento de R$ ${paidAmount.toFixed(2)} registrado. ${remainingBalance > 0 ? `Saldo pendente: R$ ${remainingBalance.toFixed(2)}` : 'Conta quitada!'}`,
+    remainingBalance,
+  };
 }
