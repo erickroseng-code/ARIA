@@ -225,22 +225,77 @@ function buildTransactionSignature(row: any): string {
   return `${date}|${type}|${category}|${description}|${amount}`;
 }
 
+/**
+ * Normaliza descrição removendo prefixos ("Pagamento conta atrasada -") e
+ * sufixos de mês ("fevereiro", "março") para fazer match flexível entre
+ * descrições do Supabase e descrições base de despesas recorrentes.
+ */
+function normalizeDescription(s: string): string {
+  let d = String(s ?? '').trim().toLowerCase();
+  // Remove prefixos comuns de pagamento
+  d = d.replace(/^pagamento\s+conta\s+atrasada\s*[-–—]\s*/i, '');
+  d = d.replace(/^pagamento\s*[-–—]?\s*/i, '');
+  // Remove sufixos de mês
+  d = d.replace(/\s+(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)$/i, '');
+  // Remove parênteses com datas/anos no final, ex: "(20/03/2026)" ou "(2026-03)"
+  d = d.replace(/\s*\([^)]*\)\s*$/i, '');
+  return d.trim();
+}
+
 function dedupeLocalRowsWhenSupabaseExists(rows: any[]): any[] {
   const hasSupabaseRows = rows.some((row) => String(row.source ?? '') === 'supabase');
   if (!hasSupabaseRows) return rows;
 
-  const supabaseSignatures = new Set(
-    rows
-      .filter((row) => String(row.source ?? '') === 'supabase')
-      .map(buildTransactionSignature),
-  );
+  const supabaseRows = rows.filter((row) => String(row.source ?? '') === 'supabase');
 
-  if (supabaseSignatures.size === 0) return rows;
+  // 1. Assinatura estrita (date|type|category|description|amount)
+  const supabaseSignatures = new Set(supabaseRows.map(buildTransactionSignature));
+
+  // 2. Para DESPESAS RECORRENTES locais: se existe despesa do Supabase no
+  //    MESMO mês cuja description normalizada bate (ou contém/é contida pela
+  //    da local), considera duplicata. Isso evita ver "Vivo Móvel" (recorrência)
+  //    e "Vivo Móvel Fevereiro" (pagamento real) ambos em abril.
+  type SupabaseExpenseInfo = { month: string; descNorm: string };
+  const supabaseExpenses: SupabaseExpenseInfo[] = [];
+  for (const r of supabaseRows) {
+    const type = String(r.type ?? '').trim();
+    if (type !== 'despesa' && type !== 'expense') continue;
+    const date = String(r.date ?? '');
+    const month = /^\d{4}-\d{2}/.test(date) ? date.slice(0, 7) : '';
+    const descNorm = normalizeDescription(r.description);
+    if (month && descNorm) supabaseExpenses.push({ month, descNorm });
+  }
 
   return rows.filter((row) => {
     const source = String(row.source ?? '');
     if (source === 'supabase') return true;
-    return !supabaseSignatures.has(buildTransactionSignature(row));
+
+    // Dedup estrito por assinatura completa
+    if (supabaseSignatures.has(buildTransactionSignature(row))) return false;
+
+    // Dedup específico para despesas recorrentes locais (match flexível)
+    const tags = String(row.tags ?? '');
+    const isRecurringTag = tags === 'recorrente' || tags.startsWith('recorrente:');
+    if (isRecurringTag) {
+      const date = String(row.date ?? '');
+      const month = /^\d{4}-\d{2}/.test(date) ? date.slice(0, 7) : '';
+      const localNorm = normalizeDescription(row.description);
+      if (month && localNorm) {
+        for (const sb of supabaseExpenses) {
+          if (sb.month !== month) continue;
+          // Match: igualdade exata OU uma contém a outra (palavra completa)
+          if (
+            sb.descNorm === localNorm ||
+            sb.descNorm.includes(localNorm) ||
+            localNorm.includes(sb.descNorm)
+          ) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   });
 }
 
