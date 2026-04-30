@@ -815,21 +815,37 @@ export function FinanceSession({ onClose }: FinanceSessionProps) {
           }
         }
       } else if (editingTx) {
-        await fetch(`/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
+        const res = await fetch(`/api/finance/transaction/${editingTx.index}?source=${editingTx.source}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error ?? `Falha ao atualizar transação (HTTP ${res.status})`);
+        }
       } else {
-        await fetch(`/api/finance/transaction`, {
+        const res = await fetch(`/api/finance/transaction`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error ?? `Falha ao salvar transação (HTTP ${res.status})`);
+        }
       }
 
       closeModal();
-      await loadAll();
+      try {
+        await loadAll();
+      } catch (loadErr: any) {
+        console.error('[saveTx] loadAll error after save:', loadErr);
+        window.alert('Transação salva, mas falhou ao recarregar dados. Atualize a página.');
+      }
+    } catch (err: any) {
+      console.error('[saveTx] error:', err);
+      window.alert(err?.message ?? 'Falha ao salvar transação. Verifique o console.');
     } finally {
       setSaving(false);
     }
